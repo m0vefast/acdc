@@ -6,7 +6,13 @@ Thank you for your interest in contributing! This guide covers the essentials. F
 
 1. **Fork and clone** the repository
 2. **Install Rust** via [rustup](https://rustup.rs/) (the correct version is specified in `rust-toolchain.toml`)
-3. **Build and test**:
+3. **Install Zig 0.15.x** for the Ghostty-backed terminal converter tests:
+   ```bash
+   zig version
+   ```
+   If Zig is missing, install it with your package manager or from [ziglang.org/download](https://ziglang.org/download/).
+   On macOS 26 / Xcode 26.4 or newer, use a Zig install that includes the macOS linker fix for C/libSystem-backed Zig build scripts.
+4. **Build and test**:
    ```bash
    cargo build --all
    cargo nextest run
@@ -29,6 +35,10 @@ Before submitting, ensure:
 - Code is formatted: `cargo fmt --all`
 - Lints pass: `cargo clippy --all-targets --all-features -- --deny clippy::pedantic`
 - Tests pass: `cargo nextest run`
+
+`--all-features` clippy and converter tests build `libghostty-vt-sys`, which
+uses Zig to compile Ghostty's virtual terminal library. Set `GHOSTTY_SOURCE_DIR`
+only if you want to reuse an existing local Ghostty checkout.
 
 The project uses strict linting (see `Cargo.toml` workspace lints). Key standards:
 - No unsafe code

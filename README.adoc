@@ -76,6 +76,22 @@ acdc/
 
 == Building & testing
 
+The full workspace test and clippy targets include headless terminal rendering
+tests backed by Ghostty's virtual terminal library. Install Zig 0.15.x locally
+before running all-features checks:
+
+[source,bash]
+----
+zig version
+----
+
+If Zig is not installed, use your system package manager or download a 0.15.x
+release from https://ziglang.org/download/[ziglang.org/download]. On macOS 26 /
+Xcode 26.4 or newer, use a Zig install that includes the macOS linker fix for
+C/libSystem-backed Zig build scripts. The Ghostty test dependency fetches and
+builds its pinned Ghostty source during the Cargo build unless
+`GHOSTTY_SOURCE_DIR` points at an existing Ghostty checkout.
+
 [source,bash]
 ----
 # Build all crates

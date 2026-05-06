@@ -66,3 +66,37 @@ fn main() {
 ....
 
 The highlighted code will display with appropriate colors for your terminal. If a language isn't recognized or no language is specified, the code block renders as plain text.
+
+## Development
+
+The terminal converter includes headless integration tests that feed converter
+output through Ghostty's virtual terminal emulator and assert on rendered cells.
+These tests use `libghostty-vt`, whose native build requires Zig 0.15.x.
+
+[source,bash]
+----
+zig version
+----
+
+If Zig is not installed, install a 0.15.x release with your package manager or
+from https://ziglang.org/download/[ziglang.org/download]. During the first
+build, `libghostty-vt-sys` fetches Ghostty at its pinned commit and compiles the
+virtual terminal library with Zig.
+
+On macOS 26 / Xcode 26.4 or newer, use a Zig install that includes the macOS
+linker fix for C/libSystem-backed Zig build scripts.
+
+To reuse an existing Ghostty checkout instead of letting the build fetch one,
+set `GHOSTTY_SOURCE_DIR` to a checkout containing `build.zig`:
+
+[source,bash]
+----
+GHOSTTY_SOURCE_DIR=/path/to/ghostty cargo nextest run -p acdc-converters-terminal --all-features
+----
+
+To run only the Ghostty-backed tests:
+
+[source,bash]
+----
+cargo nextest run -p acdc-converters-terminal --test headless_terminal_test --all-features
+----
