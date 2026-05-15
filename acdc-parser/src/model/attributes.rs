@@ -78,6 +78,17 @@ impl<'a> AttributeMap<'a> {
         }
     }
 
+    /// Insert a runtime default (e.g. `safe-mode-level`, `backend`). Visible
+    /// to attribute substitution and conditional evaluation, but not tracked
+    /// as `explicit` — i.e. omitted from `Serialize` output the same way
+    /// `DEFAULT_ATTRIBUTE_ENTRIES` constants are. No-op if the key is
+    /// already present (user attributes win).
+    fn insert_default(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
+        if !self.contains_key(&name) {
+            self.all.insert(name, value);
+        }
+    }
+
     fn set(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
         self.all.insert(name.clone(), value.clone());
         self.explicit.insert(name, value); // Track as explicit
@@ -207,6 +218,14 @@ impl<'a> DocumentAttributes<'a> {
     pub fn insert(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
         validate_bounded_attribute(&name, &value);
         self.0.insert(name, value);
+    }
+
+    /// Insert a runtime default — visible for substitution and conditional
+    /// evaluation, but not serialized as an explicit attribute. No-op if the
+    /// key is already present (user-set values win).
+    pub fn insert_default(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
+        validate_bounded_attribute(&name, &value);
+        self.0.insert_default(name, value);
     }
 
     /// Set an attribute, overwriting any existing value.

@@ -86,6 +86,64 @@ impl<'a> Options<'a> {
             setext: self.setext,
         }
     }
+
+    /// Inject Asciidoctor-style runtime built-in attributes into
+    /// `document_attributes` based on the current configuration.
+    ///
+    /// Adds:
+    /// - `safe-mode-name`, `safe-mode-level`, and the matching `safe-mode-{name}` marker
+    /// - `asciidoctor`, `asciidoctor-version`
+    /// - `backend`, `backend-html5`, `basebackend`, `basebackend-html`,
+    ///   `filetype`, `filetype-html` (acdc currently only emits HTML5 from this path)
+    /// - `doctype`, `doctype-article` (default doctype)
+    ///
+    /// User-provided attributes (set explicitly via the builder or
+    /// `with_attribute*`) are preserved — built-ins use `insert_default`,
+    /// which is a no-op if the key already exists and never marks the entry
+    /// as `explicit` (so they stay out of serialized ASG output).
+    ///
+    /// Idempotent: calling more than once is harmless.
+    #[must_use]
+    pub fn with_runtime_builtins(mut self) -> Self {
+        let (safe_name, safe_level): (&'static str, &'static str) = match self.safe_mode {
+            SafeMode::Unsafe => ("unsafe", "0"),
+            SafeMode::Safe => ("safe", "1"),
+            SafeMode::Server => ("server", "10"),
+            SafeMode::Secure => ("secure", "20"),
+        };
+        let attrs = &mut self.document_attributes;
+        let str_val = |s: &'static str| AttributeValue::String(Cow::Borrowed(s));
+        // Safe-mode trio + marker
+        attrs.insert_default(Cow::Borrowed("safe-mode-name"), str_val(safe_name));
+        attrs.insert_default(Cow::Borrowed("safe-mode-level"), str_val(safe_level));
+        attrs.insert_default(
+            Cow::Borrowed(match self.safe_mode {
+                SafeMode::Unsafe => "safe-mode-unsafe",
+                SafeMode::Safe => "safe-mode-safe",
+                SafeMode::Server => "safe-mode-server",
+                SafeMode::Secure => "safe-mode-secure",
+            }),
+            str_val(""),
+        );
+        // Implementation identity. Version intentionally tagged so docs that
+        // gate on Asciidoctor version don't accidentally treat acdc as a
+        // specific Asciidoctor release.
+        attrs.insert_default(Cow::Borrowed("asciidoctor"), str_val(""));
+        attrs.insert_default(
+            Cow::Borrowed("asciidoctor-version"),
+            str_val(concat!(env!("CARGO_PKG_VERSION"), "-acdc")),
+        );
+        // Backend / filetype / doctype defaults — currently html5/article only.
+        attrs.insert_default(Cow::Borrowed("backend"), str_val("html5"));
+        attrs.insert_default(Cow::Borrowed("backend-html5"), str_val(""));
+        attrs.insert_default(Cow::Borrowed("basebackend"), str_val("html"));
+        attrs.insert_default(Cow::Borrowed("basebackend-html"), str_val(""));
+        attrs.insert_default(Cow::Borrowed("filetype"), str_val("html"));
+        attrs.insert_default(Cow::Borrowed("filetype-html"), str_val(""));
+        attrs.insert_default(Cow::Borrowed("doctype"), str_val("article"));
+        attrs.insert_default(Cow::Borrowed("doctype-article"), str_val(""));
+        self
+    }
 }
 
 /// Builder for `Options` that provides an API for configuration.

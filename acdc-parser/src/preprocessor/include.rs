@@ -154,8 +154,13 @@ peg::parser! {
             }
 
         rule attribute_key() -> String
-            // Note: "tags" must come before "tag" due to PEG's ordered choice
-            = k:$("leveloffset" / "lines" / "tags" / "tag" / "indent" / "encoding" / "opts") {
+            // G4 (Asciidoctor reference compat): accept any identifier-like key.
+            // Real-world docs use `role`, `title`, `id`, `align`, and
+            // vendor-specific keys; Asciidoctor silently ignores anything it
+            // doesn't recognise. The recognised keys (leveloffset / lines /
+            // tag / tags / indent / encoding / opts) are matched in the
+            // dispatch handler — unknowns warn and fall through.
+            = k:$(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']*) {
                 k.to_string()
             }
 
@@ -312,16 +317,13 @@ impl<'a> Include<'a> {
                     self.opts.extend(value.split(',').map(str::to_string));
                 }
                 unknown => {
-                    tracing::error!(?unknown, "unknown attribute key in include directive");
-                    return Err(Error::InvalidIncludeDirective(
-                        Box::new(SourceLocation {
-                            file: self.current_file.clone(),
-                            positioning: Positioning::Position(Position {
-                                line: self.line_number,
-                                column: 1,
-                            }),
-                        }),
-                        unknown.to_string(),
+                    // G4 (Asciidoctor reference compat): unknown include
+                    // attributes warn and are ignored. Hard-rejecting bricked
+                    // real-world docs that use `role`, `title`, `id`, vendor
+                    // extensions, etc. Asciidoctor accepts and discards them.
+                    tracing::warn!(?unknown, "unknown attribute key in include directive; ignored");
+                    self.warn_unlocated(format!(
+                        "Unknown include attribute '{unknown}'; ignored"
                     ));
                 }
             }
@@ -842,6 +844,39 @@ mod tests {
         let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
 
         assert_eq!(include.tags, vec![TagName::from("**")]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_include_with_unknown_attribute() -> Result<(), Error> {
+        // G4 (Asciidoctor reference compat): real-world docs include attributes
+        // outside the whitelist (`role`, `title`, `id`, `align`, vendor-specific
+        // extensions, …). Asciidoctor accepts them and quietly ignores anything
+        // it doesn't recognise. Strict rejection bricks ~1/3 of real .adoc docs
+        // we see in the wild — bring acdc in line by warning + continuing instead
+        // of returning Error::InvalidIncludeDirective.
+        let path = PathBuf::from("/tmp");
+        let line = "include::target.adoc[role=quote,title=Example,leveloffset=+1]";
+        let options = Options::default();
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+
+        // Recognised attribute still wins through.
+        assert_eq!(include.level_offset, Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_include_with_only_unknown_attributes() -> Result<(), Error> {
+        // All unknowns — must still parse cleanly, leaving the optional fields
+        // at their defaults.
+        let path = PathBuf::from("/tmp");
+        let line = "include::target.adoc[role=quote,id=intro,align=center]";
+        let options = Options::default();
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+
+        assert_eq!(include.level_offset, None);
+        assert!(include.line_range.is_empty());
+        assert!(include.tags.is_empty());
         Ok(())
     }
 
