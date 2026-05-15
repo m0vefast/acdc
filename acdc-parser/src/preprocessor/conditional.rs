@@ -230,23 +230,31 @@ impl Ifeval {
         let left = self.left.convert(attributes);
         let right = self.right.convert(attributes);
 
-        // TOOD(nlopes): There are a few better ways to do this, but for now, this is
-        // fine. I'm just going for functionality.
         match (&left, &right) {
             (EvalValue::Number(_), EvalValue::Number(_))
             | (EvalValue::Boolean(_), EvalValue::Boolean(_))
             | (EvalValue::String(_), EvalValue::String(_)) => {}
             _ => {
-                tracing::error!("cannot compare different types of values in ifeval directive");
-                return Err(Error::InvalidIfEvalDirectiveMismatchedTypes(Box::new(
-                    SourceLocation {
-                        file: file_parent.map(Path::to_path_buf),
-                        positioning: Positioning::Position(Position {
-                            line: line_number,
-                            column: 1,
-                        }),
-                    },
-                )));
+                // Asciidoctor reference behavior: warn and treat the directive
+                // as false rather than abort the whole document. Strict
+                // implementations may upgrade this to an error later; for now
+                // we mirror the lenient mainline behavior so real-world docs
+                // that gate on built-in attributes (e.g. `{safe-mode-level}`)
+                // keep rendering instead of bailing.
+                let location = SourceLocation {
+                    file: file_parent.map(Path::to_path_buf),
+                    positioning: Positioning::Position(Position {
+                        line: line_number,
+                        column: 1,
+                    }),
+                };
+                tracing::warn!(
+                    ?location,
+                    left = ?left,
+                    right = ?right,
+                    "ifeval comparing values of different types; treating as false",
+                );
+                return Ok(false);
             }
         }
 
@@ -266,8 +274,14 @@ impl EvalValue {
     fn convert(&self, attributes: &DocumentAttributes) -> Self {
         match self {
             EvalValue::String(s) => {
-                // First we substitute any attributes in the string with their values
+                // First we substitute any attributes in the string with their values.
                 let s = substitute(s, HEADER, attributes);
+                // Asciidoctor reference behavior for ifeval: any attribute
+                // reference that survived substitution (i.e. undefined) is
+                // treated as an empty string. This is independent of the
+                // document-wide `attribute-missing` setting, which only
+                // governs normal text substitution.
+                let s = Self::drop_unresolved_attr_refs(&s);
 
                 // Try to parse as bool, f64, or evaluate as expression, otherwise return as string
                 s.parse::<bool>()
@@ -286,13 +300,55 @@ impl EvalValue {
         }
     }
 
+    /// Strip an outermost matching pair of single or double quotes.
+    /// `'foo'` and `"foo"` both become `foo`; unbalanced quotes are left alone.
     #[tracing::instrument(level = "trace")]
     fn strip_quotes(s: &str) -> String {
-        if s.starts_with('\'') && s.ends_with('\'') {
+        let bytes = s.as_bytes();
+        if bytes.len() >= 2
+            && ((bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\'')
+                || (bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"'))
+        {
             s[1..s.len() - 1].to_string()
         } else {
             s.to_string()
         }
+    }
+
+    /// Strip any `{name}` attribute references that survived substitution.
+    /// Used by ifeval, where Asciidoctor semantics treat undefined attribute
+    /// references as empty strings regardless of the global
+    /// `attribute-missing` setting.
+    fn drop_unresolved_attr_refs(s: &str) -> String {
+        if !s.contains('{') {
+            return s.to_string();
+        }
+        let mut out = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch != '{' {
+                out.push(ch);
+                continue;
+            }
+            // Lookahead: collect chars until '}' or end.
+            let mut buf = String::new();
+            let mut closed = false;
+            while let Some(&next) = chars.peek() {
+                chars.next();
+                if next == '}' {
+                    closed = true;
+                    break;
+                }
+                buf.push(next);
+            }
+            if !closed {
+                // Unbalanced — preserve literal so we don't silently lose text.
+                out.push('{');
+                out.push_str(&buf);
+            }
+            // Else: drop the entire `{name}` (undefined attr → empty).
+        }
+        out
     }
 }
 
@@ -420,16 +476,31 @@ mod tests {
             matches!(&conditional, Conditional::Ifeval(ifeval) if ifeval.left == EvalValue::String("'1+1'".to_string()) && ifeval.operator == Operator::GreaterThanOrEqual && ifeval.right == EvalValue::String("2".to_string()))
         );
 
-        assert!(matches!(
-            conditional.is_true(
-                &DocumentAttributes::default(),
-                &mut String::new(),
-                1,
-                0,
-                None
-            ),
-            Err(Error::InvalidIfEvalDirectiveMismatchedTypes(..))
-        ));
+        // Asciidoctor reference behavior: mismatched-type ifeval is a warning,
+        // not an error. The directive evaluates to false and parsing continues.
+        let result = conditional.is_true(
+            &DocumentAttributes::default(),
+            &mut String::new(),
+            1,
+            0,
+            None,
+        )?;
+        assert!(!result, "mismatched-type ifeval should evaluate to false");
+        Ok(())
+    }
+
+    #[test]
+    fn test_ifeval_undefined_attr_treated_as_empty() -> Result<(), Error> {
+        // Asciidoctor ifeval semantics: an attribute reference that is not
+        // defined substitutes to the empty string, regardless of the
+        // document-wide `attribute-missing` setting. This is the path that
+        // makes `ifeval::["{author}" == ""]` evaluate true when `author` is
+        // undefined.
+        let line = "ifeval::[\"{author}\" == \"\"]";
+        let conditional = parse_line(line, 1, 0, None)?;
+        let attrs = DocumentAttributes::default();
+        let result = conditional.is_true(&attrs, &mut String::new(), 1, 0, None)?;
+        assert!(result, "undefined attr should compare equal to empty string");
         Ok(())
     }
 
