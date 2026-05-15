@@ -2,6 +2,7 @@
 members = [
   "acdc-cli",
   "acdc-editor-wasm",
+  "acdc-glyph-wasm",
   "acdc-lsp",
   "acdc-parser",
   "converters/core",
