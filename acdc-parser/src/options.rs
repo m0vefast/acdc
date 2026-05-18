@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 pub use crate::safe_mode::SafeMode;
 
+use crate::file_resolver::DynFileResolver;
 use crate::{AttributeValue, DocumentAttributes};
 
 #[derive(Debug, Clone, Default)]
@@ -25,6 +26,18 @@ pub struct Options<'a> {
     /// ```
     #[cfg(feature = "setext")]
     pub setext: bool,
+    /// Pluggable file reader for the include preprocessor. `None` falls back
+    /// to `std::fs::read` on native targets; WASM embeddings MUST set one
+    /// (otherwise every `include::` silently no-ops because wasm32-unknown-
+    /// unknown has no `std::fs`). See `crate::file_resolver::FileResolver`.
+    pub file_resolver: Option<DynFileResolver>,
+    /// Virtual current-file path for include resolution when calling `parse`
+    /// (not `parse_file`). Relative include targets (`include::ch1.adoc[]`)
+    /// resolve against this path's parent directory. Required when using a
+    /// `file_resolver` from WASM, where there's no real `std::fs` path.
+    /// Defaults to `None`, which disables include processing for `parse`
+    /// callers without a file path (matches pre-resolver behavior).
+    pub virtual_current_file: Option<std::path::PathBuf>,
 }
 
 impl<'a> Options<'a> {
@@ -84,6 +97,8 @@ impl<'a> Options<'a> {
             strict: self.strict,
             #[cfg(feature = "setext")]
             setext: self.setext,
+            file_resolver: self.file_resolver,
+            virtual_current_file: self.virtual_current_file,
         }
     }
 
@@ -171,6 +186,8 @@ pub struct OptionsBuilder<'a> {
     strict: bool,
     #[cfg(feature = "setext")]
     setext: bool,
+    file_resolver: Option<DynFileResolver>,
+    virtual_current_file: Option<std::path::PathBuf>,
 }
 
 impl<'a> OptionsBuilder<'a> {
@@ -296,6 +313,61 @@ impl<'a> OptionsBuilder<'a> {
         self
     }
 
+    /// Install a custom file reader for the include preprocessor.
+    ///
+    /// Native targets get `std::fs::read` by default. WASM embeddings MUST
+    /// supply a resolver — `wasm32-unknown-unknown` has no `std::fs`, so
+    /// without one, every `include::file.adoc[]` directive silently no-ops.
+    ///
+    /// When using a resolver, also set [`with_virtual_current_file`] so
+    /// relative include targets have a parent directory to anchor against.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::borrow::Cow;
+    /// use std::collections::HashMap;
+    /// use std::path::{Path, PathBuf};
+    /// use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options};
+    ///
+    /// struct InMemoryFiles(HashMap<PathBuf, Vec<u8>>);
+    /// impl FileResolver for InMemoryFiles {
+    ///     fn read(&self, path: &Path) -> Result<Cow<'_, [u8]>, FileResolverError> {
+    ///         match self.0.get(path) {
+    ///             Some(bytes) => Ok(Cow::Borrowed(bytes)),
+    ///             None => Err(FileResolverError::not_found(path)),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut files = HashMap::new();
+    /// files.insert(PathBuf::from("ch1.adoc"), b"== Chapter 1\n".to_vec());
+    /// let options = Options::builder()
+    ///     .with_file_resolver(DynFileResolver::new(InMemoryFiles(files)))
+    ///     .with_virtual_current_file("main.adoc")
+    ///     .build();
+    /// ```
+    ///
+    /// [`with_virtual_current_file`]: Self::with_virtual_current_file
+    #[must_use]
+    pub fn with_file_resolver(mut self, resolver: DynFileResolver) -> Self {
+        self.file_resolver = Some(resolver);
+        self
+    }
+
+    /// Set a virtual current-file path used to resolve relative `include::`
+    /// targets when calling `parse` (not `parse_file`). Required when using
+    /// a `file_resolver` from WASM. The file doesn't need to physically
+    /// exist — only its parent dir is read, to anchor relative includes.
+    #[must_use]
+    pub fn with_virtual_current_file<P: Into<std::path::PathBuf>>(
+        mut self,
+        path: P,
+    ) -> Self {
+        self.virtual_current_file = Some(path.into());
+        self
+    }
+
     /// Build the `Options` from this builder.
     ///
     /// # Example
@@ -316,6 +388,8 @@ impl<'a> OptionsBuilder<'a> {
             strict: self.strict,
             #[cfg(feature = "setext")]
             setext: self.setext,
+            file_resolver: self.file_resolver,
+            virtual_current_file: self.virtual_current_file,
         }
     }
 }

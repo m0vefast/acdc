@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 acdc-parser = { workspace = true, features = ["setext"] }
 wasm-bindgen = "0.2"
+js-sys = "0.3"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6"
@@ -28,5 +29,21 @@ wasm-opt = [
     "--enable-reference-types",
 ]
 
-[lints]
-workspace = true
+# Mirror workspace lint config (Round 2 dropped the `unsafe_code = allow`
+# opt-out — `js_sys::Function` auto-derives Send+Sync via wasm-bindgen's
+# blanket `JsValue` impl on `not(target_feature = "atomics")`, so no
+# `unsafe impl` is needed in this crate).
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+wildcard_enum_match_arm = "deny"
+indexing_slicing = "deny"
+fallible_impl_from = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+pedantic = "deny"
+unreachable = "deny"
+todo = "deny"
+unimplemented = "deny"

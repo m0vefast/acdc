@@ -18,6 +18,101 @@ use crate::{
 
 use super::tag::{DELIMITERS, Filter as TagFilter, Name as TagName, apply_tag_filters};
 
+/// Lexically normalize a path: collapse `.` and `..` components without
+/// consulting the filesystem. Required for wasm builds (no real fs) and
+/// also a robustness win on native — a JS-resolver fixture keyed by
+/// `"/abs/dir/sib/x.adoc"` won't match `"/abs/dir/../sib/x.adoc"` even
+/// though they refer to the same file. Mirrors Go's `path.Clean` semantics.
+///
+/// Preserves the leading `/` on absolute paths. A leading `..` on a
+/// relative path is preserved (escapes the parent). A path that collapses
+/// to nothing returns `.`.
+pub(crate) fn normalize_lexical(path: &std::path::Path) -> PathBuf {
+    // POSIX-style lexical normalization with manual string-level slash
+    // detection. Two reasons we don't rely on `Path::is_absolute` /
+    // `Path::components`:
+    //   1. On `wasm32-unknown-unknown` `std::path` falls back to Windows
+    //      semantics (no `unix`/`wasi` cfg), so `/Users/x.adoc` is NOT
+    //      absolute (needs a drive prefix) and `path.components()` yields
+    //      surprising results. acdc include paths are always POSIX.
+    //   2. The output is consumed by a JS resolver keyed on a POSIX
+    //      forward-slash string anyway.
+    let raw = path.to_string_lossy();
+    let is_absolute = raw.starts_with('/');
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in raw.split('/') {
+        match seg {
+            "" | "." => {} // empty (leading/trailing slash) or current-dir
+            ".." => {
+                if matches!(parts.last(), Some(&last) if last != "..") {
+                    parts.pop();
+                } else if !is_absolute {
+                    parts.push("..");
+                }
+                // Absolute `..` past root is a no-op (POSIX).
+            }
+            _ => parts.push(seg),
+        }
+    }
+    if parts.is_empty() {
+        return PathBuf::from(if is_absolute { "/" } else { "." });
+    }
+    let body = parts.join("/");
+    if is_absolute {
+        PathBuf::from(format!("/{body}"))
+    } else {
+        PathBuf::from(body)
+    }
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::normalize_lexical;
+    use std::path::Path;
+
+    #[test]
+    fn absolute_path_preserves_leading_slash() {
+        let out = normalize_lexical(Path::new("/Users/me/vault/adoc/ch1.adoc"));
+        assert_eq!(out.to_string_lossy(), "/Users/me/vault/adoc/ch1.adoc");
+    }
+
+    #[test]
+    fn dotdot_collapses_in_absolute_path() {
+        let out = normalize_lexical(Path::new("/a/b/../c"));
+        assert_eq!(out.to_string_lossy(), "/a/c");
+    }
+
+    #[test]
+    fn dot_drops_in_relative_path() {
+        let out = normalize_lexical(Path::new("a/./b"));
+        assert_eq!(out.to_string_lossy(), "a/b");
+    }
+
+    #[test]
+    fn leading_dotdot_in_relative_path_preserved() {
+        let out = normalize_lexical(Path::new("../sib/x.adoc"));
+        assert_eq!(out.to_string_lossy(), "../sib/x.adoc");
+    }
+
+    #[test]
+    fn dotdot_past_root_clamped() {
+        let out = normalize_lexical(Path::new("/a/../../b"));
+        assert_eq!(out.to_string_lossy(), "/b");
+    }
+
+    #[test]
+    fn empty_relative_returns_dot() {
+        let out = normalize_lexical(Path::new(""));
+        assert_eq!(out.to_string_lossy(), ".");
+    }
+
+    #[test]
+    fn root_only_returns_root() {
+        let out = normalize_lexical(Path::new("/"));
+        assert_eq!(out.to_string_lossy(), "/");
+    }
+}
+
 /**
 The format of an include directive is the following:
 
@@ -55,6 +150,12 @@ pub(crate) struct Include<'a> {
     /// non-fatal include conditions (disabled URL includes, missing
     /// files, bad line numbers) reach `ParseResult::warnings()`.
     warnings: Rc<RefCell<Vec<crate::Warning>>>,
+    /// Depth at which this include was PARSED — i.e. the `self.depth` of the
+    /// outer `Preprocessor` that owned the line. `read_content_from_file`
+    /// constructs the inner preprocessor with `parent_depth + 1`, so the
+    /// content this include EXPANDS to runs one level deeper. Stored for
+    /// the depth-bounded recursion check in `Preprocessor::process_include`.
+    parent_depth: usize,
 }
 
 /// A line range that an include may specify.
@@ -101,6 +202,7 @@ struct IncludeParserInputs<'a, 'b> {
     options: &'b Options<'a>,
     location: LocationContext<'b>,
     warnings: &'b Rc<RefCell<Vec<crate::Warning>>>,
+    depth: usize,
 }
 
 peg::parser! {
@@ -129,6 +231,7 @@ peg::parser! {
                     current_offset: inputs.location.current_offset,
                     current_file: inputs.location.current_file.map(Path::to_path_buf),
                     warnings: Rc::clone(inputs.warnings),
+                    parent_depth: inputs.depth,
                 };
                 if let Some(attrs) = attrs {
                     include.parse_attributes(attrs)?;
@@ -331,6 +434,7 @@ impl<'a> Include<'a> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn parse(
         file_parent: &Path,
         line: &str,
@@ -339,6 +443,7 @@ impl<'a> Include<'a> {
         current_file: Option<&Path>,
         options: &Options<'a>,
         warnings: &Rc<RefCell<Vec<crate::Warning>>>,
+        depth: usize,
     ) -> Result<Self, Error> {
         let location = LocationContext {
             line_number,
@@ -350,6 +455,7 @@ impl<'a> Include<'a> {
             options,
             location,
             warnings,
+            depth,
         };
         include_parser::include(line, &inputs).map_err(|e| {
             tracing::error!(?line, error=?e, "failed to parse include directive");
@@ -374,7 +480,7 @@ impl<'a> Include<'a> {
     /// Returns Err for actual failures (network errors, file I/O errors).
     fn resolve_target_path(&self) -> Result<Option<PathBuf>, Error> {
         match &self.target {
-            Target::Path(path) => Ok(Some(self.file_parent.join(path))),
+            Target::Path(path) => Ok(Some(normalize_lexical(&self.file_parent.join(path)))),
             Target::Url(url) => self.resolve_url_target(url),
         }
     }
@@ -502,8 +608,11 @@ impl<'a> Include<'a> {
         &self,
         file_path: &Path,
     ) -> Result<(String, Vec<LeveloffsetRange>, Vec<SourceRange>), Error> {
-        let content =
-            crate::preprocessor::read_and_decode_file(file_path, self.encoding.as_deref())?;
+        let content = crate::preprocessor::read_and_decode_file(
+            file_path,
+            self.encoding.as_deref(),
+            self.options.file_resolver.as_ref(),
+        )?;
         if let Some(ext) = file_path.extension() &&
             // If the file is recognized as an AsciiDoc file (i.e., it has one of the
             // following extensions: .asciidoc, .adoc, .ad, .asc, or .txt) additional
@@ -527,9 +636,12 @@ impl<'a> Include<'a> {
             // may borrow from `content`, which is a local here, so materialize
             // into an owned String via `into_owned` before handing it back.
             // Use a preprocessor sharing our warnings sink so nested
-            // include warnings end up on the outer `ParseResult`.
+            // include warnings end up on the outer `ParseResult`. Pass
+            // `depth + 1` so the inner pass enforces MAX_INCLUDE_DEPTH on
+            // cyclic / runaway recursion (otherwise wasm stack overflow).
             return super::Preprocessor {
                 warnings: Rc::clone(&self.warnings),
+                depth: self.parent_depth + 1,
             }
             .process_inner(&content, Some(file_path), &self.options)
             .map(|result| {
@@ -565,8 +677,13 @@ impl<'a> Include<'a> {
             });
         };
 
-        // If the path doesn't exist, return empty lines (never fail parsing due to include)
-        if !path.exists() {
+        // Existence check: native targets use `path.exists()` for a cheap
+        // early-out. When a custom resolver is wired (wasm sandbox), skip the
+        // FS check — the resolver's `read` returns `NotFound` which we map
+        // to the same empty-result + warning below. `path.exists()` would
+        // always be false on `wasm32-unknown-unknown` because there's no fs.
+        let has_resolver = self.options.file_resolver.is_some();
+        if !has_resolver && !path.exists() {
             if !self.opts.contains(&"optional".to_string()) {
                 self.warn_located(format!(
                     "file is missing — include directive won't be processed: {}",
@@ -583,7 +700,45 @@ impl<'a> Include<'a> {
         }
 
         let (content, nested_leveloffset_ranges, nested_source_ranges) =
-            self.read_content_from_file(&path)?;
+            match self.read_content_from_file(&path) {
+                Ok(triple) => triple,
+                Err(Error::Io(io_err)) => {
+                    // Treat any I/O error (resolver-mediated NotFound or
+                    // missing file from std::fs) the same way native acdc
+                    // treated `!path.exists()` above: warn + empty result.
+                    // Distinguish NotFound from other I/O errors in the
+                    // warning text so `JS callback threw / permission denied
+                    // / network failure` surfaces with the underlying cause
+                    // instead of the generic missing-file string.
+                    if !self.opts.contains(&"optional".to_string()) {
+                        if io_err.kind() == std::io::ErrorKind::NotFound {
+                            self.warn_located(format!(
+                                "file is missing — include directive won't be processed: {}",
+                                path.display(),
+                            ));
+                        } else {
+                            // Walk the source chain — `read_and_decode_file`
+                            // wraps `FileResolverError::Io` via `io::Error::new`,
+                            // preserving the boxed source. Render it for the
+                            // user-visible warning.
+                            let cause = std::error::Error::source(&io_err)
+                                .map_or_else(|| io_err.to_string(), std::string::ToString::to_string);
+                            self.warn_located(format!(
+                                "include read failed for {}: {cause}",
+                                path.display(),
+                            ));
+                        }
+                    }
+                    return Ok(IncludeResult {
+                        lines: Vec::new(),
+                        effective_leveloffset: None,
+                        nested_leveloffset_ranges: Vec::new(),
+                        file: None,
+                        nested_source_ranges: Vec::new(),
+                    });
+                }
+                Err(e) => return Err(e),
+            };
         let effective_leveloffset = self.calculate_effective_leveloffset();
 
         let content_lines = content.lines().map(str::to_string).collect::<Vec<_>>();
@@ -656,20 +811,34 @@ impl<'a> Include<'a> {
     }
 
     fn resolve_end_line(end: isize, max_size: usize) -> Option<usize> {
-        match end {
-            -1 => Some(max_size),
-            n if n > 0 => match usize::try_from(n - 1) {
-                Ok(val) => Some(val),
+        // Asciidoctor spec: positive N → 1-based line N (returns index N-1),
+        // CLAMPED to last line if past EOF; negative N → Nth line from end
+        // (returns index max_size-N, so -1 = last line = index max_size-1).
+        // Empty file → no valid end.
+        if max_size == 0 {
+            return None;
+        }
+        let last_idx = max_size - 1;
+        if end > 0 {
+            return match usize::try_from(end - 1) {
+                // Clamp positive end past EOF to last line — Asciidoctor's
+                // documented behavior. Without this, `lines=10..50` on a
+                // 30-line file silently produced ZERO content because the
+                // downstream guard `end_idx < content_lines_count` rejected
+                // end_idx=49 on a 30-line file.
+                Ok(val) => Some(val.min(last_idx)),
                 Err(e) => {
                     tracing::error!(?end, ?e, "failed to cast end line number to usize");
                     None
                 }
-            },
-            _ => {
-                tracing::error!(?end, "invalid end line number in include directive");
-                None
-            }
+            };
         }
+        if end < 0 {
+            // Distance from end: -1 = last (index max-1), -2 = second-to-last, etc.
+            return max_size.checked_sub(end.unsigned_abs());
+        }
+        tracing::error!(?end, "invalid end line number in include directive (0)");
+        None
     }
 
     /// Collects all line indices that would be selected by the line ranges.
@@ -756,7 +925,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert!(matches!(
             include.target,
@@ -770,7 +939,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[leveloffset=+1,lines=1..5,tag=example]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(include.level_offset, Some(1));
         assert_eq!(include.tags, vec![TagName::from("example")]);
@@ -783,7 +952,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::https://example.com/doc.adoc[]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert!(matches!(
             include.target,
@@ -797,7 +966,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = r#"include::target.adoc[tag="example code",encoding="utf-8"]"#;
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(include.tags, vec![TagName::from("example code")]);
         assert_eq!(include.encoding, Some("utf-8".to_string()));
@@ -809,7 +978,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[tags=intro;main;conclusion]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(
             include.tags,
@@ -827,7 +996,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[tags=*;!debug]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(
             include.tags,
@@ -841,7 +1010,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[tags=**]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(include.tags, vec![TagName::from("**")]);
         Ok(())
@@ -858,7 +1027,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[role=quote,title=Example,leveloffset=+1]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         // Recognised attribute still wins through.
         assert_eq!(include.level_offset, Some(1));
@@ -872,7 +1041,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[role=quote,id=intro,align=center]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(include.level_offset, None);
         assert!(include.line_range.is_empty());
@@ -885,7 +1054,7 @@ mod tests {
         let path = PathBuf::from("/tmp");
         let line = "include::target.adoc[indent=4]";
         let options = Options::default();
-        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default())?;
+        let include = Include::parse(&path, line, 1, 0, None, &options, &Rc::default(), 0)?;
 
         assert_eq!(include.indent, Some(4));
         Ok(())

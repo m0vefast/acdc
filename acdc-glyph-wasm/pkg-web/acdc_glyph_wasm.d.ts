@@ -15,6 +15,24 @@
 export function parse_block(source: string, safe_mode?: string | null): any;
 
 /**
+ * Parse a full AsciiDoc document with `include::` directives resolved via
+ * a JS callback.
+ *
+ * Same envelope as `parse_block`, but additionally:
+ * - `virtual_current_file`: a vault-relative path (e.g. `"docs/api.adoc"`)
+ *   used to anchor relative include targets. Doesn't need to exist on disk.
+ * - `js_resolver`: a JS function `(path: string) => string | null` returning
+ *   the file content (UTF-8 text) for the given path, or `null` to signal
+ *   not-found. Called SYNCHRONOUSLY for each `include::` target. Embedders
+ *   should pre-populate their cache before this call.
+ *
+ * All of acdc's Asciidoctor-spec include semantics work end-to-end:
+ * nested includes, `[lines=X..Y]`, `[tag=foo]`, `[leveloffset=+N]`,
+ * `[indent=N]`, `[encoding=…]`, `[opts=optional]`, tag wildcards, etc.
+ */
+export function parse_block_with_resolver(source: string, safe_mode: string | null | undefined, virtual_current_file: string, js_resolver: Function): any;
+
+/**
  * Parse a fragment of inline AsciiDoc and return the inline nodes.
  *
  * Same envelope as `parse_block`. Every returned `InlineNode` variant
@@ -34,11 +52,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly parse_block: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly parse_block_with_resolver: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly parse_inline: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly version: (a: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export3: (a: number) => void;
+    readonly __wbindgen_export4: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
 }
 

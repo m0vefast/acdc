@@ -285,6 +285,12 @@ impl<'a> ParserState<'a> {
         use std::sync::LazyLock;
         // Cache empty options to avoid creating default DocumentAttributes (~80 HashMap
         // entries) on every call. Quotes-only parsing doesn't use document attributes.
+        // `LazyLock<Options>` requires `Options: Sync` → `FileResolver: Send + Sync`
+        // (see the bound on the trait). The wasm-side `JsFileResolver` satisfies the
+        // bound via wasm-bindgen's blanket `unsafe impl Send + Sync for JsValue`
+        // (gated `not(target_feature = "atomics")`), so no extra `unsafe impl` is
+        // required there. `thread_local!` would drop the Sync bound entirely but
+        // adds ~350 bytes/iter to the inline-parse hot path (leak-budget test fails).
         static EMPTY_OPTIONS: LazyLock<Options<'static>> = LazyLock::new(|| Options {
             document_attributes: DocumentAttributes::empty(),
             ..Options::default()

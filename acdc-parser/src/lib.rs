@@ -50,6 +50,7 @@ use tracing::instrument;
 mod blocks;
 mod constants;
 mod error;
+mod file_resolver;
 pub(crate) mod grammar;
 mod model;
 mod options;
@@ -62,6 +63,10 @@ pub(crate) use grammar::{InlinePreprocessorParserState, ProcessedContent, inline
 use preprocessor::Preprocessor;
 
 pub use error::{Error, Positioning, SourceLocation};
+pub use file_resolver::{DynFileResolver, FileResolver, FileResolverError};
+#[cfg(not(target_arch = "wasm32"))]
+pub use file_resolver::DefaultFileResolver;
+pub use preprocessor::{IncludeExpansion, MAX_INCLUDE_DEPTH};
 pub use grammar::parse_text_for_quotes;
 pub use model::{
     Admonition, AdmonitionVariant, Anchor, AttributeName, AttributeValue, Attribution, Audio,
@@ -257,6 +262,7 @@ pub fn parse_from_reader<R: std::io::Read>(
         None,
         result.leveloffset_ranges,
         result.source_ranges,
+        result.include_expansions,
         warnings_handle,
     )
 }
@@ -295,6 +301,7 @@ pub fn parse(input: &str, options: &Options<'_>) -> Result<ParseResult, Error> {
         None,
         result.leveloffset_ranges,
         result.source_ranges,
+        result.include_expansions,
         warnings_handle,
     )
 }
@@ -325,7 +332,11 @@ pub fn parse_file<P: AsRef<Path>>(
 ) -> Result<ParseResult, Error> {
     let options = options.clone().with_runtime_builtins();
     let path = file_path.as_ref().to_path_buf();
-    let raw = preprocessor::read_and_decode_file(file_path.as_ref(), None)?;
+    let raw = preprocessor::read_and_decode_file(
+        file_path.as_ref(),
+        None,
+        options.file_resolver.as_ref(),
+    )?;
     let warnings_handle: Rc<RefCell<Vec<Warning>>> = Rc::new(RefCell::new(Vec::new()));
     let result = {
         let _span = tracing::info_span!("preprocess").entered();
@@ -344,6 +355,7 @@ pub fn parse_file<P: AsRef<Path>>(
         Some(path),
         result.leveloffset_ranges,
         result.source_ranges,
+        result.include_expansions,
         warnings_handle,
     )
 }
@@ -390,6 +402,7 @@ fn parse_input(
     file_path: Option<PathBuf>,
     leveloffset_ranges: Vec<model::LeveloffsetRange>,
     source_ranges: Vec<model::SourceRange>,
+    include_expansions: Vec<IncludeExpansion>,
     warnings_handle: Rc<RefCell<Vec<Warning>>>,
 ) -> Result<ParseResult, Error> {
     tracing::trace!(?input, "post preprocessor");
@@ -409,7 +422,7 @@ fn parse_input(
     // unwraps it.
     let warnings_for_state = Rc::clone(&warnings_handle);
 
-    ParseResult::try_new(owner, warnings_handle, move |owner| {
+    ParseResult::try_new(owner, warnings_handle, include_expansions, move |owner| {
         let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
         state.document_attributes = Rc::new(options_owned.document_attributes.clone());
         state.options = Rc::new(options_owned);

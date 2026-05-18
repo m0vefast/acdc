@@ -32,6 +32,26 @@ pub(crate) struct PreprocessorResult<'a> {
     /// Byte ranges mapping preprocessed output back to source files.
     /// Used by the parser to produce accurate file/line info in warnings.
     pub(crate) source_ranges: Vec<SourceRange>,
+    /// Per-include expansion metadata — one entry per processed `include::`
+    /// directive in the ROOT document (nested includes are not reported here;
+    /// only top-level so consumers can map root-source lines ↔ expanded
+    /// lines unambiguously). Embedders (e.g. the wasm bridge) expose this
+    /// to clients that need to translate post-expansion block positions
+    /// back to original source positions.
+    pub(crate) include_expansions: Vec<IncludeExpansion>,
+}
+
+/// One root-level `include::` directive's expansion outcome — the 1-based
+/// source line of the directive and the number of lines it produced in the
+/// preprocessed output (after `[lines=...]`, `[tag=...]`, `[tags=...]`, and
+/// any other filtering attributes have been applied).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncludeExpansion {
+    /// 1-based line number of the `include::` directive in the root source.
+    pub source_line: usize,
+    /// Number of lines the expansion occupies in the preprocessed output.
+    /// 0 if the include resolved to no content (missing file, empty filter).
+    pub expanded_lines: usize,
 }
 
 impl PreprocessorResult<'_> {
@@ -43,6 +63,7 @@ impl PreprocessorResult<'_> {
             text: Cow::Owned(self.text.into_owned()),
             leveloffset_ranges: self.leveloffset_ranges,
             source_ranges: self.source_ranges,
+            include_expansions: self.include_expansions,
         }
     }
 }
@@ -63,6 +84,11 @@ struct PreprocessorState {
     byte_offset: usize,
     leveloffset_ranges: Vec<LeveloffsetRange>,
     source_ranges: Vec<SourceRange>,
+    /// Per-include expansion entries — pushed only for root-level
+    /// directives (depth==0) so consumers see one entry per visible
+    /// `include::` line in the user's main source. Nested includes
+    /// are folded into their parent's count.
+    include_expansions: Vec<IncludeExpansion>,
 }
 
 impl PreprocessorState {
@@ -96,13 +122,45 @@ const BOM_PATTERNS: &[(&[u8], &Encoding, usize, &str)] = &[
 pub(crate) fn read_and_decode_file(
     file_path: &Path,
     encoding: Option<&str>,
+    resolver: Option<&crate::file_resolver::DynFileResolver>,
 ) -> Result<String, Error> {
-    let bytes = std::fs::read(file_path)?;
+    // Resolver injection (added 2026-05-17 for WASM embeddings): if the
+    // caller wired a custom file reader via `Options::with_file_resolver`,
+    // use it. Otherwise fall back to `std::fs::read` on native targets — on
+    // wasm32 this returns an error and the include preprocessor will warn
+    // and skip the directive (Asciidoctor reference behavior for missing
+    // files).
+    //
+    // `Error::Io` here is opaque on purpose; `Include::lines` decides whether
+    // to treat it as "warn + skip" (matches native `path.exists() == false`)
+    // or surface as a hard error. The structured `FileResolverError` is
+    // preserved via `std::io::Error::new(kind, e)` (the resolver error
+    // becomes the io error's source) so callers can walk the source chain
+    // via `std::error::Error::source` for detail.
+    let bytes: Cow<'_, [u8]> = if let Some(resolver) = resolver {
+        resolver.read(file_path).map_err(|e| {
+            // `#[non_exhaustive]` on FileResolverError means we can't list
+            // every variant exhaustively (future ones land without a major
+            // bump); allow the wildcard explicitly here.
+            #[allow(clippy::wildcard_enum_match_arm)]
+            let kind = match &e {
+                crate::file_resolver::FileResolverError::NotFound { .. } => {
+                    std::io::ErrorKind::NotFound
+                }
+                _ => std::io::ErrorKind::Other,
+            };
+            let io = std::io::Error::new(kind, e);
+            Error::from(io)
+        })?
+    } else {
+        Cow::Owned(std::fs::read(file_path).map_err(Error::from)?)
+    };
+    let bytes: &[u8] = &bytes;
 
     // If there was an encoding specified, decode the entire file as that
     if let Some(enc_label) = encoding {
         if let Some(encoding) = Encoding::for_label(enc_label.as_bytes()) {
-            let (cow, _, had_errors) = encoding.decode(&bytes);
+            let (cow, _, had_errors) = encoding.decode(bytes);
             if had_errors {
                 tracing::error!(
                     path = ?file_path.display(),
@@ -133,7 +191,7 @@ pub(crate) fn read_and_decode_file(
     }
 
     // If no BOM, try decoding as UTF-8 directly
-    let (cow, _, had_errors) = UTF_8.decode(&bytes);
+    let (cow, _, had_errors) = UTF_8.decode(bytes);
     if !had_errors {
         return Ok(cow.into_owned());
     }
@@ -144,6 +202,14 @@ pub(crate) fn read_and_decode_file(
     ))
 }
 
+/// Maximum include-recursion depth before bailing with a warning.
+/// Matches Asciidoctor's reference behavior (which uses the same value
+/// to detect circular includes and runaway depth from a JS resolver
+/// fixture or a typo in vault content). Re-exported at crate root so
+/// downstream consumers can compare against it programmatically rather
+/// than substring-matching the warning text.
+pub const MAX_INCLUDE_DEPTH: usize = 64;
+
 /// Preprocessor shared across `Include` / `Conditional` / `Tag` helpers.
 ///
 /// Carries a warning sink (`Rc<RefCell<Vec<Warning>>>`) that the caller
@@ -153,6 +219,13 @@ pub(crate) fn read_and_decode_file(
 /// mismatches, ...) reach `ParseResult::warnings()` alongside grammar
 /// warnings.
 ///
+/// `depth` tracks include-nesting from the root parse (0 at the outermost
+/// call). Nested preprocessor invocations from `Include::read_content_from_file`
+/// pass `depth + 1`. When `depth >= MAX_INCLUDE_DEPTH`, the next
+/// `process_include` short-circuits with a warning — this prevents stack
+/// overflow on cyclic includes (e.g. `a→b→a`) and bounded-but-massive
+/// fixtures, both of which would otherwise trap the wasm module.
+///
 /// All public entry points take the handle explicitly; the struct is
 /// purely a carrier so nested `&self` helpers (`process_include`,
 /// `process_conditional`, `process_directive_line`) can reach the sink
@@ -160,6 +233,7 @@ pub(crate) fn read_and_decode_file(
 #[derive(Debug)]
 pub(crate) struct Preprocessor {
     warnings: Rc<RefCell<Vec<Warning>>>,
+    depth: usize,
 }
 
 impl Preprocessor {
@@ -285,7 +359,7 @@ impl Preprocessor {
         })?;
         // The local `input` cannot outlive this function, so materialize any
         // borrowed text into an owned result.
-        Ok(Self { warnings }
+        Ok(Self { warnings, depth: 0 }
             .process_inner(&input, None, options)?
             .into_owned())
     }
@@ -296,7 +370,13 @@ impl Preprocessor {
         options: &Options,
         warnings: Rc<RefCell<Vec<Warning>>>,
     ) -> Result<PreprocessorResult<'a>, Error> {
-        Self { warnings }.process_inner(input, None, options)
+        // If the caller provided a virtual file path (e.g. WASM embeddings
+        // that have no real fs path but need `include::` to work via the
+        // FileResolver), use it as the file_parent for relative include
+        // resolution. Otherwise inherit the legacy "no file context" path
+        // where includes are skipped with a warning.
+        let file_path = options.virtual_current_file.as_deref();
+        Self { warnings, depth: 0 }.process_inner(input, file_path, options)
     }
 
     /// Like `process` but lets the caller pass the file path explicitly, used
@@ -308,7 +388,7 @@ impl Preprocessor {
         options: &Options,
         warnings: Rc<RefCell<Vec<Warning>>>,
     ) -> Result<PreprocessorResult<'a>, Error> {
-        Self { warnings }.process_inner(input, Some(file_path), options)
+        Self { warnings, depth: 0 }.process_inner(input, Some(file_path), options)
     }
 
     #[cfg(test)]
@@ -320,8 +400,8 @@ impl Preprocessor {
     ) -> Result<PreprocessorResult<'static>, Error> {
         if file_path.as_ref().parent().is_some() {
             // Use read_and_decode_file to support UTF-8, UTF-16 LE, and UTF-16 BE with BOM
-            let input = read_and_decode_file(file_path.as_ref(), None)?;
-            Ok(Self { warnings }
+            let input = read_and_decode_file(file_path.as_ref(), None, options.file_resolver.as_ref())?;
+            Ok(Self { warnings, depth: 0 }
                 .process_inner(&input, Some(file_path.as_ref()), options)?
                 .into_owned())
         } else {
@@ -335,6 +415,12 @@ impl Preprocessor {
     /// Process an include directive.
     ///
     /// Returns the included content along with any leveloffset that applies.
+    /// Bails (warn + return Ok(None)) when:
+    /// - no `file_parent` context is available (caller didn't set
+    ///   `virtual_current_file` and didn't go through `parse_file`)
+    /// - include depth has reached `MAX_INCLUDE_DEPTH` — protects against
+    ///   cyclic include chains (a→b→a) and runaway depth in JS-resolver
+    ///   fixtures, both of which would otherwise blow the wasm stack
     #[tracing::instrument(skip(self))]
     fn process_include(
         &self,
@@ -344,6 +430,15 @@ impl Preprocessor {
         file_parent: Option<&Path>,
         options: &Options,
     ) -> Result<Option<IncludeResult>, Error> {
+        if self.depth >= MAX_INCLUDE_DEPTH {
+            self.add_warning_at(
+                Cow::Owned(format!(
+                    "include depth exceeded {MAX_INCLUDE_DEPTH} — possible cyclic include; skipping"
+                )),
+                Self::create_source_location(line_number, file_parent),
+            );
+            return Ok(None);
+        }
         if let Some(current_file_path) = file_parent {
             if let Some(parent_dir) = current_file_path.parent() {
                 let include = Include::parse(
@@ -354,11 +449,20 @@ impl Preprocessor {
                     Some(current_file_path),
                     options,
                     &self.warnings,
+                    self.depth,
                 )?;
                 return Ok(Some(include.lines()?));
             }
         } else {
-            tracing::error!(%line, "file parent is missing - include directive cannot be processed");
+            // Surface to ParseResult::warnings() — previously only logged via
+            // tracing, which doesn't reach the consumer (especially in wasm
+            // where tracing has no default subscriber).
+            self.add_warning_at(
+                Cow::Borrowed(
+                    "include directive cannot be processed: no file context (set `virtual_current_file` or use `parse_file`)",
+                ),
+                Self::create_source_location(line_number, file_parent),
+            );
         }
         Ok(None)
     }
@@ -513,7 +617,19 @@ impl Preprocessor {
     /// This also merges nested ranges from included files, adjusting their byte offsets
     /// to be relative to the current output position. This enables proper accumulation
     /// through arbitrarily deep include nesting.
-    fn handle_include_result(include_result: IncludeResult, state: &mut PreprocessorState) {
+    fn handle_include_result(
+        include_result: IncludeResult,
+        state: &mut PreprocessorState,
+        // The 1-based line number of the `include::` directive in the file
+        // currently being preprocessed. For root-level includes this is the
+        // user-facing line; for nested includes it's a line within an
+        // already-included file and we DON'T record it (only root-level
+        // tracking is exposed to consumers).
+        directive_source_line: usize,
+        // Whether we're at depth 0 (processing the root document) — only
+        // then do we record into include_expansions.
+        is_root_depth: bool,
+    ) {
         let start_offset = state.byte_offset;
 
         // Calculate the byte length of the included content
@@ -586,6 +702,22 @@ impl Preprocessor {
             }
         }
 
+        // Record the expansion outcome for ALL root-level directives so
+        // consumers see one entry per visible include line in their source —
+        // INCLUDING 0-line expansions. The include directive line ITSELF is
+        // removed from the preprocessed output, so even an empty expansion
+        // shifts every subsequent line back by 1; consumers need to know
+        // that happened so they can compensate. For depth > 0, the nested
+        // include's lines roll up into the parent include's `content_len`
+        // automatically (the parent's count already reflects the
+        // post-nested-expansion line total).
+        if is_root_depth {
+            state.include_expansions.push(IncludeExpansion {
+                source_line: directive_source_line,
+                expanded_lines: include_result.lines.len(),
+            });
+        }
+
         state.byte_offset += content_len;
         state.lines.extend(include_result.lines);
     }
@@ -614,14 +746,20 @@ impl Preprocessor {
                 out.push_line(content);
             }
         } else if line.starts_with("include") {
+            let directive_source_line = *ctx.line_number;
             if let Some(include_result) = self.process_include(
                 line,
-                *ctx.line_number,
+                directive_source_line,
                 ctx.current_offset,
                 ctx.file_parent,
                 options,
             )? {
-                Self::handle_include_result(include_result, out);
+                Self::handle_include_result(
+                    include_result,
+                    out,
+                    directive_source_line,
+                    self.depth == 0,
+                );
             }
         } else {
             out.push_line(line.to_string());
@@ -646,6 +784,7 @@ impl Preprocessor {
                 text: normalized,
                 leveloffset_ranges: Vec::new(),
                 source_ranges: Vec::new(),
+                include_expansions: Vec::new(),
             });
         }
 
@@ -672,6 +811,7 @@ impl Preprocessor {
             byte_offset: 0,
             leveloffset_ranges: Vec::new(),
             source_ranges: Vec::new(),
+            include_expansions: Vec::new(),
         };
         let mut in_verbatim_block = false;
         let mut current_delimiter: Option<&str> = None;
@@ -723,6 +863,7 @@ impl Preprocessor {
             text: Cow::Owned(out.lines.join("\n")),
             leveloffset_ranges: out.leveloffset_ranges,
             source_ranges: out.source_ranges,
+            include_expansions: out.include_expansions,
         })
     }
 }
@@ -774,7 +915,7 @@ endif::another[]";
     #[test]
     fn test_utf8_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf8_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should contain the test content without BOM
         assert!(content.contains("= Test Document"));
@@ -787,7 +928,7 @@ endif::another[]";
     #[test]
     fn test_utf16le_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf16le_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should correctly decode UTF-16 LE content
         assert!(content.contains("= Test Document"));
@@ -798,7 +939,7 @@ endif::another[]";
     #[test]
     fn test_utf16be_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf16be_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should correctly decode UTF-16 BE content
         assert!(content.contains("= Test Document"));
@@ -809,7 +950,7 @@ endif::another[]";
     #[test]
     fn test_utf8_no_bom() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should decode regular UTF-8 file
         assert!(content.contains("= Test Document"));
@@ -821,7 +962,7 @@ endif::another[]";
     fn test_explicit_encoding_override() -> Result<(), Error> {
         // Test that explicit encoding parameter works
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let content = read_and_decode_file(path, Some("utf-8"))?;
+        let content = read_and_decode_file(path, Some("utf-8"), None)?;
 
         assert!(content.contains("= Test Document"));
         Ok(())
@@ -830,7 +971,7 @@ endif::another[]";
     #[test]
     fn test_unknown_encoding_error() {
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let result = read_and_decode_file(path, Some("unknown-encoding-12345"));
+        let result = read_and_decode_file(path, Some("unknown-encoding-12345"), None);
 
         assert!(matches!(result, Err(Error::UnknownEncoding(_))));
     }
