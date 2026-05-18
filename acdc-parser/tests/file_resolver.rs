@@ -486,3 +486,149 @@ fn include_expansions_reports_zero_for_missing_include() {
     assert_eq!(exps[0].source_line, 3);
     assert_eq!(exps[0].expanded_lines, 0);
 }
+
+// ── conditional_drops (ifdef / ifndef / ifeval / endif) ─────────────────────
+//
+// Same purpose as `include_expansions`: every preprocessor-induced source→
+// output line shift must be reported so an embedder can translate
+// post-expansion positions back to original source lines. Conditionals
+// disappear from the output (the directive lines themselves always; their
+// content too when the condition is false), so the embedder needs the list
+// of dropped source line numbers to compensate the same way.
+
+#[test]
+fn conditional_drops_ifdef_false_drops_directive_content_and_endif() {
+    // attribute `foo` not set → ifdef::foo[] block dropped entirely.
+    // Source lines 3 (ifdef), 4 (content), 5 (endif) — 3 drops total so
+    // every output line after maps back +3.
+    let src = "= M\n\nifdef::foo[]\nhidden\nendif::[]\n\nAfter.\n";
+    let opts = Options::builder().build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
+}
+
+#[test]
+fn conditional_drops_ifdef_true_keeps_content_records_directive_drop_only() {
+    // `foo` is defined → ifdef block kept. Multi-line kept content is
+    // pushed as one string ending in `\n`, which after `join("\n")`
+    // contributes one extra (empty) output line; that extra line
+    // silently swallows the endif drop, so we only record ifdef.
+    // Source: 3=ifdef, 4=content, 5=endif → 3 source consumed,
+    // 2 output produced (content + trailing empty) → 1 drop @ line 3.
+    let src = "= M\n\nifdef::foo[]\nkept\nendif::[]\n\nAfter.\n";
+    let opts = Options::builder()
+        .with_attribute("foo", "")
+        .build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.conditional_drops(), &[3usize][..]);
+}
+
+#[test]
+fn conditional_drops_single_line_ifdef_true_records_no_drop() {
+    // Single-line `ifdef::foo[content]` form: 1 source line → 1 output
+    // line when condition is true → no drops needed.
+    let src = "= M\n\nifdef::foo[hello]\n\nAfter.\n";
+    let opts = Options::builder()
+        .with_attribute("foo", "")
+        .build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert!(r.conditional_drops().is_empty());
+}
+
+#[test]
+fn conditional_drops_single_line_ifdef_false_records_one_drop() {
+    // Single-line form, false condition → 1 source line dropped.
+    let src = "= M\n\nifdef::foo[hello]\n\nAfter.\n";
+    let opts = Options::builder().build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.conditional_drops(), &[3usize][..]);
+}
+
+#[test]
+fn conditional_drops_ifndef_false_branch_records_drops() {
+    // `ifndef::foo[]` is true when `foo` is NOT set. Inverted-sense
+    // sibling of ifdef — same accounting rules apply.
+    let src = "= M\n\nifndef::foo[]\nshown\nendif::[]\n\nAfter.\n";
+    let opts = Options::builder()
+        .with_attribute("foo", "")
+        .build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    // foo IS set, so ifndef::foo[] block is dropped: 3 source lines.
+    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
+}
+
+#[test]
+fn conditional_drops_ifeval_false_drops_like_ifdef_false() {
+    // `ifeval::[]` shares the conditional dispatch path with ifdef/ifndef.
+    // Pin that the drop accounting is identical: false ifeval drops all
+    // consumed source lines (directive + content + endif).
+    let src = "= M\n\nifeval::[1 == 2]\nunreachable\nendif::[]\n\nAfter.\n";
+    let opts = Options::builder().build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
+}
+
+#[test]
+fn conditional_drops_ifeval_true_records_directive_drop_only() {
+    // True ifeval keeps content; same kept-multiline trailing-`\n` quirk as
+    // ifdef-true → only the directive line drops.
+    let src = "= M\n\nifeval::[1 == 1]\nkept\nendif::[]\n\nAfter.\n";
+    let opts = Options::builder().build();
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.conditional_drops(), &[3usize][..]);
+}
+
+#[test]
+fn conditional_drops_inside_included_file_NOT_propagated() {
+    // ACDC PRESERVED LIMITATION (NOT a bug introduced by the patch): the
+    // nested preprocessor that runs for an included file has its own
+    // `PreprocessorState`; only the root document's `conditional_drops`
+    // reaches `PreprocessorResult`. Conditionals INSIDE an included file
+    // drop lines from the merged output, but those drops are invisible to
+    // downstream consumers — the JS translator will drift on lines after
+    // such a conditional.
+    //
+    // Pin this as a regression guard: if a future refactor bubbles nested
+    // drops up, this test breaks and the embedder side (Glyph wasm bridge
+    // + JS translator) MUST be updated in lockstep.
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
+        "child.adoc",
+        "ifdef::missing[]\nhidden line\nendif::[]\nKept by child.\n",
+    )]));
+    let opts = Options::builder()
+        .with_file_resolver(resolver)
+        .with_virtual_current_file("main.adoc")
+        .build();
+    let r = acdc_parser::parse("= M\n\ninclude::child.adoc[]\n", &opts).expect("parse");
+    // Root has ONE include expansion (the include directive), no conditional drops at root.
+    assert_eq!(r.conditional_drops().len(), 0,
+        "nested conditional drops are NOT propagated (known limitation)");
+    // The include expansion reports the merged output line count. With the
+    // ifdef:false eating 3 lines, the included file contributes 1 line ("Kept by child.").
+    assert_eq!(r.include_expansions().len(), 1);
+    assert_eq!(r.include_expansions()[0].source_line, 3);
+    assert_eq!(r.include_expansions()[0].expanded_lines, 1);
+}
+
+#[test]
+fn conditional_drops_mixed_with_includes_sorted_by_source_line() {
+    // Both kinds in one document — `include_expansions` (sourceLine=3)
+    // and a false `ifdef` (lines 5/6/7). The wasm bridge merges and
+    // sorts them, but acdc itself records them in distinct fields.
+    // Pin both shapes so a future refactor that merges fields can't
+    // silently drop one.
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
+        "ch.adoc",
+        "ch-line\n",
+    )]));
+    let opts = Options::builder()
+        .with_file_resolver(resolver)
+        .with_virtual_current_file("main.adoc")
+        .build();
+    let src = "= M\n\ninclude::ch.adoc[]\n\nifdef::foo[]\nhidden\nendif::[]\n\nAfter.\n";
+    let r = acdc_parser::parse(src, &opts).expect("parse");
+    assert_eq!(r.include_expansions().len(), 1);
+    assert_eq!(r.include_expansions()[0].source_line, 3);
+    assert_eq!(r.include_expansions()[0].expanded_lines, 1);
+    assert_eq!(r.conditional_drops(), &[5usize, 6, 7][..]);
+}
