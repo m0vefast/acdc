@@ -130,6 +130,7 @@ version = "0.1.0"
 dependencies = [
  "acdc-parser",
  "console_error_panic_hook",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

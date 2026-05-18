@@ -17,11 +17,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   markers as literal text.
 
   All three require the default-on `pre-spec-subs` feature.
+- **`FileResolver` trait + `DynFileResolver` newtype + `DefaultFileResolver`** —
+  pluggable file-content provider for the include preprocessor. Lets WASM /
+  sandboxed embedders inject a custom reader (e.g. backed by a JS vault
+  cache) so `include::` directives work without `std::fs`. `DefaultFileResolver`
+  is `cfg`-gated to non-wasm targets and wired as the implicit default.
+- **`FileResolverError`** non-fatal error type, `#[non_exhaustive]` on both
+  the enum and its data-carrying variants. `NotFound { path }` and
+  `Io { path, source }` carry structured fields; convenience constructors
+  `FileResolverError::not_found` / `::io` for common call sites.
+- **`Options::file_resolver` + `Options::virtual_current_file`** fields with
+  builder methods `with_file_resolver` and `with_virtual_current_file`.
+  Virtual current-file path anchors relative `include::` targets when
+  calling `parse` (not `parse_file`) — required for WASM where there's no
+  real `std::fs` path.
+- **Include depth limit (`MAX_INCLUDE_DEPTH = 64`)** — the preprocessor now
+  bails with a warning when nesting exceeds 64 levels. Protects against
+  cyclic includes (`a→b→a`) which previously blew the wasm stack. The
+  constant is re-exported from the crate root for programmatic comparison.
+- **Lexical path normalization** applied to all `Target::Path` include
+  resolutions (both resolver-mode and native `std::fs`): `../sib.adoc`
+  collapses through the parent's components before either the resolver
+  cache lookup or `path.exists()`. Cache keys match regardless of
+  `..`/`.` segments; native callers no longer see the literal `..` in
+  warnings about missing includes.
+- **Distinct warning text for resolver I/O errors (non-NotFound)** —
+  `[opts=optional]` aside, a resolver `Io` failure now surfaces as
+  "include read failed for X: cause" with the source error chain
+  rendered, instead of the generic "file is missing" string.
 
 ### Changed
 
 - Updated the parser grammar implementation to reduce location-tracking
   overhead while preserving the same parse output and diagnostics.
+  (upstream 4e6d6bd — peg 0.8.6 inject spans refactor)
+- `Preprocessor` carries a `depth` counter threaded through nested
+  `read_content_from_file` calls.
+- Missing `file_parent` (caller went through `parse` without setting
+  `virtual_current_file`) now surfaces a warning on `ParseResult::warnings()`
+  instead of being only `tracing::error!`-logged — wasm consumers have no
+  default tracing subscriber.
+- `FileResolver::read` returns `Result<Cow<'_, [u8]>, FileResolverError>`
+  so in-memory resolvers can avoid the per-include `Vec<u8>` allocation.
+- `read_and_decode_file` takes `Option<&DynFileResolver>` and prefers it
+  over `std::fs::read` when wired.
 
 ## [0.9.0] - 2026-04-26
 

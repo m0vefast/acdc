@@ -80,6 +80,12 @@ self_cell::self_cell! {
 pub struct ParseResult {
     cell: ParsedDocumentCell,
     warnings: Vec<Warning>,
+    /// One entry per ROOT-level `include::` directive that the preprocessor
+    /// processed (depth==0). Embedders that surface include-expanded content
+    /// to a UI keyed off the user's original source (e.g. cursor/scroll
+    /// follow against an editor buffer) need this to translate post-
+    /// expansion block positions back to original source lines.
+    include_expansions: Vec<crate::IncludeExpansion>,
 }
 
 impl ParseResult {
@@ -90,13 +96,23 @@ impl ParseResult {
     pub(crate) fn try_new<E>(
         owner: OwnedInput,
         warnings_handle: Rc<RefCell<Vec<Warning>>>,
+        include_expansions: Vec<crate::IncludeExpansion>,
         builder: impl for<'a> FnOnce(&'a OwnedInput) -> Result<Document<'a>, E>,
     ) -> Result<Self, E> {
         let cell = ParsedDocumentCell::try_new(owner, builder)?;
         Ok(Self {
             cell,
             warnings: recover_warnings(warnings_handle),
+            include_expansions,
         })
+    }
+
+    /// Per-include expansion metadata gathered during preprocessing.
+    /// See [`crate::IncludeExpansion`] for the per-entry shape and
+    /// `PreprocessorResult::include_expansions` for the production rules.
+    #[must_use]
+    pub fn include_expansions(&self) -> &[crate::IncludeExpansion] {
+        &self.include_expansions
     }
 
     /// Borrow the document AST.
