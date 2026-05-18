@@ -39,6 +39,13 @@ pub(crate) struct PreprocessorResult<'a> {
     /// to clients that need to translate post-expansion block positions
     /// back to original source positions.
     pub(crate) include_expansions: Vec<IncludeExpansion>,
+    /// Source line numbers (1-based) consumed by conditional preprocessor
+    /// directives (`ifdef`/`ifndef`/`ifeval`/`endif`) that produced no
+    /// corresponding output line. Embedders use these alongside
+    /// `include_expansions` so cursor / scroll alignment compensates for
+    /// EVERY preprocessor-induced source→output line shift, not just
+    /// includes. Only populated for depth==0 (root document).
+    pub(crate) conditional_drops: Vec<usize>,
 }
 
 /// One root-level `include::` directive's expansion outcome — the 1-based
@@ -64,6 +71,7 @@ impl PreprocessorResult<'_> {
             leveloffset_ranges: self.leveloffset_ranges,
             source_ranges: self.source_ranges,
             include_expansions: self.include_expansions,
+            conditional_drops: self.conditional_drops,
         }
     }
 }
@@ -89,6 +97,10 @@ struct PreprocessorState {
     /// `include::` line in the user's main source. Nested includes
     /// are folded into their parent's count.
     include_expansions: Vec<IncludeExpansion>,
+    /// Source line numbers (1-based) of preprocessor-directive lines that
+    /// were consumed from the input but produced no output line. Populated
+    /// for ifdef/ifndef/ifeval/endif at depth==0. See `PreprocessorResult`.
+    conditional_drops: Vec<usize>,
 }
 
 impl PreprocessorState {
@@ -740,10 +752,44 @@ impl Preprocessor {
             || line.starts_with("ifndef")
             || line.starts_with("ifeval")
         {
-            if let Some(content) =
-                self.process_conditional(line, lines, ctx, &options.document_attributes)?
-            {
+            // Translator alignment: every line consumed inside an
+            // ifdef..endif region (the directive itself + any content lines
+            // + the endif line) must be accounted for so cursor/scroll
+            // mapping after the block points at the correct source line.
+            //
+            // Cases:
+            //   single-line   `ifdef::foo[content]`           → 1 source / 1 output  (no drops)
+            //   single-line, false                            → 1 source / 0 output  (1 drop at directive)
+            //   multi-line, true   (M content lines)          → M+2 source / M+1 output (1 drop)
+            //   multi-line, false  (M content lines)          → M+2 source / 0 output (M+2 drops)
+            //
+            // The kept-multiline "off by 1" comes from how kept content is
+            // pushed: a single multi-line string ending in `\n`. After
+            // `out.lines.join("\n")` that trailing `\n` collides with the
+            // join separator of the NEXT entry, contributing one extra
+            // (empty) output line — which silently swallows the endif line
+            // so we only need to record the ifdef drop.
+            let condition_line = *ctx.line_number;
+            let kept =
+                self.process_conditional(line, lines, ctx, &options.document_attributes)?;
+            let end_line = *ctx.line_number;
+            let source_consumed = end_line - condition_line + 1;
+            // Effective output lines contributed by `kept` if pushed via
+            // `push_line` + later `join("\n")`. A standalone "abc" produces
+            // 1 line; "abc\n" produces 2 (the content line + an empty
+            // trailing line from the literal `\n` adjacent to the join's
+            // separator).
+            let output_lines = kept
+                .as_deref()
+                .map_or(0, |c| c.matches('\n').count() + 1);
+            if let Some(content) = kept {
                 out.push_line(content);
+            }
+            if self.depth == 0 {
+                let drop_count = source_consumed.saturating_sub(output_lines);
+                for offset in 0..drop_count {
+                    out.conditional_drops.push(condition_line + offset);
+                }
             }
         } else if line.starts_with("include") {
             let directive_source_line = *ctx.line_number;
@@ -760,6 +806,22 @@ impl Preprocessor {
                     directive_source_line,
                     self.depth == 0,
                 );
+            } else if self.depth == 0 {
+                // `process_include` returned None: the directive line was
+                // consumed but `handle_include_result` never ran, so the
+                // include_expansions sink missed a recording. Common causes:
+                // no `file_parent` (callers using `parse` without
+                // `virtual_current_file` — e.g. the wasm `parse_block`
+                // entry point), or depth exceeded. The directive line
+                // STILL disappears from the preprocessed output (it never
+                // hit `out.push_line`), shifting every subsequent line up
+                // by 1 — embedders translating post-expansion positions
+                // need a 0-length expansion entry to compensate, exactly
+                // like the missing-file case in `handle_include_result`.
+                out.include_expansions.push(IncludeExpansion {
+                    source_line: directive_source_line,
+                    expanded_lines: 0,
+                });
             }
         } else {
             out.push_line(line.to_string());
@@ -785,6 +847,7 @@ impl Preprocessor {
                 leveloffset_ranges: Vec::new(),
                 source_ranges: Vec::new(),
                 include_expansions: Vec::new(),
+                conditional_drops: Vec::new(),
             });
         }
 
@@ -812,6 +875,7 @@ impl Preprocessor {
             leveloffset_ranges: Vec::new(),
             source_ranges: Vec::new(),
             include_expansions: Vec::new(),
+            conditional_drops: Vec::new(),
         };
         let mut in_verbatim_block = false;
         let mut current_delimiter: Option<&str> = None;
@@ -864,6 +928,7 @@ impl Preprocessor {
             leveloffset_ranges: out.leveloffset_ranges,
             source_ranges: out.source_ranges,
             include_expansions: out.include_expansions,
+            conditional_drops: out.conditional_drops,
         })
     }
 }

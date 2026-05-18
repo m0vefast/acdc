@@ -173,6 +173,39 @@ fn build_options(safe_mode: Option<String>) -> Options<'static> {
     Options::builder().with_safe_mode(mode).build()
 }
 
+/// Build the wasm envelope's `includeExpansions` array — the JS-side
+/// source-line translator's input. Merges acdc's two preprocessor
+/// accounting fields:
+///   1. `include_expansions` — one entry per root-level `include::`
+///      (`{sourceLine, expandedLines: N}`, where N is the post-filter line
+///      count from acdc, including 0 for missing/optional includes).
+///   2. `conditional_drops` — one entry per source line consumed by
+///      `ifdef`/`ifndef`/`ifeval`/`endif` that produced no output
+///      (`{sourceLine, expandedLines: 0}`).
+///
+/// Entries are sorted by `sourceLine` so the translator's left-to-right
+/// fold (delta accumulator) sees the same source order acdc processed.
+/// Single uniform field name keeps the JS consumer path identical to the
+/// resolver-mode case — no branching on whether a resolver was wired.
+fn build_preprocessor_line_map(result: &acdc_parser::ParseResult) -> Vec<serde_json::Value> {
+    let mut entries: Vec<(usize, usize)> = result
+        .include_expansions()
+        .iter()
+        .map(|e| (e.source_line, e.expanded_lines))
+        .chain(result.conditional_drops().iter().map(|&line| (line, 0)))
+        .collect();
+    entries.sort_by_key(|&(line, _)| line);
+    entries
+        .into_iter()
+        .map(|(source_line, expanded_lines)| {
+            serde_json::json!({
+                "sourceLine": source_line,
+                "expandedLines": expanded_lines,
+            })
+        })
+        .collect()
+}
+
 /// Parse a full AsciiDoc document.
 ///
 /// Returns a JS object:
@@ -190,6 +223,16 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
         Ok(result) => {
             let doc = result.document();
             let warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
+            // No `FileResolver` here, so every `include::` directive is
+            // dropped by the preprocessor (resolved as missing file). The
+            // directive line itself disappears from the output, shifting
+            // every subsequent block up by 1; embedders that map
+            // post-expansion positions back to original source still need
+            // the metadata so the translator can compensate. Same envelope
+            // shape as `parse_block_with_resolver` (with
+            // `expanded_lines: 0` for every dropped directive) so the
+            // consumer path stays uniform.
+            let include_expansions = build_preprocessor_line_map(&result);
             // Serialize via serde_json::Value to a JS-friendly intermediate
             // (avoids serde-wasm-bindgen lifetime issues with bumpalo arenas).
             let json = serde_json::to_value(doc)
@@ -198,6 +241,7 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
                 "ok": true,
                 "value": json,
                 "warnings": warnings,
+                "includeExpansions": include_expansions,
             });
             envelope
                 .serialize(&js_serializer())
@@ -294,17 +338,10 @@ pub fn parse_block_with_resolver(
             // original root-source line number, so editor cursor / scroll
             // sync stays aligned with the user's buffer. acdc handles the
             // attribute filtering (lines=, tag=, tags=, leveloffset=, …) so
-            // consumers don't replicate that logic.
-            let include_expansions: Vec<serde_json::Value> = result
-                .include_expansions()
-                .iter()
-                .map(|e| {
-                    serde_json::json!({
-                        "sourceLine": e.source_line,
-                        "expandedLines": e.expanded_lines,
-                    })
-                })
-                .collect();
+            // consumers don't replicate that logic. Merged with conditional
+            // (ifdef/ifndef/ifeval/endif) line drops so the translator
+            // compensates for EVERY preprocessor-induced shift in one pass.
+            let include_expansions = build_preprocessor_line_map(&result);
             let json = serde_json::to_value(doc)
                 .map_err(|e| JsValue::from_str(&format!("serialize document: {e}")))?;
             let envelope = serde_json::json!({

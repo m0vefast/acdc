@@ -260,9 +260,12 @@ pub fn parse_from_reader<R: std::io::Read>(
         text,
         options,
         None,
-        result.leveloffset_ranges,
-        result.source_ranges,
-        result.include_expansions,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+            include_expansions: result.include_expansions,
+            conditional_drops: result.conditional_drops,
+        },
         warnings_handle,
     )
 }
@@ -299,9 +302,12 @@ pub fn parse(input: &str, options: &Options<'_>) -> Result<ParseResult, Error> {
         text,
         options,
         None,
-        result.leveloffset_ranges,
-        result.source_ranges,
-        result.include_expansions,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+            include_expansions: result.include_expansions,
+            conditional_drops: result.conditional_drops,
+        },
         warnings_handle,
     )
 }
@@ -353,9 +359,12 @@ pub fn parse_file<P: AsRef<Path>>(
         text,
         options,
         Some(path),
-        result.leveloffset_ranges,
-        result.source_ranges,
-        result.include_expansions,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+            include_expansions: result.include_expansions,
+            conditional_drops: result.conditional_drops,
+        },
         warnings_handle,
     )
 }
@@ -395,14 +404,23 @@ fn peg_error_to_source_location(
     }
 }
 
+/// Owned metadata produced by the preprocessor and threaded into the
+/// grammar parse stage. Bundled to keep `parse_input`'s arg list under
+/// clippy's `too_many_arguments` threshold; the four fields always travel
+/// together (they all originate from the same `PreprocessorResult`).
+struct PreprocessorMetadata {
+    leveloffset_ranges: Vec<model::LeveloffsetRange>,
+    source_ranges: Vec<model::SourceRange>,
+    include_expansions: Vec<IncludeExpansion>,
+    conditional_drops: Vec<usize>,
+}
+
 #[instrument(skip_all)]
 fn parse_input(
     input: Box<str>,
     options: Options<'_>,
     file_path: Option<PathBuf>,
-    leveloffset_ranges: Vec<model::LeveloffsetRange>,
-    source_ranges: Vec<model::SourceRange>,
-    include_expansions: Vec<IncludeExpansion>,
+    meta: PreprocessorMetadata,
     warnings_handle: Rc<RefCell<Vec<Warning>>>,
 ) -> Result<ParseResult, Error> {
     tracing::trace!(?input, "post preprocessor");
@@ -422,13 +440,13 @@ fn parse_input(
     // unwraps it.
     let warnings_for_state = Rc::clone(&warnings_handle);
 
-    ParseResult::try_new(owner, warnings_handle, include_expansions, move |owner| {
+    ParseResult::try_new(owner, warnings_handle, meta.include_expansions, meta.conditional_drops, move |owner| {
         let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
         state.document_attributes = Rc::new(options_owned.document_attributes.clone());
         state.options = Rc::new(options_owned);
         state.current_file = file_path;
-        state.leveloffset_ranges = leveloffset_ranges;
-        state.source_ranges = source_ranges;
+        state.leveloffset_ranges = meta.leveloffset_ranges;
+        state.source_ranges = meta.source_ranges;
         state.warnings = warnings_for_state;
         let result = match grammar::document_parser::document(&owner.source, &mut state) {
             Ok(Ok(doc)) => Ok(doc),
