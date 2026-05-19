@@ -371,3 +371,83 @@ pub fn parse_block_with_resolver(
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    //! Pin the wasm envelope key names at the Rust layer. The JS-side
+    //! `asciidoc.ts` consumer accesses `entry.sourceLine` /
+    //! `entry.expandedLines` in a tight loop; a `serde_json::json!` typo
+    //! here (e.g. `"source_line"` or `"includeExpansion"` singular) would
+    //! surface only as a Glyph cursor-jump bug in production — these
+    //! tests catch it at the wasm boundary instead.
+    use super::{Options, SafeMode, build_preprocessor_line_map};
+
+    /// `build_preprocessor_line_map` emits camelCase keys for every
+    /// entry, including the conditional-drop case (`expandedLines: 0`).
+    #[test]
+    fn preprocessor_line_map_uses_camelcase_keys() {
+        // 3 source lines consumed by ifdef-false / endif → 3 conditional_drops
+        // entries, each with `expandedLines: 0`.
+        let source = "ifdef::nonexistent_attr[]\nbody\nendif::[]\n";
+        let opts = Options::builder().with_safe_mode(SafeMode::Unsafe).build();
+        let result = acdc_parser::parse(source, &opts).expect("parse succeeds");
+        let entries = build_preprocessor_line_map(&result);
+        assert!(
+            !entries.is_empty(),
+            "expected at least one conditional_drops entry, got none"
+        );
+        for (i, entry) in entries.iter().enumerate() {
+            let obj = entry.as_object().expect("entry is JSON object");
+            assert!(
+                obj.contains_key("sourceLine"),
+                "entry {i}: missing camelCase key `sourceLine`, got keys = {:?}",
+                obj.keys().collect::<Vec<_>>()
+            );
+            assert!(
+                obj.contains_key("expandedLines"),
+                "entry {i}: missing camelCase key `expandedLines`, got keys = {:?}",
+                obj.keys().collect::<Vec<_>>()
+            );
+            // Defend against accidental snake_case re-introduction
+            // (the source-side fields on `IncludeExpansion` are
+            // `source_line` / `expanded_lines`; the bridge MUST rename).
+            assert!(
+                !obj.contains_key("source_line"),
+                "entry {i}: snake_case `source_line` leaked through bridge"
+            );
+            assert!(
+                !obj.contains_key("expanded_lines"),
+                "entry {i}: snake_case `expanded_lines` leaked through bridge"
+            );
+        }
+    }
+
+    /// Conditional-drop entries carry `expandedLines: 0` per the wire
+    /// contract (the JS translator's left-fold relies on this — any
+    /// other sentinel would shift the position math by one).
+    #[test]
+    fn conditional_drop_entries_have_zero_expanded_lines() {
+        let source = "ifdef::nonexistent_attr[]\nbody\nendif::[]\n";
+        let opts = Options::builder().with_safe_mode(SafeMode::Unsafe).build();
+        let result = acdc_parser::parse(source, &opts).expect("parse succeeds");
+        let entries = build_preprocessor_line_map(&result);
+        // All entries here originate from conditional_drops (no real
+        // includes in this source), so each must have expandedLines == 0.
+        for entry in &entries {
+            let expanded = entry
+                .get("expandedLines")
+                .and_then(serde_json::Value::as_u64)
+                .expect("expandedLines is unsigned int");
+            assert_eq!(
+                expanded, 0,
+                "conditional_drops entry must have expandedLines:0, got {entry:?}"
+            );
+        }
+    }
+}
