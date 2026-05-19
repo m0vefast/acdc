@@ -580,17 +580,23 @@ fn conditional_drops_ifeval_true_records_directive_drop_only() {
 
 #[test]
 fn conditional_drops_inside_included_file_NOT_propagated() {
-    // ACDC PRESERVED LIMITATION (NOT a bug introduced by the patch): the
-    // nested preprocessor that runs for an included file has its own
-    // `PreprocessorState`; only the root document's `conditional_drops`
-    // reaches `PreprocessorResult`. Conditionals INSIDE an included file
-    // drop lines from the merged output, but those drops are invisible to
-    // downstream consumers — the JS translator will drift on lines after
-    // such a conditional.
+    // CORRECTNESS INVARIANT (not a limitation): the nested preprocessor that
+    // runs for an included file has its own `PreprocessorState`; only the
+    // root document's `conditional_drops` reaches `PreprocessorResult`.
+    // Conditionals INSIDE an included file drop lines from the merged output,
+    // but those drops are already baked into the parent's
+    // `IncludeExpansion::expanded_lines` (= post-drop line count). The
+    // root-level translator computes a per-include shift of
+    // `expanded_lines - 1`, which is correct regardless of how many lines
+    // the nested preprocessor dropped — the post-drop count is what landed
+    // in the merged output.
     //
-    // Pin this as a regression guard: if a future refactor bubbles nested
-    // drops up, this test breaks and the embedder side (Glyph wasm bridge
-    // + JS translator) MUST be updated in lockstep.
+    // Pin this as the API guarantee — consumers (Glyph wasm bridge +
+    // JS translator) rely on `include_expansions[].expanded_lines` to
+    // already account for nested-conditional drops. If a future refactor
+    // double-counts by also bubbling nested drops up to
+    // `conditional_drops`, this test breaks and the embedder side MUST
+    // de-duplicate.
     let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
         "child.adoc",
         "ifdef::missing[]\nhidden line\nendif::[]\nKept by child.\n",
@@ -608,6 +614,65 @@ fn conditional_drops_inside_included_file_NOT_propagated() {
     assert_eq!(r.include_expansions().len(), 1);
     assert_eq!(r.include_expansions()[0].source_line, 3);
     assert_eq!(r.include_expansions()[0].expanded_lines, 1);
+}
+
+#[test]
+fn nested_conditional_drop_does_not_drift_block_line_after_include() {
+    // Correctness proof for the invariant pinned in the test above. Build a
+    // child with a false ifdef that swallows 3 lines, then a root document
+    // with a paragraph AFTER the include. The paragraph's reported line
+    // number must equal its ORIGINAL root-source line (not shifted by the
+    // 3 lines the child dropped) — because `expanded_lines` already accounts
+    // for the drop and the root translator's per-include shift uses the
+    // post-drop count.
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
+        "child.adoc",
+        "ifdef::missing[]\nhidden line\nendif::[]\nKept by child.\n",
+    )]));
+    let opts = Options::builder()
+        .with_file_resolver(resolver)
+        .with_virtual_current_file("main.adoc")
+        .build();
+    // Root source lines:
+    //   1: `= M`
+    //   2: ``
+    //   3: `include::child.adoc[]`     → expands to 1 line ("Kept by child.")
+    //   4: ``
+    //   5: `After.`
+    let r = acdc_parser::parse(
+        "= M\n\ninclude::child.adoc[]\n\nAfter.\n",
+        &opts,
+    )
+    .expect("parse");
+    assert_eq!(r.include_expansions().len(), 1);
+    assert_eq!(r.include_expansions()[0].source_line, 3);
+    assert_eq!(
+        r.include_expansions()[0].expanded_lines, 1,
+        "expanded_lines must reflect post-drop count, baking in nested drops"
+    );
+    assert_eq!(
+        r.conditional_drops().len(),
+        0,
+        "nested drops are NOT re-counted at root level"
+    );
+    // R1-review hardening: actually walk the parsed blocks and assert
+    // `After.` reports its ORIGINAL root-source line (5). Without this the
+    // test only pins envelope metadata — the surrounding contract — but not
+    // the observable line-mapping. A regression that bubbles nested drops up
+    // would still let the metadata-only check pass while shifting the block.
+    let after_block = r.document().blocks.iter().find(|b| {
+        if let acdc_parser::Block::Paragraph(p) = b {
+            p.content.iter().any(|i| matches!(i,
+                acdc_parser::InlineNode::PlainText(t) if t.content.contains("After.")
+            ))
+        } else { false }
+    }).expect("After. paragraph must exist in root doc");
+    if let acdc_parser::Block::Paragraph(p) = after_block {
+        assert_eq!(
+            p.location.start.line, 5,
+            "`After.` MUST report root-source line 5, not the post-preprocess shifted line"
+        );
+    }
 }
 
 #[test]
