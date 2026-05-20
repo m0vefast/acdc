@@ -22,7 +22,7 @@ mod tables;
 mod title;
 
 pub use admonition::{Admonition, AdmonitionVariant};
-pub use anchor::{Anchor, TocEntry, UNNUMBERED_SECTION_STYLES};
+pub use anchor::{Anchor, AnchorKind, TocEntry, UNNUMBERED_SECTION_STYLES};
 pub use attributes::{
     AttributeName, AttributeValue, DocumentAttributes, ElementAttributes, MAX_SECTION_LEVELS,
     MAX_TOC_LEVELS, strip_quotes,

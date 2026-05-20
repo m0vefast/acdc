@@ -1,5 +1,5 @@
 use crate::{
-    Anchor, AttributeValue, Autolink, BlockMetadata, Bold, Button, CurvedApostrophe,
+    Anchor, AnchorKind, AttributeValue, Autolink, BlockMetadata, Bold, Button, CurvedApostrophe,
     CurvedQuotation, Footnote, Form, Highlight, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind,
     InlineMacro, InlineNode, Italic, Keyboard, LineBreak, Link, Mailto, Menu, Monospace, Pass,
     PassthroughKind, Plain, Source, StandaloneCurvedApostrophe, Stem, StemNotation, Subscript,
@@ -1154,19 +1154,37 @@ peg::parser! {
         }
 
         /// Pattern for cross-reference shorthand: <<id>> or <<id,custom text>>
+        ///
+        /// Target may include any non-ASCII Unicode character (CJK, Hangul,
+        /// Cyrillic, Arabic, etc.) — Asciidoctor's reference accepts CJK
+        /// section IDs like `[#结论]` and the matching `<<结论>>` xref.
+        /// The leading char must still be a letter (ASCII or Unicode);
+        /// subsequent chars also allow digits, `_`, `-`.
         rule cross_reference_shorthand_pattern() -> (&'input str, Option<(usize, &'input str)>)
-        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
+        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
         {
             (target, content)
         }
 
-        /// Parse cross-reference macro syntax: xref:id[text] or xref:file.adoc#anchor[text]
+        /// Parse cross-reference macro syntax. Three accepted shapes:
+        ///   1. `xref:id[text]`               same-document, target is the id
+        ///   2. `xref:file.adoc#anchor[text]` cross-document with fragment
+        ///   3. `xref:#anchor[text]`          same-document, explicit hash
+        ///
+        /// Form (3) is what Asciidoctor accepts but earlier acdc grammar
+        /// silently rejected (required non-empty `source()` for target).
+        /// `target` is now optional; at least ONE of target/fragment must
+        /// be present, otherwise the rule fails. When only the fragment is
+        /// present the emitted `target_str` includes the leading `#` so the
+        /// downstream converter routes through the same-document anchor path.
         rule cross_reference_macro() -> InlineNode<'input>
-        = "xref:" target:source() fragment:path_fragment()? "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
+        = "xref:" target:source()? fragment:path_fragment()? "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
         {?
-            let target_str: &'input str = match fragment {
-                Some(f) => state.intern_fmt(format_args!("{target}{f}")),
-                None => state.intern_fmt(format_args!("{target}")),
+            let target_str: &'input str = match (target.as_ref(), fragment.as_ref()) {
+                (Some(t), Some(f)) => state.intern_fmt(format_args!("{t}{f}")),
+                (Some(t), None)    => state.intern_fmt(format_args!("{t}")),
+                (None,    Some(f)) => state.intern_fmt(format_args!("{f}")),
+                (None,    None)    => return Err("xref macro requires a target or a #fragment"),
             };
             let bm = BlockParsingMetadata {
                 subs_flags: state.inline_ctx.subs_flags,
@@ -1190,12 +1208,16 @@ peg::parser! {
         }
 
         /// Match cross-reference shorthand syntax without consuming: <<id>> or <<id,text>>
+        /// Char class mirrors `cross_reference_shorthand_pattern` (Unicode-permissive).
         rule cross_reference_shorthand_match() -> ()
-        = "<<" ['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']* ("," (!">>" [_])+)? ">>"
+        = "<<" ['a'..='z' | 'A'..='Z' | '_' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']* ("," (!">>" [_])+)? ">>"
 
-        /// Match cross-reference macro syntax without consuming: xref:id[text] or xref:file.adoc#anchor[text]
+        /// Match cross-reference macro syntax without consuming.
+        /// Three accepted shapes — mirror the parse-time rule:
+        ///   xref:id[…]                xref:file.adoc#a[…]    xref:#anchor[…]
         rule cross_reference_macro_match()
         = "xref:" source() path_fragment()? "[" (!"]" [_])* "]"
+        / "xref:" path_fragment() "[" (!"]" [_])* "]"
 
         rule bold_text_unconstrained() -> InlineNode<'input>
             = attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$((!(eol() / ![_] / "**") [_])+) "**" end:position!()
@@ -1817,6 +1839,7 @@ peg::parser! {
             InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Inline,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset)
             })
         }
@@ -1838,6 +1861,7 @@ peg::parser! {
             InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Bibliography,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset)
             })
         }
@@ -2210,10 +2234,15 @@ peg::parser! {
         /// (e.g., `http://example.com.)` keeps both `.` and `)` outside).
         rule bare_url_char() = bare_url_safe_char() / bare_url_trailing_char() / "("
 
-        /// Fragment identifier for URLs and cross-references (e.g., `#section-id`)
-        /// Only used by `xref:` and `link:` macros — other macros (`image::`, `video::`, etc.) do not support fragments
+        /// Fragment identifier for URLs and cross-references (e.g., `#section-id`).
+        /// Only used by `xref:` and `link:` macros — other macros (`image::`,
+        /// `video::`, etc.) do not support fragments.
+        ///
+        /// Char class allows non-ASCII Unicode so that CJK anchor ids
+        /// (`[#结论]` / `xref:file.adoc#结论[…]`) resolve correctly. Mirrors
+        /// the relaxed pattern in `cross_reference_shorthand_pattern`.
         rule path_fragment() -> Cow<'input, str>
-            = "#" fragment:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']+)
+            = "#" fragment:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']+)
         {
             Cow::Owned(format!("#{fragment}"))
         }

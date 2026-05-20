@@ -360,10 +360,7 @@ impl<'a> OptionsBuilder<'a> {
     /// a `file_resolver` from WASM. The file doesn't need to physically
     /// exist — only its parent dir is read, to anchor relative includes.
     #[must_use]
-    pub fn with_virtual_current_file<P: Into<std::path::PathBuf>>(
-        mut self,
-        path: P,
-    ) -> Self {
+    pub fn with_virtual_current_file<P: Into<std::path::PathBuf>>(mut self, path: P) -> Self {
         self.virtual_current_file = Some(path.into());
         self
     }

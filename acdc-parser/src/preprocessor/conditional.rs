@@ -500,7 +500,10 @@ mod tests {
         let conditional = parse_line(line, 1, 0, None)?;
         let attrs = DocumentAttributes::default();
         let result = conditional.is_true(&attrs, &mut String::new(), 1, 0, None)?;
-        assert!(result, "undefined attr should compare equal to empty string");
+        assert!(
+            result,
+            "undefined attr should compare equal to empty string"
+        );
         Ok(())
     }
 

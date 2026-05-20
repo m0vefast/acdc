@@ -128,15 +128,17 @@ impl FileResolver for DefaultFileResolver {
         // of variants; we genuinely only special-case NotFound and route
         // everything else (PermissionDenied, Interrupted, …) through Io.
         #[allow(clippy::wildcard_enum_match_arm)]
-        std::fs::read(path).map(Cow::Owned).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => FileResolverError::NotFound {
-                path: path.to_path_buf(),
-            },
-            _ => FileResolverError::Io {
-                path: path.to_path_buf(),
-                source: Box::new(e),
-            },
-        })
+        std::fs::read(path)
+            .map(Cow::Owned)
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => FileResolverError::NotFound {
+                    path: path.to_path_buf(),
+                },
+                _ => FileResolverError::Io {
+                    path: path.to_path_buf(),
+                    source: Box::new(e),
+                },
+            })
     }
 }
 

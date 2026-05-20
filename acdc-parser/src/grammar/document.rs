@@ -2,10 +2,10 @@
 // rules with just 3 explicit params exceed clippy's 7-argument threshold.
 #![allow(clippy::too_many_arguments)]
 use crate::{
-    Admonition, AdmonitionVariant, Anchor, AttributeValue, Attribution, Audio, Author, Block,
-    BlockMetadata, CalloutList, CalloutListItem, CalloutRef, CiteTitle, Comment, DelimitedBlock,
-    DelimitedBlockType, DescriptionList, DescriptionListItem, DiscreteHeader, Document,
-    DocumentAttribute, DocumentAttributes, Error, Header, Image, InlineNode, ListItem,
+    Admonition, AdmonitionVariant, Anchor, AnchorKind, AttributeValue, Attribution, Audio, Author,
+    Block, BlockMetadata, CalloutList, CalloutListItem, CalloutRef, CiteTitle, Comment,
+    DelimitedBlock, DelimitedBlockType, DescriptionList, DescriptionListItem, DiscreteHeader,
+    Document, DocumentAttribute, DocumentAttributes, Error, Header, Image, InlineNode, ListItem,
     ListItemCheckedStatus, Location, OrderedList, PageBreak, Paragraph, Plain, Raw, Section,
     Source, SourceLocation, StemContent, StemNotation, Subtitle, Table, TableOfContents, TableRow,
     ThematicBreak, Title, UnorderedList, Verbatim, Video,
@@ -2524,8 +2524,12 @@ peg::parser! {
         }
 
         rule thematic_break(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = ("'''"
-               // Below are the markdown-style thematic breaks
+            = ("'"*<3,>
+               // Below are the markdown-style thematic breaks. Hyphen/asterisk
+               // forms stay EXACTLY 3 because 4+ dashes is the listing block
+               // delimiter (`----`) and 4+ asterisks is the sidebar delimiter
+               // (`****`). Apostrophes have no delimiter conflict so any run
+               // of 3+ is accepted (Asciidoctor behavior).
                / "---"
                / "- - -"
                / "***"
@@ -4066,6 +4070,7 @@ peg::parser! {
             Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Inline,
                 location: state.create_location(span_start, end)
             }
         }
@@ -4090,6 +4095,7 @@ peg::parser! {
             InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Inline,
                 location: state.create_block_location(span_start, span_end, offset)
             })
         }
@@ -4111,6 +4117,7 @@ peg::parser! {
             InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Bibliography,
                 location: state.create_block_location(span_start, span_end, offset)
             })
         }
@@ -4397,6 +4404,7 @@ peg::parser! {
                             maybe_anchor = Some(Anchor {
                                 id: state.intern_cow(id),
                                 xreflabel: None,
+                                kind: AnchorKind::Inline,
                                 location: state.create_location(id_start, id_end)
                             });
                         },
@@ -5250,6 +5258,7 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
             Some(Anchor {
                 id: "my-id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location {
                     absolute_start: 4,
                     absolute_end: 9,
@@ -5280,6 +5289,7 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
             Some(Anchor {
                 id: "myid",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location {
                     absolute_start: 8,
                     absolute_end: 12,
@@ -5310,6 +5320,7 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
             Some(Anchor {
                 id: "myid",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location {
                     absolute_start: 8,
                     absolute_end: 12,
@@ -5341,6 +5352,7 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
             Some(Anchor {
                 id: "bracket-id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 12,
@@ -5370,6 +5382,7 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
             Some(Anchor {
                 id: "my-id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 7,

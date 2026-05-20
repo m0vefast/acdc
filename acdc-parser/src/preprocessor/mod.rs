@@ -412,7 +412,8 @@ impl Preprocessor {
     ) -> Result<PreprocessorResult<'static>, Error> {
         if file_path.as_ref().parent().is_some() {
             // Use read_and_decode_file to support UTF-8, UTF-16 LE, and UTF-16 BE with BOM
-            let input = read_and_decode_file(file_path.as_ref(), None, options.file_resolver.as_ref())?;
+            let input =
+                read_and_decode_file(file_path.as_ref(), None, options.file_resolver.as_ref())?;
             Ok(Self { warnings, depth: 0 }
                 .process_inner(&input, Some(file_path.as_ref()), options)?
                 .into_owned())
@@ -770,8 +771,7 @@ impl Preprocessor {
             // (empty) output line — which silently swallows the endif line
             // so we only need to record the ifdef drop.
             let condition_line = *ctx.line_number;
-            let kept =
-                self.process_conditional(line, lines, ctx, &options.document_attributes)?;
+            let kept = self.process_conditional(line, lines, ctx, &options.document_attributes)?;
             let end_line = *ctx.line_number;
             let source_consumed = end_line - condition_line + 1;
             // Effective output lines contributed by `kept` if pushed via
@@ -779,9 +779,7 @@ impl Preprocessor {
             // 1 line; "abc\n" produces 2 (the content line + an empty
             // trailing line from the literal `\n` adjacent to the join's
             // separator).
-            let output_lines = kept
-                .as_deref()
-                .map_or(0, |c| c.matches('\n').count() + 1);
+            let output_lines = kept.as_deref().map_or(0, |c| c.matches('\n').count() + 1);
             if let Some(content) = kept {
                 out.push_line(content);
             }

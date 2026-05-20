@@ -63,31 +63,31 @@ pub(crate) use grammar::{InlinePreprocessorParserState, ProcessedContent, inline
 use preprocessor::Preprocessor;
 
 pub use error::{Error, Positioning, SourceLocation};
-pub use file_resolver::{DynFileResolver, FileResolver, FileResolverError};
 #[cfg(not(target_arch = "wasm32"))]
 pub use file_resolver::DefaultFileResolver;
-pub use preprocessor::{IncludeExpansion, MAX_INCLUDE_DEPTH};
+pub use file_resolver::{DynFileResolver, FileResolver, FileResolverError};
 pub use grammar::parse_text_for_quotes;
 pub use model::{
-    Admonition, AdmonitionVariant, Anchor, AttributeName, AttributeValue, Attribution, Audio,
-    Author, Autolink, Block, BlockMetadata, Bold, Button, CalloutList, CalloutListItem, CalloutRef,
-    CalloutRefKind, CiteTitle, ColumnFormat, ColumnStyle, ColumnWidth, Comment, CrossReference,
-    CurvedApostrophe, CurvedQuotation, DelimitedBlock, DelimitedBlockType, DescriptionList,
-    DescriptionListItem, DiscreteHeader, Document, DocumentAttribute, DocumentAttributes,
-    ElementAttributes, Footnote, Form, HEADER, Header, Highlight, HorizontalAlignment, ICON_SIZES,
-    Icon, Image, IndexTerm, IndexTermKind, InlineMacro, InlineNode, Italic, Keyboard, LineBreak,
-    Link, ListItem, ListItemCheckedStatus, Location, MAX_SECTION_LEVELS, MAX_TOC_LEVELS, Mailto,
-    Menu, Monospace, NORMAL, OrderedList, PageBreak, Paragraph, Pass, PassthroughKind, Plain,
-    Position, Raw, Role, Section, Source, SourceUrl, StandaloneCurvedApostrophe, Stem, StemContent,
-    StemNotation, Subscript, Substitution, Subtitle, Superscript, Table, TableColumn,
-    TableOfContents, TableRow, ThematicBreak, Title, TocEntry, UNNUMBERED_SECTION_STYLES,
-    UnorderedList, Url, VERBATIM, Verbatim, VerticalAlignment, Video, inlines_to_string,
-    strip_quotes, substitute,
+    Admonition, AdmonitionVariant, Anchor, AnchorKind, AttributeName, AttributeValue, Attribution,
+    Audio, Author, Autolink, Block, BlockMetadata, Bold, Button, CalloutList, CalloutListItem,
+    CalloutRef, CalloutRefKind, CiteTitle, ColumnFormat, ColumnStyle, ColumnWidth, Comment,
+    CrossReference, CurvedApostrophe, CurvedQuotation, DelimitedBlock, DelimitedBlockType,
+    DescriptionList, DescriptionListItem, DiscreteHeader, Document, DocumentAttribute,
+    DocumentAttributes, ElementAttributes, Footnote, Form, HEADER, Header, Highlight,
+    HorizontalAlignment, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind, InlineMacro,
+    InlineNode, Italic, Keyboard, LineBreak, Link, ListItem, ListItemCheckedStatus, Location,
+    MAX_SECTION_LEVELS, MAX_TOC_LEVELS, Mailto, Menu, Monospace, NORMAL, OrderedList, PageBreak,
+    Paragraph, Pass, PassthroughKind, Plain, Position, Raw, Role, Section, Source, SourceUrl,
+    StandaloneCurvedApostrophe, Stem, StemContent, StemNotation, Subscript, Substitution, Subtitle,
+    Superscript, Table, TableColumn, TableOfContents, TableRow, ThematicBreak, Title, TocEntry,
+    UNNUMBERED_SECTION_STYLES, UnorderedList, Url, VERBATIM, Verbatim, VerticalAlignment, Video,
+    inlines_to_string, strip_quotes, substitute,
 };
 #[cfg(feature = "pre-spec-subs")]
 pub use model::{SubstitutionOp, SubstitutionSpec};
 pub use options::{Options, OptionsBuilder, SafeMode};
 pub use parsed::{OwnedSource, ParseInlineResult, ParseResult};
+pub use preprocessor::{IncludeExpansion, MAX_INCLUDE_DEPTH};
 pub use warning::{Warning, WarningKind};
 
 /// Type-based parser for `AsciiDoc` content.
@@ -442,26 +442,32 @@ fn parse_input(
     // unwraps it.
     let warnings_for_state = Rc::clone(&warnings_handle);
 
-    ParseResult::try_new(owner, warnings_handle, meta.include_expansions, meta.conditional_drops, move |owner| {
-        let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
-        state.document_attributes = Rc::new(options_owned.document_attributes.clone());
-        state.options = Rc::new(options_owned);
-        state.current_file = file_path;
-        state.leveloffset_ranges = meta.leveloffset_ranges;
-        state.source_ranges = meta.source_ranges;
-        state.warnings = warnings_for_state;
-        let result = match grammar::document_parser::document(&owner.source, &mut state) {
-            Ok(Ok(doc)) => Ok(doc),
-            Ok(Err(e)) => Err(e),
-            Err(error) => {
-                tracing::error!(?error, "error parsing document content");
-                let source_location = peg_error_to_source_location(&error, &state);
-                Err(Error::Parse(Box::new(source_location), error.to_string()))
-            }
-        };
-        state.emit_warnings();
-        result
-    })
+    ParseResult::try_new(
+        owner,
+        warnings_handle,
+        meta.include_expansions,
+        meta.conditional_drops,
+        move |owner| {
+            let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
+            state.document_attributes = Rc::new(options_owned.document_attributes.clone());
+            state.options = Rc::new(options_owned);
+            state.current_file = file_path;
+            state.leveloffset_ranges = meta.leveloffset_ranges;
+            state.source_ranges = meta.source_ranges;
+            state.warnings = warnings_for_state;
+            let result = match grammar::document_parser::document(&owner.source, &mut state) {
+                Ok(Ok(doc)) => Ok(doc),
+                Ok(Err(e)) => Err(e),
+                Err(error) => {
+                    tracing::error!(?error, "error parsing document content");
+                    let source_location = peg_error_to_source_location(&error, &state);
+                    Err(Error::Parse(Box::new(source_location), error.to_string()))
+                }
+            };
+            state.emit_warnings();
+            result
+        },
+    )
 }
 
 /// Parse inline `AsciiDoc` content from a string.
