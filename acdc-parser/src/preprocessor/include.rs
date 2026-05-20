@@ -424,10 +424,11 @@ impl<'a> Include<'a> {
                     // attributes warn and are ignored. Hard-rejecting bricked
                     // real-world docs that use `role`, `title`, `id`, vendor
                     // extensions, etc. Asciidoctor accepts and discards them.
-                    tracing::warn!(?unknown, "unknown attribute key in include directive; ignored");
-                    self.warn_unlocated(format!(
-                        "Unknown include attribute '{unknown}'; ignored"
-                    ));
+                    tracing::warn!(
+                        ?unknown,
+                        "unknown attribute key in include directive; ignored"
+                    );
+                    self.warn_unlocated(format!("Unknown include attribute '{unknown}'; ignored"));
                 }
             }
         }
@@ -699,46 +700,47 @@ impl<'a> Include<'a> {
             });
         }
 
-        let (content, nested_leveloffset_ranges, nested_source_ranges) =
-            match self.read_content_from_file(&path) {
-                Ok(triple) => triple,
-                Err(Error::Io(io_err)) => {
-                    // Treat any I/O error (resolver-mediated NotFound or
-                    // missing file from std::fs) the same way native acdc
-                    // treated `!path.exists()` above: warn + empty result.
-                    // Distinguish NotFound from other I/O errors in the
-                    // warning text so `JS callback threw / permission denied
-                    // / network failure` surfaces with the underlying cause
-                    // instead of the generic missing-file string.
-                    if !self.opts.contains(&"optional".to_string()) {
-                        if io_err.kind() == std::io::ErrorKind::NotFound {
-                            self.warn_located(format!(
-                                "file is missing — include directive won't be processed: {}",
-                                path.display(),
-                            ));
-                        } else {
-                            // Walk the source chain — `read_and_decode_file`
-                            // wraps `FileResolverError::Io` via `io::Error::new`,
-                            // preserving the boxed source. Render it for the
-                            // user-visible warning.
-                            let cause = std::error::Error::source(&io_err)
-                                .map_or_else(|| io_err.to_string(), std::string::ToString::to_string);
-                            self.warn_located(format!(
-                                "include read failed for {}: {cause}",
-                                path.display(),
-                            ));
-                        }
+        let (content, nested_leveloffset_ranges, nested_source_ranges) = match self
+            .read_content_from_file(&path)
+        {
+            Ok(triple) => triple,
+            Err(Error::Io(io_err)) => {
+                // Treat any I/O error (resolver-mediated NotFound or
+                // missing file from std::fs) the same way native acdc
+                // treated `!path.exists()` above: warn + empty result.
+                // Distinguish NotFound from other I/O errors in the
+                // warning text so `JS callback threw / permission denied
+                // / network failure` surfaces with the underlying cause
+                // instead of the generic missing-file string.
+                if !self.opts.contains(&"optional".to_string()) {
+                    if io_err.kind() == std::io::ErrorKind::NotFound {
+                        self.warn_located(format!(
+                            "file is missing — include directive won't be processed: {}",
+                            path.display(),
+                        ));
+                    } else {
+                        // Walk the source chain — `read_and_decode_file`
+                        // wraps `FileResolverError::Io` via `io::Error::new`,
+                        // preserving the boxed source. Render it for the
+                        // user-visible warning.
+                        let cause = std::error::Error::source(&io_err)
+                            .map_or_else(|| io_err.to_string(), std::string::ToString::to_string);
+                        self.warn_located(format!(
+                            "include read failed for {}: {cause}",
+                            path.display(),
+                        ));
                     }
-                    return Ok(IncludeResult {
-                        lines: Vec::new(),
-                        effective_leveloffset: None,
-                        nested_leveloffset_ranges: Vec::new(),
-                        file: None,
-                        nested_source_ranges: Vec::new(),
-                    });
                 }
-                Err(e) => return Err(e),
-            };
+                return Ok(IncludeResult {
+                    lines: Vec::new(),
+                    effective_leveloffset: None,
+                    nested_leveloffset_ranges: Vec::new(),
+                    file: None,
+                    nested_source_ranges: Vec::new(),
+                });
+            }
+            Err(e) => return Err(e),
+        };
         let effective_leveloffset = self.calculate_effective_leveloffset();
 
         let content_lines = content.lines().map(str::to_string).collect::<Vec<_>>();

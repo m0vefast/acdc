@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    Anchor, AttributeValue, BlockMetadata, Title, grammar::ParserState, model::SectionLevel,
+    Anchor, AnchorKind, AttributeValue, BlockMetadata, Title, grammar::ParserState,
+    model::SectionLevel,
 };
 
 #[derive(Debug)]
@@ -173,6 +174,7 @@ pub(crate) fn process_attribute_list<'input>(
                 metadata.id = Some(Anchor {
                     id,
                     xreflabel: None,
+                    kind: AnchorKind::Inline,
                     location: state.create_location(id_start, id_end),
                 });
             }

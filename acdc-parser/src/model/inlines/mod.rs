@@ -261,6 +261,14 @@ impl Serialize for InlineNode<'_> {
                 if let Some(xreflabel) = &anchor.xreflabel {
                     map.serialize_entry("xreflabel", xreflabel)?;
                 }
+                // Only emit `kind` for non-default flavors. Bibliography anchors
+                // (`[[[id]]]`) carry `kind: AnchorKind::Bibliography` and need
+                // this field on the wire so downstream renderers (Glyph etc.)
+                // can switch to the visible `[id]` label rendering. Default
+                // `Inline` is omitted to keep existing fixtures byte-equal.
+                if !anchor.kind.is_inline() {
+                    map.serialize_entry("kind", &anchor.kind)?;
+                }
                 map.serialize_entry("location", &anchor.location)?;
             }
             InlineNode::Macro(macro_node) => {
@@ -426,6 +434,12 @@ where
     map.serialize_entry("type", "inline")?;
     map.serialize_entry("variant", "autolink")?;
     map.serialize_entry("target", &a.url)?;
+    // `bracketed` (true when source was `<foo@bar.com>` / `<https://…>`).
+    // Asciidoctor preserves the literal `<` and `>` around the link in
+    // rendered HTML; downstream consumers need this flag to match.
+    if a.bracketed {
+        map.serialize_entry("bracketed", &true)?;
+    }
     map.serialize_entry("location", &a.location)
 }
 

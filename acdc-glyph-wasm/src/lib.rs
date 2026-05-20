@@ -17,9 +17,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use acdc_parser::{
-    DynFileResolver, FileResolver, FileResolverError, Options, SafeMode,
-};
+use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options, SafeMode};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -222,7 +220,8 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
     match acdc_parser::parse(source, &opts) {
         Ok(result) => {
             let doc = result.document();
-            let warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
+            let warnings: Vec<WarningJson> =
+                result.warnings().iter().map(warning_to_json).collect();
             // No `FileResolver` here, so every `include::` directive is
             // dropped by the preprocessor (resolved as missing file). The
             // directive line itself disappears from the output, shifting
@@ -272,7 +271,8 @@ pub fn parse_inline(source: &str, safe_mode: Option<String>) -> Result<JsValue, 
     match acdc_parser::parse_inline(source, &opts) {
         Ok(result) => {
             let inlines = result.inlines();
-            let warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
+            let warnings: Vec<WarningJson> =
+                result.warnings().iter().map(warning_to_json).collect();
             let json = serde_json::to_value(inlines)
                 .map_err(|e| JsValue::from_str(&format!("serialize inlines: {e}")))?;
             let envelope = serde_json::json!({
@@ -322,7 +322,9 @@ pub fn parse_block_with_resolver(
         .as_deref()
         .and_then(|s| s.parse::<SafeMode>().ok())
         .unwrap_or(SafeMode::Unsafe);
-    let resolver = DynFileResolver::new(JsFileResolver { callback: js_resolver });
+    let resolver = DynFileResolver::new(JsFileResolver {
+        callback: js_resolver,
+    });
     let opts = Options::builder()
         .with_safe_mode(mode)
         .with_file_resolver(resolver)

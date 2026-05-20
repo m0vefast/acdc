@@ -24,6 +24,30 @@ pub const UNNUMBERED_SECTION_STYLES: &[&str] = &[
     "appendix",
 ];
 
+/// Anchor flavor — distinguishes the visual rendering Asciidoctor expects.
+///
+/// `Inline` (`[[id]]`) renders as an invisible `<a id>` marker; `Bibliography`
+/// (`[[[id]]]`) renders with a visible `[id]` label (or `[reftext]` if the
+/// 3-argument form was used). Both forms produce `InlineNode::InlineAnchor`
+/// with the same id/xreflabel fields — the kind tag is the only structural
+/// difference and downstream consumers need it to switch rendering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnchorKind {
+    #[default]
+    Inline,
+    Bibliography,
+}
+
+impl AnchorKind {
+    /// True for the default flavor — used by `#[serde(skip_serializing_if)]`
+    /// so existing block-anchor fixtures stay byte-equal.
+    #[must_use]
+    pub fn is_inline(&self) -> bool {
+        matches!(self, AnchorKind::Inline)
+    }
+}
+
 /// An `Anchor` represents an anchor in a document.
 ///
 /// An anchor is a reference point in a document that can be linked to.
@@ -33,6 +57,8 @@ pub struct Anchor<'a> {
     pub id: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xreflabel: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "AnchorKind::is_inline")]
+    pub kind: AnchorKind,
     pub location: Location,
 }
 
@@ -43,6 +69,7 @@ impl<'a> Anchor<'a> {
         Self {
             id,
             xreflabel: None,
+            kind: AnchorKind::default(),
             location,
         }
     }
@@ -51,6 +78,13 @@ impl<'a> Anchor<'a> {
     #[must_use]
     pub fn with_xreflabel(mut self, xreflabel: Option<&'a str>) -> Self {
         self.xreflabel = xreflabel;
+        self
+    }
+
+    /// Mark this anchor as a bibliography reference (`[[[id]]]` syntax).
+    #[must_use]
+    pub fn with_kind(mut self, kind: AnchorKind) -> Self {
+        self.kind = kind;
         self
     }
 }

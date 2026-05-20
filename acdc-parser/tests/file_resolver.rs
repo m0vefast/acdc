@@ -89,7 +89,10 @@ fn include_missing_file_warns_and_skips() {
         }
         false
     });
-    assert!(has_after, "expected `P-after.` paragraph after dropped include");
+    assert!(
+        has_after,
+        "expected `P-after.` paragraph after dropped include"
+    );
     assert!(
         !result.warnings().is_empty(),
         "expected at least one warning for the missing include",
@@ -136,8 +139,14 @@ fn include_with_lines_filter_via_resolver() {
     assert!(text.contains("line-2"), "expected line-2, got: {text:?}");
     assert!(text.contains("line-3"), "expected line-3, got: {text:?}");
     assert!(text.contains("line-4"), "expected line-4, got: {text:?}");
-    assert!(!text.contains("line-1"), "line-1 should be excluded, got: {text:?}");
-    assert!(!text.contains("line-5"), "line-5 should be excluded, got: {text:?}");
+    assert!(
+        !text.contains("line-1"),
+        "line-1 should be excluded, got: {text:?}"
+    );
+    assert!(
+        !text.contains("line-5"),
+        "line-5 should be excluded, got: {text:?}"
+    );
 }
 
 #[test]
@@ -188,13 +197,13 @@ fn io_error_from_resolver_surfaces_cause_string_in_warning() {
         .map(|w| w.kind.to_string())
         .collect();
     assert!(
-        warning_texts.iter().any(|t| t.contains("include read failed")),
+        warning_texts
+            .iter()
+            .any(|t| t.contains("include read failed")),
         "expected `include read failed` phrasing for Io (non-NotFound), got: {warning_texts:?}",
     );
     assert!(
-        !warning_texts
-            .iter()
-            .any(|t| t.contains("file is missing")),
+        !warning_texts.iter().any(|t| t.contains("file is missing")),
         "Io error must NOT be reported as generic missing-file, got: {warning_texts:?}",
     );
     assert!(
@@ -324,10 +333,7 @@ fn missing_virtual_current_file_with_resolver_warns_via_parse_result() {
     // include silently dropped previously (tracing::error! only). Now it
     // should surface a warning on ParseResult so consumers can spot the
     // misconfiguration.
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
-        "ch1.adoc",
-        "== Chapter 1\n",
-    )]));
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[("ch1.adoc", "== Chapter 1\n")]));
     let opts = Options::builder().with_file_resolver(resolver).build();
     let source = "= Main\n\ninclude::ch1.adoc[]\n";
     let result = parse(source, &opts).expect("parse ok");
@@ -357,9 +363,18 @@ fn include_lines_negative_end_works() {
     let serialized = serde_json::to_string(result.document()).expect("serialize");
     eprintln!("DOC: {serialized}");
     eprintln!("WARNINGS: {:?}", result.warnings());
-    assert!(serialized.contains("beta"), "missing 'beta' in:\n{serialized}");
-    assert!(serialized.contains("epsilon"), "missing 'epsilon' in:\n{serialized}");
-    assert!(!serialized.contains("alpha"), "'alpha' should be excluded:\n{serialized}");
+    assert!(
+        serialized.contains("beta"),
+        "missing 'beta' in:\n{serialized}"
+    );
+    assert!(
+        serialized.contains("epsilon"),
+        "missing 'epsilon' in:\n{serialized}"
+    );
+    assert!(
+        !serialized.contains("alpha"),
+        "'alpha' should be excluded:\n{serialized}"
+    );
 }
 
 #[test]
@@ -382,10 +397,8 @@ fn include_lines_positive_end_works() {
 
 #[test]
 fn include_lines_neg_n_counts_from_end() {
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
-        "data.adoc",
-        "L1\nL2\nL3\nL4\nL5\n",
-    )]));
+    let resolver =
+        DynFileResolver::new(InMemoryFiles::new(&[("data.adoc", "L1\nL2\nL3\nL4\nL5\n")]));
     let opts = Options::builder()
         .with_file_resolver(resolver)
         .with_virtual_current_file("main.adoc")
@@ -401,10 +414,7 @@ fn include_lines_neg_n_counts_from_end() {
 
 #[test]
 fn include_lines_neg_n_out_of_range_skipped() {
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
-        "data.adoc",
-        "L1\nL2\n",
-    )]));
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[("data.adoc", "L1\nL2\n")]));
     let opts = Options::builder()
         .with_file_resolver(resolver)
         .with_virtual_current_file("main.adoc")
@@ -432,7 +442,10 @@ fn include_lines_end_past_eof_should_clamp() {
     eprintln!("PAST-EOF: {s}");
     assert!(s.contains("L10"), "missing L10 (start of range): {s}");
     assert!(s.contains("L30"), "missing L30 (last actual line): {s}");
-    assert!(!s.contains("L9"), "L9 (before range) should not appear: {s}");
+    assert!(
+        !s.contains("L9"),
+        "L9 (before range) should not appear: {s}"
+    );
 }
 
 #[test]
@@ -442,10 +455,8 @@ fn include_expansions_reports_correct_line_counts_per_directive() {
     // matching what acdc fed into the preprocessed output.
     let ch1 = "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n";
     let ch2 = "// tag::a[]\nA-line-1\nA-line-2\n// end::a[]\nuntagged\n";
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[
-        ("ch1.adoc", ch1),
-        ("ch2.adoc", ch2),
-    ]));
+    let resolver =
+        DynFileResolver::new(InMemoryFiles::new(&[("ch1.adoc", ch1), ("ch2.adoc", ch2)]));
     let opts = Options::builder()
         .with_file_resolver(resolver)
         .with_virtual_current_file("main.adoc")
@@ -453,7 +464,8 @@ fn include_expansions_reports_correct_line_counts_per_directive() {
     // Lines: 1 = title, 2 = blank, 3 = include full (10 lines),
     //        4 = blank, 5 = include with lines= (3 lines: L2/L3/L4),
     //        6 = blank, 7 = include with tag= (2 lines: A-line-1, A-line-2)
-    let src = "= M\n\ninclude::ch1.adoc[]\n\ninclude::ch1.adoc[lines=2..4]\n\ninclude::ch2.adoc[tag=a]\n";
+    let src =
+        "= M\n\ninclude::ch1.adoc[]\n\ninclude::ch1.adoc[lines=2..4]\n\ninclude::ch2.adoc[tag=a]\n";
     let r = acdc_parser::parse(src, &opts).expect("parse");
     let exps = r.include_expansions();
     eprintln!("include_expansions: {exps:#?}");
@@ -463,7 +475,10 @@ fn include_expansions_reports_correct_line_counts_per_directive() {
     assert_eq!(exps[1].source_line, 5);
     assert_eq!(exps[2].source_line, 7);
     // Expanded line counts: full ch1 = 10, lines=2..4 = 3, tag=a = 2.
-    assert_eq!(exps[0].expanded_lines, 10, "full include should be 10 lines");
+    assert_eq!(
+        exps[0].expanded_lines, 10,
+        "full include should be 10 lines"
+    );
     assert_eq!(exps[1].expanded_lines, 3, "lines=2..4 should be 3 lines");
     assert_eq!(exps[2].expanded_lines, 2, "tag=a should be 2 lines");
 }
@@ -516,9 +531,7 @@ fn conditional_drops_ifdef_true_keeps_content_records_directive_drop_only() {
     // Source: 3=ifdef, 4=content, 5=endif → 3 source consumed,
     // 2 output produced (content + trailing empty) → 1 drop @ line 3.
     let src = "= M\n\nifdef::foo[]\nkept\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder()
-        .with_attribute("foo", "")
-        .build();
+    let opts = Options::builder().with_attribute("foo", "").build();
     let r = acdc_parser::parse(src, &opts).expect("parse");
     assert_eq!(r.conditional_drops(), &[3usize][..]);
 }
@@ -528,9 +541,7 @@ fn conditional_drops_single_line_ifdef_true_records_no_drop() {
     // Single-line `ifdef::foo[content]` form: 1 source line → 1 output
     // line when condition is true → no drops needed.
     let src = "= M\n\nifdef::foo[hello]\n\nAfter.\n";
-    let opts = Options::builder()
-        .with_attribute("foo", "")
-        .build();
+    let opts = Options::builder().with_attribute("foo", "").build();
     let r = acdc_parser::parse(src, &opts).expect("parse");
     assert!(r.conditional_drops().is_empty());
 }
@@ -549,9 +560,7 @@ fn conditional_drops_ifndef_false_branch_records_drops() {
     // `ifndef::foo[]` is true when `foo` is NOT set. Inverted-sense
     // sibling of ifdef — same accounting rules apply.
     let src = "= M\n\nifndef::foo[]\nshown\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder()
-        .with_attribute("foo", "")
-        .build();
+    let opts = Options::builder().with_attribute("foo", "").build();
     let r = acdc_parser::parse(src, &opts).expect("parse");
     // foo IS set, so ifndef::foo[] block is dropped: 3 source lines.
     assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
@@ -607,8 +616,11 @@ fn conditional_drops_inside_included_file_NOT_propagated() {
         .build();
     let r = acdc_parser::parse("= M\n\ninclude::child.adoc[]\n", &opts).expect("parse");
     // Root has ONE include expansion (the include directive), no conditional drops at root.
-    assert_eq!(r.conditional_drops().len(), 0,
-        "nested conditional drops are NOT propagated (known limitation)");
+    assert_eq!(
+        r.conditional_drops().len(),
+        0,
+        "nested conditional drops are NOT propagated (known limitation)"
+    );
     // The include expansion reports the merged output line count. With the
     // ifdef:false eating 3 lines, the included file contributes 1 line ("Kept by child.").
     assert_eq!(r.include_expansions().len(), 1);
@@ -639,15 +651,12 @@ fn nested_conditional_drop_does_not_drift_block_line_after_include() {
     //   3: `include::child.adoc[]`     → expands to 1 line ("Kept by child.")
     //   4: ``
     //   5: `After.`
-    let r = acdc_parser::parse(
-        "= M\n\ninclude::child.adoc[]\n\nAfter.\n",
-        &opts,
-    )
-    .expect("parse");
+    let r = acdc_parser::parse("= M\n\ninclude::child.adoc[]\n\nAfter.\n", &opts).expect("parse");
     assert_eq!(r.include_expansions().len(), 1);
     assert_eq!(r.include_expansions()[0].source_line, 3);
     assert_eq!(
-        r.include_expansions()[0].expanded_lines, 1,
+        r.include_expansions()[0].expanded_lines,
+        1,
         "expanded_lines must reflect post-drop count, baking in nested drops"
     );
     assert_eq!(
@@ -660,13 +669,22 @@ fn nested_conditional_drop_does_not_drift_block_line_after_include() {
     // test only pins envelope metadata — the surrounding contract — but not
     // the observable line-mapping. A regression that bubbles nested drops up
     // would still let the metadata-only check pass while shifting the block.
-    let after_block = r.document().blocks.iter().find(|b| {
-        if let acdc_parser::Block::Paragraph(p) = b {
-            p.content.iter().any(|i| matches!(i,
-                acdc_parser::InlineNode::PlainText(t) if t.content.contains("After.")
-            ))
-        } else { false }
-    }).expect("After. paragraph must exist in root doc");
+    let after_block = r
+        .document()
+        .blocks
+        .iter()
+        .find(|b| {
+            if let acdc_parser::Block::Paragraph(p) = b {
+                p.content.iter().any(|i| {
+                    matches!(i,
+                        acdc_parser::InlineNode::PlainText(t) if t.content.contains("After.")
+                    )
+                })
+            } else {
+                false
+            }
+        })
+        .expect("After. paragraph must exist in root doc");
     if let acdc_parser::Block::Paragraph(p) = after_block {
         assert_eq!(
             p.location.start.line, 5,
@@ -682,10 +700,7 @@ fn conditional_drops_mixed_with_includes_sorted_by_source_line() {
     // sorts them, but acdc itself records them in distinct fields.
     // Pin both shapes so a future refactor that merges fields can't
     // silently drop one.
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
-        "ch.adoc",
-        "ch-line\n",
-    )]));
+    let resolver = DynFileResolver::new(InMemoryFiles::new(&[("ch.adoc", "ch-line\n")]));
     let opts = Options::builder()
         .with_file_resolver(resolver)
         .with_virtual_current_file("main.adoc")
