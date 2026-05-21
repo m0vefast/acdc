@@ -861,7 +861,76 @@ impl Table<'_> {
             }
 
             // Split the line by separator, handling escapes appropriately
-            let parts = split_line(line, separator);
+            let mut parts = split_line(line, separator);
+
+            // PSV adjacent-anchor recovery: AsciiDoc allows two anchors on the
+            // same source line — `.2+|food .2+|apple |10`. After naïve `|`
+            // split that becomes `[".2+", "food .2+", "apple ", "10"]` and the
+            // trailing `.2+` is stuck in the previous cell's content. Walk
+            // adjacent pair-wise: if part[i-1] ends with a whitespace-
+            // separated valid CellSpecifier token, strip it from part[i-1]
+            // and prepend it to part[i] so the normal per-cell prefix parser
+            // picks it up below.
+            //
+            // GATE: only fire when the LINE STARTS WITH A SPECIFIER — i.e.
+            // parts[0] is itself a parseable cell specifier. This is the only
+            // shape where the double-anchor pattern legitimately occurs (the
+            // first specifier opens the line; the second is stuck mid-line).
+            // PSV cells that start with the cell delimiter `|` produce
+            // parts[0]="" — any trailing `N+`/`N*` in those cells is natural
+            // text (e.g. "rated 5*", "5G coverage 2+", "version 1.5+") and
+            // stealing it as a specifier would corrupt content.
+            let line_starts_with_spec = if matches!(separator, "|" | "!") {
+                let p0 = parts[0].content.trim();
+                if p0.is_empty() {
+                    false
+                } else {
+                    let (_, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
+                    spec_len > 0 && spec_len == p0.len()
+                }
+            } else {
+                false
+            };
+            if matches!(separator, "|" | "!") && parts.len() > 1 && line_starts_with_spec {
+                for i in 1..parts.len() {
+                    let (left_slice, right_slice) = parts.split_at_mut(i);
+                    let prev = &mut left_slice[i - 1];
+                    let cur = &mut right_slice[0];
+                    let trimmed_end = prev.content.trim_end();
+                    let Some(last_ws) = trimmed_end.rfind(|c: char| c.is_whitespace()) else {
+                        continue;
+                    };
+                    // `rfind` returns the byte index of the START of the whitespace
+                    // char. For multi-byte whitespace (e.g. U+00A0 NBSP = 2 bytes,
+                    // U+3000 ideographic space = 3 bytes) `last_ws + 1` would land
+                    // mid-codepoint and the slice would panic. Advance past the
+                    // entire whitespace char by its actual UTF-8 length.
+                    let ws_char_len = trimmed_end[last_ws..]
+                        .chars()
+                        .next()
+                        .map_or(1, char::len_utf8);
+                    let candidate_start = last_ws + ws_char_len;
+                    let candidate = &trimmed_end[candidate_start..];
+                    // Require the candidate to contain a span-marker `+` or
+                    // `*` so we don't accidentally treat any bare digit (e.g.
+                    // "Col 1") as a specifier. The full grammar then has to
+                    // match the whole candidate.
+                    if !candidate.contains('+') && !candidate.contains('*') {
+                        continue;
+                    }
+                    let (_, spec_len) = CellSpecifier::parse(candidate, ParseContext::FirstPart);
+                    if spec_len == 0 || spec_len != candidate.len() {
+                        continue;
+                    }
+                    let new_prev_len = last_ws;
+                    let new_prev = prev.content[..new_prev_len].trim_end().to_string();
+                    let prefix_with_space = format!("{} {}", candidate, cur.content.trim_start());
+                    let cur_start_shift = prev.content.len() - new_prev.len();
+                    prev.content = new_prev;
+                    cur.content = prefix_with_space;
+                    cur.start = cur.start.saturating_sub(cur_start_shift);
+                }
+            }
 
             // Handle span specifier at the start of line (before first separator)
             // e.g., "2+| content" -> part 0 is "2+", applies to part 1
@@ -1077,5 +1146,87 @@ mod tests {
             cell.content,
             "!===\n! Inner A ! Inner B\n\nTrailing in inner cell\n!===",
         );
+    }
+
+    /// Adjacent-anchor recovery must not panic when the whitespace separating
+    /// the two specifiers is a multi-byte codepoint (NBSP U+00A0, ideographic
+    /// space U+3000, etc.). `rfind` returns the byte START of the whitespace
+    /// char; advancing by 1 byte instead of `char::len_utf8` would land
+    /// mid-codepoint and trigger a UTF-8 slice panic.
+    #[test]
+    fn adjacent_anchor_recovery_handles_multibyte_whitespace() {
+        // U+00A0 (NBSP) between `food` and the second specifier. The leading
+        // `|` is required for recovery to fire from row index 1 (i=1 candidate
+        // = the trailing token of `food\u{00A0}.2+`); without it the test
+        // would not exercise the same path as the canonical recovery case.
+        // Note: `Table::parse_rows_with_positions` is called via the PSV
+        // separator path which expects the row not to start with the spec —
+        // we strip the leading `|` to match production input shape (one cell
+        // per `|`-prefixed group).
+        let input = ".2+|food\u{00A0}.2+|apple |10\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        // Tightened from `!rows.is_empty()` — multibyte regression silently
+        // dropped the trailing `.2+`, leaving 2 cells with rowspan=1.
+        assert_eq!(rows[0].len(), 3, "expected 3 cells: food, apple, 10");
+        assert_eq!(rows[0][0].content, "food");
+        assert_eq!(rows[0][0].rowspan, 2);
+        assert_eq!(rows[0][1].content, "apple");
+        assert_eq!(rows[0][1].rowspan, 2);
+    }
+
+    /// Recovery must NOT fire when the trailing token looks like an anchor
+    /// specifier syntactically but is plain text — e.g. `5*` (a star rating)
+    /// or `2+` (a version string). False-positive recovery here corrupts
+    /// natural-language content: `rated 5*` becomes `rated` + duplicate-5
+    /// `next`, silently inflating cells.
+    #[test]
+    fn no_recovery_on_star_rating_in_text() {
+        let input = "|rated 5*|next\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let row = &rows[0];
+        assert_eq!(
+            row.first().map(|c| c.content.as_str()),
+            Some("rated 5*"),
+            "must not steal `5*` from text content",
+        );
+        assert!(
+            !row.get(1).is_some_and(|c| c.is_duplication),
+            "next cell must not be duplicated"
+        );
+    }
+
+    #[test]
+    fn no_recovery_on_version_number_in_text() {
+        let input = "|5G coverage 2+|GB\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        assert_eq!(
+            rows[0].first().map(|c| c.content.as_str()),
+            Some("5G coverage 2+"),
+        );
+        assert_eq!(
+            rows[0].get(1).map(|c| c.colspan),
+            Some(1),
+            "next cell colspan must stay 1",
+        );
+    }
+
+    /// Recovery MUST still fire on the legitimate two-anchor-per-line shape —
+    /// `.N+|x .N+|y` — because that's the entire reason this code path exists.
+    /// Legitimate AD rowspan syntax has NO leading `|` (the prefix `.N+` opens
+    /// the line directly, and its `|` is the cell delimiter).
+    #[test]
+    fn recovery_still_fires_on_legitimate_double_anchor() {
+        let input = ".2+|food .2+|apple |10\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        // Expect three cells: food (rs=2), apple (rs=2), 10.
+        assert_eq!(rows[0].len(), 3, "expected 3 cells: food, apple, 10");
+        assert_eq!(rows[0][0].content, "food");
+        assert_eq!(rows[0][0].rowspan, 2);
+        assert_eq!(rows[0][1].content, "apple");
+        assert_eq!(rows[0][1].rowspan, 2);
     }
 }

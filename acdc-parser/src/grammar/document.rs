@@ -5355,6 +5355,72 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
         Ok(())
     }
 
+    /// Regression: `[cols="1,2",%header]` — shorthand AFTER a named attribute.
+    /// Prior to the Glyph fork, only `block_style()` matched leading shorthand;
+    /// trailing shorthand fell through and the table lost its options metadata
+    /// (or worse, was reinterpreted as a paragraph). The fork's `attribute()`
+    /// rule now recognises `%opt`, `.role`, and `#id` as standalone entries.
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_shorthand_after_named_attribute() -> Result<(), Error> {
+        let input = "[cols=\"1,2\",%header]";
+        let mut state = ParserState::new_for_test(input);
+        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        assert!(metadata.options.contains(&"header"), "options should contain `header`");
+        // `cols` is a named attribute, lives in metadata.attributes
+        assert!(
+            metadata.attributes.iter().any(|(name, _)| name.as_ref() == "cols"),
+            "cols= must be preserved alongside the trailing shorthand"
+        );
+        Ok(())
+    }
+
+    /// Regression: multiple shorthand entries after the named attribute, in any
+    /// order. Catches the case where `%header` parses but `%footer` (or the
+    /// trailing `.role` / `#id`) drops on the floor.
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_multiple_shorthand_after_named() -> Result<(), Error> {
+        let input = "[cols=2,%header,%footer,.bordered,#tbl-id]";
+        let mut state = ParserState::new_for_test(input);
+        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        assert!(metadata.options.contains(&"header"));
+        assert!(metadata.options.contains(&"footer"));
+        assert!(metadata.roles.contains(&"bordered"));
+        assert_eq!(metadata.id.as_ref().map(|a| a.id), Some("tbl-id"));
+        Ok(())
+    }
+
+    /// Regression: explicit `role=foo` and trailing `.role2` shorthand should
+    /// be ADDITIVE — both end up in `metadata.roles`. No collision.
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_explicit_role_and_shorthand_role_additive() -> Result<(), Error> {
+        let input = "[role=foo,.role2]";
+        let mut state = ParserState::new_for_test(input);
+        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        assert!(metadata.roles.contains(&"foo"));
+        assert!(metadata.roles.contains(&"role2"));
+        Ok(())
+    }
+
+    /// Regression: the canonical leading-shorthand order still works after the
+    /// `attribute()` rule was extended. Belt-and-braces against the new
+    /// alternatives swallowing input the existing `block_style()` path handles.
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_shorthand_before_named_still_works() -> Result<(), Error> {
+        let input = "[%header,cols=\"1,2\"]";
+        let mut state = ParserState::new_for_test(input);
+        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        assert!(metadata.options.contains(&"header"));
+        assert!(
+            metadata.attributes.iter().any(|(name, _)| name.as_ref() == "cols"),
+            "leading shorthand + trailing named must both be retained"
+        );
+        Ok(())
+    }
+
     #[test]
     #[tracing_test::traced_test]
     fn test_shorthand_id_role_combined() -> Result<(), Error> {
