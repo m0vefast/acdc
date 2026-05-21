@@ -4335,6 +4335,22 @@ peg::parser! {
 
         pub(crate) rule attribute() -> Option<(Cow<'input, str>, AttributeValue<'input>, Option<(usize, usize)>)>
             = whitespace()* att:named_attribute() { att }
+              // Shorthand entries (`%opt`, `.role`, `#id`) — historically the
+              // spec required these to lead the attribute list ahead of any
+              // named attributes (`[%header,cols="1,2"]`). Glyph fork accepts
+              // the inverse order too (`[cols="1,2",%header]`) by recognizing
+              // shorthand syntax as an attribute in its own right. Each match
+              // contributes to the same metadata bucket `block_style()` would
+              // have populated, so semantics roundtrip identically.
+              / whitespace()* "%" option:option() {
+                  Some((Cow::Borrowed(RESERVED_NAMED_ATTRIBUTE_OPTIONS), AttributeValue::String(Cow::Owned(option.to_string())), None))
+              }
+              / whitespace()* "." r:role() {
+                  Some((Cow::Borrowed(RESERVED_NAMED_ATTRIBUTE_ROLE), AttributeValue::String(Cow::Owned(r.to_string())), None))
+              }
+              / whitespace()* "#" id_start:position!() id:block_style_id() id_end:position!() {
+                  Some((Cow::Borrowed(RESERVED_NAMED_ATTRIBUTE_ID), AttributeValue::String(Cow::Owned(id.to_string())), Some((id_start, id_end))))
+              }
               / whitespace()* start:position!() att:positional_attribute_value() end:position!() {
                   let substituted = substitute(&att, &[Substitution::Attributes], &state.document_attributes).into_owned();
                   Some((Cow::Owned(substituted), AttributeValue::None, Some((start, end))))
