@@ -561,6 +561,62 @@ fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &s
     false
 }
 
+/// Count the colspan-weighted cell contribution of a single PSV/DSV line.
+/// Used by the multi-line row collector to detect when accumulated cells
+/// have filled the row (so the next `|`-prefixed line starts a new row).
+///
+/// For PSV (`|` / `!`):
+/// - `parts[0]` (text before first separator) is skipped for content; if
+///   it's itself a bare specifier like `.2+`, capture its colspan as
+///   pending for `parts[1]`.
+/// - Each subsequent part contributes its colspan (1 if no leading spec).
+/// - A trailing empty part (line ending with the separator) is skipped.
+///
+/// Continuation lines (no separator at all) contribute 0 — they will be
+/// absorbed into the previous cell's content by `parse_row_with_positions`.
+fn count_cell_colspans(line: &str, separator: &str) -> usize {
+    if !line.contains(separator) {
+        return 0;
+    }
+    let parts = split_line(line, separator);
+    if parts.is_empty() {
+        return 0;
+    }
+    let mut total: usize = 0;
+    let mut pending_colspan: Option<usize> = None;
+
+    let start_idx = if matches!(separator, "|" | "!") {
+        let p0 = parts[0].content.trim();
+        if !p0.is_empty() {
+            let (spec, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
+            if spec_len > 0 && spec_len == p0.len() {
+                pending_colspan = Some(spec.colspan);
+            }
+        }
+        1
+    } else {
+        // DSV (`:`): parts[0] is content
+        0
+    };
+
+    let total_parts = parts.len();
+    for (i, part) in parts.iter().enumerate().skip(start_idx) {
+        let trimmed = part.content.trim();
+        // Trailing empty part (line ends with separator) — skip.
+        if trimmed.is_empty() && i + 1 == total_parts && total_parts > 1 {
+            continue;
+        }
+        let cs = if let Some(pending) = pending_colspan.take() {
+            pending
+        } else {
+            let (spec, spec_len) = CellSpecifier::parse(trimmed, ParseContext::InlineContent);
+            if spec_len > 0 { spec.colspan } else { 1 }
+        };
+        total += cs;
+    }
+    total
+}
+
 /// Check if a line starting with a cell specifier followed by separator indicates a new row.
 /// This detects patterns like `a|`, `s|`, `2+|`, `^|`, `^.>2+s|` at the start of a line.
 fn is_new_row_start(line: &str, separator: &str) -> bool {
@@ -683,7 +739,20 @@ impl Table<'_> {
                 current_offset += line_ref.len() + 1;
                 i += 1;
             } else {
-                // Multi-line row format: collect lines until empty line or new row start
+                // Multi-line row format: collect lines until empty line, a new
+                // row start (line begins with a `.N+|` / `2+|` / `a|` / etc.
+                // spec), OR — when `ncols` is known — until accumulated cells
+                // already fill the row and the next line is a `|cell`-prefix
+                // continuation that actually belongs to the next row. The
+                // ncols-aware break is what makes layouts like
+                //     .2+|food
+                //     |apple .2+|10
+                //     |banana
+                // parse correctly: without it, `|banana` (which `is_new_row_
+                // start` rejects because parts[0]="") gets bundled into the
+                // food row, producing an over-full row that downstream layout
+                // can't reconcile.
+                let mut accumulated_cols: usize = 0;
                 while let Some(&current_line) = lines.get(i) {
                     let trimmed = current_line.trim_end();
                     if trimmed.is_empty() {
@@ -693,6 +762,15 @@ impl Table<'_> {
                     if !row_lines.is_empty() && is_new_row_start(trimmed, separator) {
                         break;
                     }
+                    if !row_lines.is_empty()
+                        && matches!(separator, "|" | "!")
+                        && trimmed.starts_with(separator)
+                        && let Some(expected) = ncols
+                        && accumulated_cols >= expected
+                    {
+                        break;
+                    }
+                    accumulated_cols += count_cell_colspans(trimmed, separator);
                     row_lines.push(trimmed);
                     current_offset += current_line.len() + 1; // +1 for newline
                     i += 1;
@@ -872,26 +950,47 @@ impl Table<'_> {
             // and prepend it to part[i] so the normal per-cell prefix parser
             // picks it up below.
             //
-            // GATE: only fire when the LINE STARTS WITH A SPECIFIER — i.e.
-            // parts[0] is itself a parseable cell specifier. This is the only
-            // shape where the double-anchor pattern legitimately occurs (the
-            // first specifier opens the line; the second is stuck mid-line).
-            // PSV cells that start with the cell delimiter `|` produce
-            // parts[0]="" — any trailing `N+`/`N*` in those cells is natural
-            // text (e.g. "rated 5*", "5G coverage 2+", "version 1.5+") and
-            // stealing it as a specifier would corrupt content.
+            // GATE — two legitimate shapes fire recovery:
+            //
+            // (1) Line starts with a SPEC (parts[0] is itself a parseable cell
+            //     spec — the canonical `.2+|food .2+|apple` shape).
+            // (2) Line starts with the CELL DELIMITER `|` (parts[0]="") AND the
+            //     trailing-anchor candidate contains `.` (i.e. is `.N+` or
+            //     `N.M+`). This handles multi-line row layouts where an anchor
+            //     cell sits on its own line and subsequent `|cell`-prefixed
+            //     lines complete the row:
+            //         .2+|food
+            //         |apple .2+|10
+            //         |banana
+            //     Without (2), the second line's `.2+` stays stuck in apple's
+            //     content and the 10 cell loses its rowspan. The `.`-required
+            //     filter rejects natural-text false positives like
+            //     `|rated 5*|next`, `|5G coverage 2+|GB`, `|food 1.5+ items|x`
+            //     (since `rfind(whitespace)` lands on the LAST token before
+            //     `|`, which in those cases is `5*`, `2+`, or `items` — none
+            //     containing `.` adjacent to a `+`).
+            let p0_trimmed = if matches!(separator, "|" | "!") {
+                parts[0].content.trim()
+            } else {
+                ""
+            };
             let line_starts_with_spec = if matches!(separator, "|" | "!") {
-                let p0 = parts[0].content.trim();
-                if p0.is_empty() {
+                if p0_trimmed.is_empty() {
                     false
                 } else {
-                    let (_, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
-                    spec_len > 0 && spec_len == p0.len()
+                    let (_, spec_len) =
+                        CellSpecifier::parse(p0_trimmed, ParseContext::FirstPart);
+                    spec_len > 0 && spec_len == p0_trimmed.len()
                 }
             } else {
                 false
             };
-            if matches!(separator, "|" | "!") && parts.len() > 1 && line_starts_with_spec {
+            let multi_line_continuation =
+                matches!(separator, "|" | "!") && p0_trimmed.is_empty();
+            if matches!(separator, "|" | "!")
+                && parts.len() > 1
+                && (line_starts_with_spec || multi_line_continuation)
+            {
                 for i in 1..parts.len() {
                     let (left_slice, right_slice) = parts.split_at_mut(i);
                     let prev = &mut left_slice[i - 1];
@@ -916,6 +1015,15 @@ impl Table<'_> {
                     // "Col 1") as a specifier. The full grammar then has to
                     // match the whole candidate.
                     if !candidate.contains('+') && !candidate.contains('*') {
+                        continue;
+                    }
+                    // For multi-line continuation form (parts[0]=""), require
+                    // the candidate to also contain `.` — rules out natural-
+                    // text false positives like "rated 5*", "5G coverage 2+",
+                    // "version 1.5+" (where 1.5+ as the LAST whitespace-
+                    // separated token before `|` is uncommon — natural text
+                    // would have trailing words like "items" instead).
+                    if multi_line_continuation && !candidate.contains('.') {
                         continue;
                     }
                     let (_, spec_len) = CellSpecifier::parse(candidate, ParseContext::FirstPart);
@@ -1228,5 +1336,44 @@ mod tests {
         assert_eq!(rows[0][0].rowspan, 2);
         assert_eq!(rows[0][1].content, "apple");
         assert_eq!(rows[0][1].rowspan, 2);
+    }
+
+    /// Multi-line layout: an anchor cell on its own line followed by `|cell`
+    /// lines that complete the row. AsciiDoc spec allows this; `is_new_row_start`
+    /// only fires on `.N+|`-style anchored lines, so without ncols-aware row
+    /// completion detection, all `|cell` lines get bundled into the anchor
+    /// row → over-full row → downstream layout corruption.
+    ///
+    /// Input shape (3-col table):
+    ///   .2+|food
+    ///   |apple .2+|10
+    ///   |banana
+    ///   .3+|drink |cola |30
+    ///   |tea |15
+    ///   |coffee |12
+    ///
+    /// Expected: 5 rows. Row 0: food(rs=2), apple, 10(rs=2). Row 1: banana
+    /// (col 1 only; col 0/2 are phantoms from rowspan). Row 2: drink(rs=3),
+    /// cola, 30. Row 3: tea, 15. Row 4: coffee, 12.
+    #[test]
+    fn multi_line_anchor_cell_with_ncols() {
+        let input = ".2+|food\n|apple .2+|10\n|banana\n.3+|drink |cola |30\n|tea |15\n|coffee |12\n";
+        let mut has_header = false;
+        let rows =
+            Table::parse_rows_with_positions(input, "|", &mut has_header, 0, Some(3));
+        // The food half must be present (this is the regression — without the
+        // multi-line layout fix, all the food/apple/10/banana cells get
+        // bundled into one over-full row and the visible table loses food).
+        assert!(rows.len() >= 2, "expected at least 2 rows, got {}", rows.len());
+        // Row 0: food (rs=2, colspan=1), apple (cs=1), 10 (rs=2, cs=1).
+        assert_eq!(rows[0].len(), 3, "row 0 should have 3 cells: food, apple, 10");
+        assert_eq!(rows[0][0].content, "food");
+        assert_eq!(rows[0][0].rowspan, 2);
+        assert_eq!(rows[0][1].content, "apple");
+        assert_eq!(rows[0][2].content, "10");
+        assert_eq!(rows[0][2].rowspan, 2);
+        // Row 1: just banana (col 1; col 0 and col 2 are phantoms).
+        assert_eq!(rows[1].len(), 1, "row 1 should have 1 cell: banana");
+        assert_eq!(rows[1][0].content, "banana");
     }
 }
