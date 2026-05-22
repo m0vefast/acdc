@@ -211,6 +211,11 @@ impl Serialize for InlineNode<'_> {
                 map.serialize_entry("type", "string")?;
                 map.serialize_entry("value", &raw.content)?;
                 map.serialize_entry("location", &raw.location)?;
+                // Emit the passthrough's own substitution list. The enclosing
+                // block's `subs` does NOT apply to passthrough content —
+                // converters must use these per-inline subs directly. Empty
+                // array = raw output (`+++text+++`, `pass:[text]`).
+                map.serialize_entry("subs", &raw.subs)?;
             }
             InlineNode::VerbatimText(verbatim) => {
                 // We use "text" here to make sure the TCK passes, even though this is raw

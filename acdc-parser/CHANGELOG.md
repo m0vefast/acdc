@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Inline `RawText` now serializes its `subs: [Substitution]` array** in the
+  JSON envelope (`InlineNode::serialize` for the `RawText` variant). Converters
+  / embedders can read the per-passthrough substitution spec directly off the
+  inline node (previously available only on the Rust struct, dropped during
+  serialization). Field shape: snake-case strings matching `Substitution`
+  enum variants (`special_chars`, `quotes`, `replacements`, `macros`,
+  `post_replacements`, `attributes`, `callouts`). Empty array = raw output
+  (`+++text+++` / `pass:[text]`).
 - **`FileResolver` trait + `DynFileResolver` newtype + `DefaultFileResolver`** —
   pluggable file-content provider for the include preprocessor. Lets WASM /
   sandboxed embedders inject a custom reader (e.g. backed by a JS vault

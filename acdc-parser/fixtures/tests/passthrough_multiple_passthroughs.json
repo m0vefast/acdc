@@ -82,6 +82,9 @@
               "line": 1,
               "col": 60
             }
+          ],
+          "subs": [
+            "verbatim"
           ]
         },
         {
@@ -112,7 +115,8 @@
               "line": 1,
               "col": 78
             }
-          ]
+          ],
+          "subs": []
         },
         {
           "name": "text",

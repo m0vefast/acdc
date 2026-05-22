@@ -34,6 +34,9 @@
               "line": 1,
               "col": 19
             }
+          ],
+          "subs": [
+            "special_chars"
           ]
         },
         {
@@ -64,6 +67,9 @@
               "line": 1,
               "col": 44
             }
+          ],
+          "subs": [
+            "special_chars"
           ]
         },
         {
@@ -94,6 +100,9 @@
               "line": 2,
               "col": 3
             }
+          ],
+          "subs": [
+            "special_chars"
           ]
         },
         {
