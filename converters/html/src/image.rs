@@ -16,6 +16,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             return self.render_image_semantic(img);
         }
 
+        let src_attrs = self.data_src_attrs(&img.location);
         let mut w = self.writer_mut();
 
         // Build class list: imageblock + alignment + float + roles
@@ -36,7 +37,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             classes.push(role.to_string());
         }
 
-        write!(w, "<div class=\"{}\">", classes.join(" "))?;
+        write!(w, "<div class=\"{}\"{src_attrs}>", classes.join(" "))?;
         write!(w, "<div class=\"content\">")?;
         // Get alt text from attribute or generate from filename
         let alt_text = img.metadata.attributes.get_string("alt").map_or_else(

@@ -1,22 +1,61 @@
-//! Parse-only WASM bindings for `acdc-parser`, designed for the Glyph editor.
+//! Parse + render-html WASM bindings for `acdc`, designed for the Glyph editor.
 //!
-//! Exports two parse entry points that mirror the native API but return
-//! serde-serialized AST graphs as plain JS objects (via `serde-wasm-bindgen`):
-//!
+//! Parse entry points (return serde-serialized AST graphs):
 //! - `parse_block(source)` — full document parse, returns the `Document` ASG
 //! - `parse_inline(source)` — inline-only parse, returns `InlineNode[]`
+//! - `parse_block_with_resolver(source, …, resolver)` — full parse with
+//!   include directive resolution via a JS callback
 //!
-//! Both produce `location: { line, col }` ranges on every node, including
-//! inline elements (bold / italic / monospace / macros / anchors), so the
-//! caller can drive a render-pass Map (block-index → line range, inline
-//! offset → char range) without re-deriving structure from the rendered DOM.
+//! Render entry points (return HTML strings with optional source-position
+//! markup for cursor mapping):
+//! - `render_html(source, …, emit_source_positions)` — parse + convert to
+//!   embedded HTML in one call. When `emit_source_positions=true`, text
+//!   leaves wrap in `<span data-src-start="N" data-src-end="M">…</span>`
+//!   and block opening tags carry the same attrs, letting the consumer map
+//!   cursor positions between source and rendered DOM without maintaining
+//!   a parallel Segment[] structure on the host side.
+//! - `render_html_with_resolver(…)` — render variant with include support.
 //!
-//! The bundle deliberately excludes `acdc-converters-*` and the editor
-//! crate's `web-sys` dependency, so the .wasm payload covers parsing only.
+//! All parse entry points produce `location: { line, col }` ranges on every
+//! node, including inline elements (bold / italic / monospace / macros /
+//! anchors). The render entry points consume `Location::absolute_start/end`
+//! (inclusive end) from the same AST and surface them as `data-src-*` attrs.
+//!
+//! # Wire-format contract: `data-src-*` offsets
+//!
+//! **`data-src-start` / `data-src-end` are UTF-8 byte indices** into the
+//! original source string (acdc's `Location::absolute_start/absolute_end`).
+//!
+//! **`data-src-start`** is the byte index of the **first byte** of the
+//! first codepoint in the span. For ASCII content, also the codepoint index.
+//!
+//! **`data-src-end`** is the byte index of the **first byte of the LAST
+//! codepoint** in the span — NOT the last byte of that codepoint. For ASCII
+//! the two coincide (every codepoint is 1 byte). For multi-byte content,
+//! the byte range `[start, end]` ends mid-codepoint:
+//!
+//! | source | bytes | `data-src-end` | last codepoint covers |
+//! |---|---|---|---|
+//! | `"Hello"`  | `H=0 e=1 l=2 l=3 o=4` | `4` | byte 4 (the `o`) |
+//! | `"你好世界"` | `你=0..2 好=3..5 世=6..8 界=9..11` | `9` | bytes 9..11 (the `界`) |
+//!
+//! Consumers that slice the source MUST therefore convert `data-src-end`
+//! by finding the codepoint that starts at that byte and adding its byte
+//! length, NOT by `end + 1`. The Glyph TS bridge does this conversion via
+//! `byteEndInclusiveToCharExclusiveEnd` in `web/src/renderer/asciidoc.ts`.
+//!
+//! **UTF-8 vs. UTF-16**: Rust strings are UTF-8 so these are UTF-8 byte
+//! indices. JS strings are UTF-16. Consumers slicing in JS MUST translate
+//! byte→code-unit offsets first; identity-passing works for ASCII but
+//! corrupts any CJK / emoji content.
+//!
+//! The bundle excludes the editor crate's `web-sys` dependency, so the
+//! .wasm payload stays lean.
 
 use std::borrow::Cow;
 use std::path::Path;
 
+use acdc_converters_core::Converter;
 use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options, SafeMode};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -366,6 +405,127 @@ pub fn parse_block_with_resolver(
                 .map_err(|e| JsValue::from_str(&format!("to_value: {e}")))
         }
     }
+}
+
+/// Parse a full AsciiDoc document and render it to HTML in one call.
+///
+/// Returns a JS object:
+/// - `{ ok: true, html: "<...>", warnings: [...], includeExpansions: [...] }` on success
+/// - `{ ok: false, error: <message> }` on parse or render failure
+///
+/// `safe_mode` accepts `"unsafe"` (default), `"safe"`, `"server"`, `"secure"`.
+///
+/// When `emit_source_positions=true`, every text-leaf renderer wraps its
+/// output in `<span data-src-start="N" data-src-end="M">…</span>` using the
+/// **UTF-8 byte offsets** from `Location::absolute_start` / `absolute_end`.
+/// Block opening tags (paragraphs, lists, tables, admonitions, sections,
+/// list items, table cells, …) carry the same attrs. The Glyph TS bridge
+/// uses these spans to drive cursor mapping between source and rendered DOM
+/// without maintaining a parallel Segment[] in JS.
+///
+/// # `data-src-*` contract (see crate docs for full details)
+///
+/// - **`data-src-end` is the first byte of the LAST codepoint** in the span
+///   (NOT the last byte). For ASCII these coincide; for multi-byte content
+///   `[start, end]` ends mid-codepoint. To get an exclusive end, find the
+///   codepoint at byte `end` and add its byte length.
+/// - **Offsets are UTF-8 byte indices**, not UTF-16 code-unit indices. JS
+///   consumers MUST translate before slicing — `String.prototype.slice`
+///   takes UTF-16 code units. Untranslated offsets corrupt cursor mapping
+///   for any CJK / emoji / non-ASCII content.
+///
+/// Output is always `embedded` (no `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`
+/// wrappers) — the embedder controls the document chrome.
+#[wasm_bindgen]
+pub fn render_html(
+    source: &str,
+    safe_mode: Option<String>,
+    emit_source_positions: bool,
+) -> Result<JsValue, JsValue> {
+    ensure_panic_hook();
+    let opts = build_options(safe_mode);
+    match acdc_parser::parse(source, &opts) {
+        Ok(result) => render_envelope(&result, emit_source_positions),
+        Err(e) => ParseErr {
+            ok: false,
+            error: format!("{e}"),
+        }
+        .serialize(&js_serializer())
+        .map_err(|e| JsValue::from_str(&format!("to_value: {e}"))),
+    }
+}
+
+/// Parse + render variant with `include::` directive resolution via JS callback.
+///
+/// Same envelope as `render_html`, plus:
+/// - `virtual_current_file`: vault-relative path anchoring relative include targets
+/// - `js_resolver`: `(path: string) => string | null` returning UTF-8 content
+///   or `null` for not-found. Called SYNCHRONOUSLY for each include target.
+///   See `parse_block_with_resolver` for the encoding / re-entrancy contract.
+#[wasm_bindgen]
+pub fn render_html_with_resolver(
+    source: &str,
+    safe_mode: Option<String>,
+    virtual_current_file: String,
+    js_resolver: js_sys::Function,
+    emit_source_positions: bool,
+) -> Result<JsValue, JsValue> {
+    ensure_panic_hook();
+    let mode = safe_mode
+        .as_deref()
+        .and_then(|s| s.parse::<SafeMode>().ok())
+        .unwrap_or(SafeMode::Unsafe);
+    let resolver = DynFileResolver::new(JsFileResolver {
+        callback: js_resolver,
+    });
+    let opts = Options::builder()
+        .with_safe_mode(mode)
+        .with_file_resolver(resolver)
+        .with_virtual_current_file(virtual_current_file)
+        .build();
+    match acdc_parser::parse(source, &opts) {
+        Ok(result) => render_envelope(&result, emit_source_positions),
+        Err(e) => ParseErr {
+            ok: false,
+            error: format!("{e}"),
+        }
+        .serialize(&js_serializer())
+        .map_err(|e| JsValue::from_str(&format!("to_value: {e}"))),
+    }
+}
+
+/// Shared body for the two render entry points — converts a `ParseResult` to
+/// the JS envelope shape `{ ok: true, html, warnings, includeExpansions }`.
+fn render_envelope(
+    result: &acdc_parser::ParseResult,
+    emit_source_positions: bool,
+) -> Result<JsValue, JsValue> {
+    let doc = result.document();
+    let warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
+    let include_expansions = build_preprocessor_line_map(result);
+
+    let processor = acdc_converters_html::Processor::new(
+        acdc_converters_core::Options::default(),
+        doc.attributes.clone(),
+    );
+    let render_opts = acdc_converters_html::RenderOptions {
+        embedded: true,
+        emit_source_positions,
+        ..acdc_converters_html::RenderOptions::default()
+    };
+    let html = processor
+        .convert_to_string(doc, &render_opts)
+        .map_err(|e| JsValue::from_str(&format!("render: {e}")))?;
+
+    let envelope = serde_json::json!({
+        "ok": true,
+        "html": html,
+        "warnings": warnings,
+        "includeExpansions": include_expansions,
+    });
+    envelope
+        .serialize(&js_serializer())
+        .map_err(|e| JsValue::from_str(&format!("to_value: {e}")))
 }
 
 /// Return the underlying `acdc-parser` version.

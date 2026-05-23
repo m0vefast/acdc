@@ -8,6 +8,25 @@ use acdc_parser::{
 
 use crate::{Error, HtmlVariant, HtmlVisitor, build_class};
 
+/// Render a single `<li>` opening tag, honoring `task-list-item` class and
+/// the per-item `data-src-*` attrs derived from `item.location`. Extracted
+/// so both standard (`render_list_item_content`) and bare-semantic
+/// (`render_bare_ulist_semantic`-style) paths emit per-item source spans.
+fn write_li_open<W: Write>(
+    item: &ListItem,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
+    semantic: bool,
+) -> Result<(), Error> {
+    let src_attrs = visitor.data_src_attrs(&item.location);
+    let writer = visitor.writer_mut();
+    if semantic && item.checked.is_some() {
+        writeln!(writer, "<li class=\"task-list-item\"{src_attrs}>")?;
+    } else {
+        writeln!(writer, "<li{src_attrs}>")?;
+    }
+    Ok(())
+}
+
 /// Check if any list item has a checkbox
 fn has_checklist_items(items: &[ListItem]) -> bool {
     items.iter().any(|item| item.checked.is_some())
@@ -42,6 +61,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         let semantic = self.processor.variant() == HtmlVariant::Semantic;
         let has_title = !list.title.is_empty();
 
+        let src_attrs = self.data_src_attrs(&list.location);
         let writer = self.writer_mut();
         // Semantic mode: use <section> for titled, <div> otherwise
         let wrapper_tag = if semantic && has_title {
@@ -55,6 +75,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         } else if let Some(anchor) = list.metadata.anchors.first() {
             write!(writer, " id=\"{}\"", anchor.id)?;
         }
+        write!(writer, "{src_attrs}")?;
         if semantic {
             // Semantic mode: no "checklist" on wrapper div
             if is_bibliography {
@@ -109,6 +130,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         let semantic = self.processor.variant() == HtmlVariant::Semantic;
         let has_title = !list.title.is_empty();
 
+        let src_attrs = self.data_src_attrs(&list.location);
         let writer = self.writer_mut();
         // Semantic mode: use <section> for titled, <div> otherwise
         let wrapper_tag = if semantic && has_title {
@@ -123,7 +145,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             write!(writer, " id=\"{}\"", anchor.id)?;
         }
         let class = build_class(&format!("olist {style}"), &list.metadata.roles);
-        writeln!(writer, " class=\"{class}\">")?;
+        writeln!(writer, " class=\"{class}\"{src_attrs}>")?;
         let _ = writer;
         if semantic && has_title {
             self.render_title_with_wrapper(&list.title, "<h6 class=\"block-title\">", "</h6>\n")?;
@@ -150,8 +172,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             return visit_callout_list_semantic(list, self);
         }
 
+        let src_attrs = self.data_src_attrs(&list.location);
         let writer = self.writer_mut();
-        writeln!(writer, "<div class=\"colist arabic\">")?;
+        writeln!(writer, "<div class=\"colist arabic\"{src_attrs}>")?;
         let _ = writer;
         self.render_title_with_wrapper(&list.title, "<div class=\"title\">", "</div>\n")?;
 
@@ -162,8 +185,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
 
             for item in &list.items {
                 let num = item.callout.number;
+                let item_src_attrs = self.data_src_attrs(&item.location);
                 let writer = self.writer_mut();
-                writeln!(writer, "<tr>")?;
+                writeln!(writer, "<tr{item_src_attrs}>")?;
                 writeln!(
                     writer,
                     "<td><i class=\"conum\" data-value=\"{num}\"></i><b>{num}</b></td>"
@@ -187,8 +211,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             let _ = writer;
 
             for item in &list.items {
+                let item_src_attrs = self.data_src_attrs(&item.location);
                 let writer = self.writer_mut();
-                write!(writer, "<li>")?;
+                write!(writer, "<li{item_src_attrs}>")?;
                 write!(writer, "<p>")?;
                 let _ = writer;
                 self.visit_inline_nodes(&item.principal)?;
@@ -212,17 +237,18 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
     }
 }
 
-fn visit_callout_list_semantic<V: WritableVisitor<Error = Error>>(
+fn visit_callout_list_semantic<W: Write>(
     list: &CalloutList,
-    visitor: &mut V,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
 ) -> Result<(), Error> {
     let writer = visitor.writer_mut();
     writeln!(writer, "<ol class=\"callout-list arabic\">")?;
     let _ = writer;
 
     for item in &list.items {
+        let item_src_attrs = visitor.data_src_attrs(&item.location);
         let writer = visitor.writer_mut();
-        write!(writer, "<li>")?;
+        write!(writer, "<li{item_src_attrs}>")?;
         let _ = writer;
         visitor.visit_inline_nodes(&item.principal)?;
         for block in &item.blocks {
@@ -294,9 +320,9 @@ fn render_checked_status_list<W: Write + ?Sized>(
 /// Render nested list items hierarchically
 /// `depth` tracks the nesting level for ordered list style cycling (1 = top level)
 #[tracing::instrument(skip(visitor))]
-fn render_nested_list_items<V: WritableVisitor<Error = Error>>(
+fn render_nested_list_items<W: Write>(
     items: &[ListItem],
-    visitor: &mut V,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
     expected_level: u8,
     is_ordered: bool,
     depth: u8,
@@ -372,18 +398,14 @@ fn render_nested_list_items<V: WritableVisitor<Error = Error>>(
 }
 
 /// Render the opening `<li>` tag, principal text, and attached blocks of a list item.
-fn render_list_item_content<V: WritableVisitor<Error = Error>>(
+fn render_list_item_content<W: Write>(
     item: &ListItem,
-    visitor: &mut V,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
     wrap_li_in_p: bool,
     semantic: bool,
 ) -> Result<(), Error> {
+    write_li_open(item, visitor, semantic)?;
     let writer = visitor.writer_mut();
-    if semantic && item.checked.is_some() {
-        writeln!(writer, "<li class=\"task-list-item\">")?;
-    } else {
-        writeln!(writer, "<li>")?;
-    }
     if !item.principal.is_empty() || item.checked.is_some() {
         if wrap_li_in_p {
             write!(writer, "<p>")?;
@@ -414,6 +436,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         }
 
         // Start the description list outer div
+        let src_attrs = self.data_src_attrs(&list.location);
         let writer = self.writer_mut();
         write!(writer, "<div")?;
         // Use metadata.id if present, otherwise use first anchor
@@ -422,6 +445,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         } else if let Some(anchor) = list.metadata.anchors.first() {
             write!(writer, " id=\"{}\"", anchor.id)?;
         }
+        write!(writer, "{src_attrs}")?;
 
         // Description list
         let is_horizontal = list.metadata.style == Some("horizontal");
@@ -440,9 +464,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
 
 /// Renders a horizontal description list as an HTML table with `hdlist` class.
 /// This matches asciidoctor's output for `[horizontal]` style description lists.
-fn visit_horizontal_description_list<V: WritableVisitor<Error = Error>>(
+fn visit_horizontal_description_list<W: Write>(
     list: &DescriptionList,
-    visitor: &mut V,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
 ) -> Result<(), Error> {
     let writer = visitor.writer_mut();
 
@@ -455,8 +479,9 @@ fn visit_horizontal_description_list<V: WritableVisitor<Error = Error>>(
     let _ = writer;
 
     for item in &list.items {
+        let item_src_attrs = visitor.data_src_attrs(&item.location);
         let mut writer = visitor.writer_mut();
-        writeln!(writer, "<tr>")?;
+        writeln!(writer, "<tr{item_src_attrs}>")?;
         writeln!(writer, "<td class=\"hdlist1\">")?;
         let _ = writer;
         visitor.visit_inline_nodes(&item.term)?;
@@ -485,9 +510,9 @@ fn visit_horizontal_description_list<V: WritableVisitor<Error = Error>>(
 }
 
 /// Renders a standard description list as an HTML `<dl>` with `dlist` class.
-fn visit_standard_description_list<V: WritableVisitor<Error = Error>>(
+fn visit_standard_description_list<W: Write>(
     list: &DescriptionList,
-    visitor: &mut V,
+    visitor: &mut HtmlVisitor<'_, '_, W>,
 ) -> Result<(), Error> {
     let writer = visitor.writer_mut();
 
@@ -512,12 +537,13 @@ fn visit_standard_description_list<V: WritableVisitor<Error = Error>>(
     let _ = writer;
 
     for item in &list.items {
+        let item_src_attrs = visitor.data_src_attrs(&item.location);
         let mut writer = visitor.writer_mut();
         // Only add hdlist1 class when NOT ordered/unordered
         if is_marker_style {
-            writeln!(writer, "<dt>")?;
+            writeln!(writer, "<dt{item_src_attrs}>")?;
         } else {
-            writeln!(writer, "<dt class=\"hdlist1\">")?;
+            writeln!(writer, "<dt class=\"hdlist1\"{item_src_attrs}>")?;
         }
         let _ = writer;
         visitor.visit_inline_nodes(&item.term)?;
@@ -627,8 +653,9 @@ fn render_bare_dlist_semantic<W: Write>(
     let _ = writer;
 
     for item in &list.items {
+        let item_src_attrs = visitor.data_src_attrs(&item.location);
         writer = visitor.writer_mut();
-        writeln!(writer, "<dt>")?;
+        writeln!(writer, "<dt{item_src_attrs}>")?;
         let _ = writer;
         visitor.visit_inline_nodes(&item.term)?;
         writer = visitor.writer_mut();
@@ -718,8 +745,9 @@ fn visit_description_list_semantic<W: Write>(
     let _ = writer;
 
     for item in &list.items {
+        let item_src_attrs = visitor.data_src_attrs(&item.location);
         let mut writer = visitor.writer_mut();
-        writeln!(writer, "<dt>")?;
+        writeln!(writer, "<dt{item_src_attrs}>")?;
         let _ = writer;
         visitor.visit_inline_nodes(&item.term)?;
         writer = visitor.writer_mut();

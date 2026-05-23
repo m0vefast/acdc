@@ -15,8 +15,9 @@ use acdc_converters_core::substitutions::effective_subs;
 use acdc_parser::{
     Admonition, AttributeValue, Audio, CalloutList, DelimitedBlock, DelimitedBlockType,
     DescriptionList, DiscreteHeader, Document, DocumentAttributes, Footnote, Header, Image,
-    InlineNode, ListItem, NORMAL, OrderedList, PageBreak, Paragraph, Section, Substitution,
-    TableOfContents, ThematicBreak, UnorderedList, Video,
+    InlineNode, ListItem, Location, NORMAL, OrderedList, PageBreak, Paragraph, Section,
+    Substitution, SubstitutionSpec, TableOfContents, ThematicBreak, UnorderedList, VERBATIM,
+    Video,
 };
 
 use crate::{Error, HtmlVariant, Processor, RenderOptions, docinfo::DocInfo};
@@ -192,6 +193,76 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
     /// Consume the visitor and return the writer
     pub fn into_writer(self) -> W {
         self.writer
+    }
+
+    /// Write an opening `<span data-src-start="N" data-src-end="M">` and return
+    /// `true` so callers know to balance with `write_src_span_close`.
+    ///
+    /// The emitted `data-src-start` / `data-src-end` are **UTF-8 byte indices**
+    /// into the original source. `data-src-end` is the **first byte of the LAST
+    /// codepoint** in the span (NOT the last byte — for multi-byte content the
+    /// range ends mid-codepoint). See `acdc-glyph-wasm`'s `render_html` doc for
+    /// the full wire-format contract — every consumer relies on these two
+    /// invariants.
+    ///
+    /// Returns `false` (no markup written, no close needed) when:
+    /// - `emit_source_positions` is off (default)
+    /// - `skip_src_position` is set (caller is rendering re-parsed sub-nodes
+    ///   whose locations are relative, not absolute)
+    /// - The location is the default `{0, 0}` sentinel produced by
+    ///   `parse_text_for_quotes` for nodes lacking source-position metadata
+    pub(crate) fn write_src_span_open(&mut self, loc: &Location) -> Result<bool, Error> {
+        if !self.render_options.emit_source_positions || self.render_options.skip_src_position {
+            return Ok(false);
+        }
+        if loc.absolute_start == 0 && loc.absolute_end == 0 {
+            return Ok(false);
+        }
+        write!(
+            self.writer,
+            "<span data-src-start=\"{}\" data-src-end=\"{}\">",
+            loc.absolute_start, loc.absolute_end
+        )?;
+        Ok(true)
+    }
+
+    /// Close the span opened by `write_src_span_open` if it returned `true`.
+    pub(crate) fn write_src_span_close(&mut self, opened: bool) -> Result<(), Error> {
+        if opened {
+            write!(self.writer, "</span>")?;
+        }
+        Ok(())
+    }
+
+    /// Build the ` data-src-start="N" data-src-end="M"` attribute fragment
+    /// (with leading space) for inlining into a block's opening tag.
+    ///
+    /// `N` / `M` are **UTF-8 byte indices** into the source, `M` is the
+    /// **first byte of the LAST codepoint** — same wire-format contract as
+    /// `write_src_span_open`.
+    ///
+    /// Returns an empty string when source-position emission is off, the
+    /// location is the default sentinel, or the caller is inside a re-parse
+    /// scope.
+    #[must_use]
+    pub(crate) fn data_src_attrs(&self, loc: &Location) -> String {
+        self.format_data_src_attrs(loc.absolute_start, loc.absolute_end)
+    }
+
+    /// Variant of `data_src_attrs` that takes raw byte offsets directly. Used
+    /// where the source span is derived (e.g. table cells / rows whose
+    /// `Location` is computed from contained blocks, not stored on the AST).
+    /// Same gating rules as `data_src_attrs` (emission off, re-parse scope,
+    /// `{0,0}` sentinel ⇒ empty string).
+    #[must_use]
+    pub(crate) fn format_data_src_attrs(&self, start: usize, end: usize) -> String {
+        if !self.render_options.emit_source_positions || self.render_options.skip_src_position {
+            return String::new();
+        }
+        if start == 0 && end == 0 {
+            return String::new();
+        }
+        format!(" data-src-start=\"{start}\" data-src-end=\"{end}\"")
     }
 
     /// Check if dark mode is enabled via the `:dark-mode:` document attribute.
@@ -892,6 +963,84 @@ impl<W: Write> Visitor for HtmlVisitor<'_, '_, W> {
 
     fn visit_discrete_header(&mut self, header: &DiscreteHeader) -> Result<(), Self::Error> {
         crate::section::visit_discrete_header(header, self)
+    }
+
+    fn visit_inline_nodes(&mut self, nodes: &[InlineNode]) -> Result<(), Self::Error> {
+        // Fast path: when source-position spans aren't being emitted, just
+        // walk the default.
+        if !self.render_options.emit_source_positions || self.render_options.skip_src_position {
+            for node in nodes {
+                self.visit_inline_node(node)?;
+            }
+            return Ok(());
+        }
+
+        // Attribute-reference expansion (e.g. `{lt}br{gt}`) produces multiple
+        // consecutive PlainText / RawText nodes whose source ranges abut, with
+        // contents like `<`, `br`, `>`. Each one wrapped in its own
+        // `<span data-src-*>` fragments the raw passthrough HTML — parse5 sees
+        // `<span><</span><span>br</span><span>></span>` and cannot reconstruct
+        // the `<br>` element. Merge such runs into a single outer span so the
+        // contents concatenate uninterrupted inside it. Cursor mapping for the
+        // merged region uses the combined source range — acceptable because
+        // individual attribute-reference tokens (`{lt}`, etc.) aren't useful
+        // click targets in the rendered output anyway.
+        let mut i = 0;
+        while i < nodes.len() {
+            let run_end = {
+                let mut j = i;
+                let mut prev_end: Option<usize> = None;
+                while j < nodes.len() {
+                    let loc: Option<(usize, usize)> = match &nodes[j] {
+                        InlineNode::PlainText(p) if !p.escaped => {
+                            Some((p.location.absolute_start, p.location.absolute_end))
+                        }
+                        InlineNode::RawText(r) => {
+                            Some((r.location.absolute_start, r.location.absolute_end))
+                        }
+                        _ => None,
+                    };
+                    match loc {
+                        Some((s, e))
+                            if prev_end.is_none_or(|pe| pe == s) && !(s == 0 && e == 0) =>
+                        {
+                            prev_end = Some(e);
+                            j += 1;
+                        }
+                        _ => break,
+                    }
+                }
+                j
+            };
+            if run_end > i + 1 {
+                let start_loc = match &nodes[i] {
+                    InlineNode::PlainText(p) => p.location.absolute_start,
+                    InlineNode::RawText(r) => r.location.absolute_start,
+                    _ => unreachable!(),
+                };
+                let end_loc = match &nodes[run_end - 1] {
+                    InlineNode::PlainText(p) => p.location.absolute_end,
+                    InlineNode::RawText(r) => r.location.absolute_end,
+                    _ => unreachable!(),
+                };
+                write!(
+                    self.writer,
+                    "<span data-src-start=\"{start_loc}\" data-src-end=\"{end_loc}\">"
+                )?;
+                let prev_skip = self.render_options.skip_src_position;
+                self.render_options.skip_src_position = true;
+                for k in i..run_end {
+                    self.visit_inline_node(&nodes[k])?;
+                }
+                self.render_options.skip_src_position = prev_skip;
+                write!(self.writer, "</span>")?;
+                i = run_end;
+            } else {
+                self.visit_inline_node(&nodes[i])?;
+                i += 1;
+            }
+        }
+        Ok(())
     }
 
     fn visit_inline_node(&mut self, node: &InlineNode) -> Result<(), Self::Error> {

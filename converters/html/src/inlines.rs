@@ -299,12 +299,16 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             InlineNode::SuperscriptText(s) => self.render_superscript(s, subs),
             InlineNode::SubscriptText(s) => self.render_subscript(s, subs),
             InlineNode::Macro(m) => self.render_inline_macro(m, options, subs),
-            InlineNode::LineBreak(_) => {
+            InlineNode::LineBreak(br) => {
+                let opened = self.write_src_span_open(&br.location)?;
                 writeln!(self.writer_mut(), "<br>")?;
+                self.write_src_span_close(opened)?;
                 Ok(())
             }
             InlineNode::InlineAnchor(anchor) if !options.toc_mode => {
+                let opened = self.write_src_span_open(&anchor.location)?;
                 write!(self.writer_mut(), "<a id=\"{}\"></a>", anchor.id)?;
+                self.write_src_span_close(opened)?;
                 Ok(())
             }
             // Explicit InlineAnchor arm for TOC mode (no nested anchors) plus a catch-all
@@ -375,6 +379,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         options: &RenderOptions,
         subs: &[Substitution],
     ) -> Result<(), Error> {
+        let opened = self.write_src_span_open(&p.location)?;
         // Attribute substitution already applied by the inline preprocessor during parsing.
         let content = &p.content;
         // If escaped (e.g. `\^2^`), skip quote re-parsing; otherwise use block subs.
@@ -388,9 +393,17 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 .filter(|s| **s != Substitution::Quotes)
                 .cloned()
                 .collect();
+            // Re-parsed sub-inlines carry relative locations (offsets into `content`,
+            // not the original source). Suppress nested data-src wrapping for the
+            // duration so we don't emit misleading absolute-looking offsets. The
+            // outer span (opened above) bounds the entire re-parsed region.
+            let prev_skip = self.render_options.skip_src_position;
+            self.render_options.skip_src_position = true;
             for node in parsed.inlines() {
                 self.render_inline_node(node, options, &no_quotes_subs)?;
             }
+            self.render_options.skip_src_position = prev_skip;
+            self.write_src_span_close(opened)?;
             return Ok(());
         }
 
@@ -402,6 +415,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         } else {
             write!(w, "{text}")?;
         }
+        self.write_src_span_close(opened)?;
         Ok(())
     }
 
@@ -411,6 +425,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         options: &RenderOptions,
         subs: &[Substitution],
     ) -> Result<(), Error> {
+        let opened = self.write_src_span_open(&r.location)?;
         // RawText comes from passthroughs — attribute expansion was already handled (or
         // explicitly skipped) by the preprocessor. Do NOT apply block subs.
         let content = &r.content;
@@ -422,6 +437,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             substitution_text(content, &r.subs, options)
         };
         write!(self.writer_mut(), "{text}")?;
+        self.write_src_span_close(opened)?;
         Ok(())
     }
 
@@ -431,6 +447,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         options: &RenderOptions,
         subs: &[Substitution],
     ) -> Result<(), Error> {
+        let opened = self.write_src_span_open(&v.location)?;
         let processor = self.processor.clone();
         // VerbatimText is now just text (callouts are separate CalloutRef nodes).
         // Apply attribute substitution first, then escaping.
@@ -450,14 +467,20 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
 
         if subs.contains(&Substitution::Quotes) {
             // Keep Quotes in subs so BoldText/ItalicText render as HTML.
+            // Same re-parse rationale as render_plain — sub-inlines carry relative
+            // locations, suppress their data-src wrapping under the outer span.
             let parsed = parse_text_for_quotes(&content);
+            let prev_skip = self.render_options.skip_src_position;
+            self.render_options.skip_src_position = true;
             for node in parsed.inlines() {
                 self.render_inline_node(node, &verbatim_options, subs)?;
             }
+            self.render_options.skip_src_position = prev_skip;
         } else {
             let text = substitution_text(&content, subs, &verbatim_options);
             write!(self.writer_mut(), "{text}")?;
         }
+        self.write_src_span_close(opened)?;
         Ok(())
     }
 
@@ -680,13 +703,19 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
     }
 
     /// Render an inline macro by dispatching to the per-variant renderer.
+    ///
+    /// Wraps the dispatch in `<span data-src-*>` so that every macro's output
+    /// (link `<a>`, footnote `<sup>`, image `<img>`, stem `\(…\)`, etc.) is
+    /// addressable for click → source mapping. Per-variant renderers only
+    /// produce the macro's HTML — span emission is centralized here.
     fn render_inline_macro(
         &mut self,
         m: &InlineMacro,
         options: &RenderOptions,
         subs: &[Substitution],
     ) -> Result<(), Error> {
-        match m {
+        let opened = self.write_src_span_open(m.location())?;
+        let result = match m {
             InlineMacro::Autolink(al) => self.render_autolink(al, options),
             InlineMacro::Link(l) => self.render_link(l, options, subs),
             InlineMacro::Image(i) => self.render_inline_image(i),
@@ -706,7 +735,10 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 format!("Unsupported inline macro: {m:?}"),
             )
             .into()),
-        }
+        };
+        result?;
+        self.write_src_span_close(opened)?;
+        Ok(())
     }
 
     fn render_autolink(&mut self, al: &Autolink<'_>, options: &RenderOptions) -> Result<(), Error> {

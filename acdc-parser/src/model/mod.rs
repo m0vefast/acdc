@@ -254,6 +254,17 @@ pub enum Block<'a> {
     Comment(Comment<'a>),
 }
 
+impl<'a> Block<'a> {
+    /// Public accessor for the variant's underlying `Location`. Mirrors the
+    /// crate-internal `Locateable` impl so downstream consumers (Glyph's HTML
+    /// converter, third-party walkers) can ask "where in the source did this
+    /// block come from?" without re-implementing the per-variant match.
+    #[must_use]
+    pub fn location(&self) -> &Location {
+        <Self as Locateable>::location(self)
+    }
+}
+
 impl Locateable for Block<'_> {
     fn location(&self) -> &Location {
         match self {

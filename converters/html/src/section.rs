@@ -70,11 +70,12 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         };
         let heading_level = effective_level + 1; // Level 1 = h2
 
+        let src_attrs = self.data_src_attrs(&section.location);
         let mut w = self.writer_mut();
 
         if section.level == 0 && !is_appendix {
             // Parts (level 0) in book doctype: standalone h1 with class="sect0", no wrapper div
-            write!(w, "<h{heading_level} id=\"{id}\" class=\"sect0\">")?;
+            write!(w, "<h{heading_level} id=\"{id}\" class=\"sect0\"{src_attrs}>")?;
 
             // Prepend part number if :partnums: is enabled
             if !skip_numbering
@@ -84,9 +85,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             }
         } else {
             if processor.variant() == HtmlVariant::Semantic {
-                writeln!(w, "<section class=\"doc-section level-{effective_level}\">")?;
+                writeln!(w, "<section class=\"doc-section level-{effective_level}\"{src_attrs}>")?;
             } else {
-                writeln!(w, "<div class=\"sect{effective_level}\">")?;
+                writeln!(w, "<div class=\"sect{effective_level}\"{src_attrs}>")?;
             }
             write!(w, "<h{heading_level} id=\"{id}\">")?;
 

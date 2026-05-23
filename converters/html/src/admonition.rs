@@ -29,11 +29,19 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             .ok_or(Error::InvalidAdmonitionCaption(caption_attr.to_string()))?;
 
         if processor.variant() == HtmlVariant::Semantic {
-            return visit_admonition_semantic(self, admon, caption, processor.is_font_icons_mode());
+            let src_attrs = self.data_src_attrs(&admon.location);
+            return visit_admonition_semantic(
+                self,
+                admon,
+                caption,
+                processor.is_font_icons_mode(),
+                &src_attrs,
+            );
         }
 
+        let src_attrs = self.data_src_attrs(&admon.location);
         let mut writer = self.writer_mut();
-        writeln!(writer, "<div class=\"admonitionblock {}\">", admon.variant)?;
+        writeln!(writer, "<div class=\"admonitionblock {}\"{src_attrs}>", admon.variant)?;
         writeln!(writer, "<table>")?;
         writeln!(writer, "<tr>")?;
         writeln!(writer, "<td class=\"icon\">")?;
@@ -108,6 +116,7 @@ fn visit_admonition_semantic<V: WritableVisitor<Error = Error>>(
     admon: &Admonition,
     caption: &str,
     font_icons: bool,
+    src_attrs: &str,
 ) -> Result<(), Error> {
     // Note/Tip use <aside> with role="note"/"doc-tip"
     // Warning/Important/Caution use <section> with role="doc-notice"
@@ -130,7 +139,7 @@ fn visit_admonition_semantic<V: WritableVisitor<Error = Error>>(
     } else if let Some(anchor) = admon.metadata.anchors.first() {
         write!(writer, " id=\"{}\"", anchor.id)?;
     }
-    writeln!(writer, " role=\"{role}\">")?;
+    writeln!(writer, " role=\"{role}\"{src_attrs}>")?;
 
     if font_icons {
         let fa_icon = match admon.variant {

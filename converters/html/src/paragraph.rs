@@ -122,6 +122,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             let has_title = !para.title.is_empty();
             let has_id = para.metadata.id.is_some() || !para.metadata.anchors.is_empty();
             let has_roles = !para.metadata.roles.is_empty();
+            let src_attrs = self.data_src_attrs(&para.location);
 
             if has_title {
                 // Titled paragraphs get a section wrapper
@@ -129,7 +130,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 let class = build_class("paragraph", &para.metadata.roles);
                 write!(w, "<section")?;
                 write_id(w, &para.metadata)?;
-                writeln!(w, " class=\"{class}\">")?;
+                writeln!(w, " class=\"{class}\"{src_attrs}>")?;
                 let _ = w;
                 self.render_title_with_wrapper(
                     &para.title,
@@ -151,7 +152,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                     write!(w, " class=\"{}\"", para.metadata.roles.join(" "))?;
                 }
                 write_id(w, &para.metadata)?;
-                write!(w, ">")?;
+                write!(w, "{src_attrs}>")?;
                 let _ = w;
                 self.visit_inline_nodes(&para.content)?;
                 w = self.writer_mut();
@@ -159,16 +160,17 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             } else {
                 // Bare paragraph — no wrapper
                 let mut w = self.writer_mut();
-                write!(w, "<p>")?;
+                write!(w, "<p{src_attrs}>")?;
                 let _ = w;
                 self.visit_inline_nodes(&para.content)?;
                 w = self.writer_mut();
                 writeln!(w, "</p>")?;
             }
         } else {
-            let mut w = self.writer_mut();
             let class = build_class("paragraph", &para.metadata.roles);
-            writeln!(w, "<div class=\"{class}\">")?;
+            let src_attrs = self.data_src_attrs(&para.location);
+            let mut w = self.writer_mut();
+            writeln!(w, "<div class=\"{class}\"{src_attrs}>")?;
             let _ = w;
             self.render_title_with_wrapper(&para.title, "<div class=\"title\">", "</div>\n")?;
             w = self.writer_mut();
@@ -191,12 +193,13 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         let subs = baseline_subs(true);
 
         if self.processor.variant() == HtmlVariant::Semantic {
+            let src_attrs = self.data_src_attrs(&para.location);
             let w = self.writer_mut();
             if para.title.is_empty() {
                 write!(w, "<div")?;
                 write_id(w, &para.metadata)?;
                 let class = build_class("listing-block", &para.metadata.roles);
-                writeln!(w, " class=\"{class}\">")?;
+                writeln!(w, " class=\"{class}\"{src_attrs}>")?;
                 let _ = w;
                 crate::render_pre_code(&para.content, language, self, &subs)?;
                 let w = self.writer_mut();
@@ -205,7 +208,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 write!(w, "<figure")?;
                 write_id(w, &para.metadata)?;
                 let class = build_class("listing-block", &para.metadata.roles);
-                writeln!(w, " class=\"{class}\">")?;
+                writeln!(w, " class=\"{class}\"{src_attrs}>")?;
                 let _ = w;
                 self.render_title_with_wrapper(&para.title, "<figcaption>", "</figcaption>\n")?;
                 crate::render_pre_code(&para.content, language, self, &subs)?;
@@ -213,11 +216,12 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 writeln!(w, "</figure>")?;
             }
         } else {
+            let src_attrs = self.data_src_attrs(&para.location);
             let w = self.writer_mut();
             write!(w, "<div")?;
             write_id(w, &para.metadata)?;
             let class = build_class("listingblock", &para.metadata.roles);
-            writeln!(w, " class=\"{class}\">")?;
+            writeln!(w, " class=\"{class}\"{src_attrs}>")?;
             let _ = w;
 
             // Title with optional listing-caption numbering

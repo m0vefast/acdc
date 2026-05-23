@@ -25,15 +25,19 @@ use crate::{
 
 /// Write the opening `<div>` tag with optional ID and class attributes.
 /// Follows the pattern used in lists: metadata.id takes precedence, fallback to anchors.
+/// `src_attrs` is the precomputed ` data-src-start="…" data-src-end="…"` string
+/// (or empty when emit_source_positions is off); callers source it from
+/// `HtmlVisitor::data_src_attrs(&block.location)`.
 fn write_block_div_open<W: Write>(
     w: &mut W,
     metadata: &BlockMetadata,
     base_class: &str,
+    src_attrs: &str,
 ) -> Result<(), Error> {
     write!(w, "<div")?;
     crate::write_id(w, metadata)?;
     let class = build_class(base_class, &metadata.roles);
-    writeln!(w, " class=\"{class}\">")?;
+    writeln!(w, " class=\"{class}\"{src_attrs}>")?;
     Ok(())
 }
 
@@ -65,8 +69,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             return self.write_example_block_collapsible(block, blocks);
         }
 
+        let src_attrs = self.data_src_attrs(&block.location);
         let mut writer = self.writer_mut();
-        write_block_div_open(&mut writer, &block.metadata, "exampleblock")?;
+        write_block_div_open(&mut writer, &block.metadata, "exampleblock", &src_attrs)?;
         let _ = writer;
 
         // Render title with caption prefix if title exists
@@ -270,13 +275,14 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                         writeln!(writer, "</div>")?;
                     }
                 } else {
+                    let src_attrs = self.data_src_attrs(&block.location);
                     let mut writer = self.writer_mut();
                     let base_class = if let Some(style) = &block.metadata.style {
                         format!("{style}block")
                     } else {
                         "quoteblock".to_string()
                     };
-                    write_block_div_open(&mut writer, &block.metadata, &base_class)?;
+                    write_block_div_open(&mut writer, &block.metadata, &base_class, &src_attrs)?;
                     writeln!(writer, "<blockquote>")?;
                     let _ = writer;
                     for nested_block in blocks {
@@ -373,8 +379,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                         }
                     }
                 } else {
+                    let src_attrs = self.data_src_attrs(&block.location);
                     let mut writer = self.writer_mut();
-                    write_block_div_open(&mut writer, &block.metadata, "openblock")?;
+                    write_block_div_open(&mut writer, &block.metadata, "openblock", &src_attrs)?;
                     let _ = writer;
                     self.render_title_with_wrapper(
                         &block.title,
@@ -415,8 +422,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                     let writer = self.writer_mut();
                     writeln!(writer, "</aside>")?;
                 } else {
+                    let src_attrs = self.data_src_attrs(&block.location);
                     let mut writer = self.writer_mut();
-                    write_block_div_open(&mut writer, &block.metadata, "sidebarblock")?;
+                    write_block_div_open(&mut writer, &block.metadata, "sidebarblock", &src_attrs)?;
                     writeln!(writer, "<div class=\"content\">")?;
                     let _ = writer;
                     self.render_title_with_wrapper(
@@ -438,6 +446,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             DelimitedBlockType::DelimitedTable(t) => {
                 let processor = self.processor.clone();
                 let options = self.render_options.clone();
+                let src_attrs = self.data_src_attrs(&t.location);
                 crate::table::render_table(
                     t,
                     self,
@@ -445,6 +454,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                     &options,
                     &block.metadata,
                     &block.title,
+                    &src_attrs,
                 )?;
             }
             // Verse, literal, and stem blocks need semantic handling
@@ -467,7 +477,12 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             | DelimitedBlockType::DelimitedComment(_)
             | DelimitedBlockType::DelimitedVerse(_)
             | _ => {
-                self.render_delimited_block_inner(&block.inner, &block.title, &block.metadata)?;
+                self.render_delimited_block_inner(
+                    &block.inner,
+                    &block.title,
+                    &block.metadata,
+                    &block.location,
+                )?;
             }
         }
         Ok(())
@@ -549,6 +564,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         inlines: &[InlineNode],
         title: &[InlineNode],
         metadata: &BlockMetadata,
+        location: &Location,
     ) -> Result<(), Error> {
         let processor = self.processor.clone();
         if processor.variant() == HtmlVariant::Semantic {
@@ -560,8 +576,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             return self.render_terminal_listing_block(inlines, title, metadata);
         }
 
+        let src_attrs = self.data_src_attrs(location);
         let mut w = self.writer_mut();
-        write_block_div_open(&mut w, metadata, "listingblock")?;
+        write_block_div_open(&mut w, metadata, "listingblock", &src_attrs)?;
         let _ = w;
 
         // Check if listing-caption is set and block has a title
@@ -752,6 +769,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         inner: &DelimitedBlockType,
         title: &[InlineNode],
         metadata: &BlockMetadata,
+        location: &Location,
     ) -> Result<(), Error> {
         match inner {
             DelimitedBlockType::DelimitedPass(inlines) => {
@@ -765,12 +783,13 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 self.visit_inline_nodes(inlines)?;
             }
             DelimitedBlockType::DelimitedListing(inlines) => {
-                self.render_listing_block(inlines, title, metadata)?;
+                self.render_listing_block(inlines, title, metadata, location)?;
             }
             DelimitedBlockType::DelimitedLiteral(inlines) => {
                 // Check for custom style other than "source" - I've done this because
                 // `asciidoctor` seems to always use "literalblock" for source blocks or
                 // so I think!
+                let src_attrs = self.data_src_attrs(location);
                 let mut w = self.writer_mut();
                 let base_class = if let Some(style) = &metadata.style
                     && *style != "source"
@@ -779,7 +798,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 } else {
                     "literalblock".to_string()
                 };
-                write_block_div_open(&mut w, metadata, &base_class)?;
+                write_block_div_open(&mut w, metadata, &base_class, &src_attrs)?;
                 let _ = w;
                 self.render_title_with_wrapper(title, "<div class=\"title\">", "</div>\n")?;
                 let mut w = self.writer_mut();
@@ -793,8 +812,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 writeln!(w, "</div>")?;
             }
             DelimitedBlockType::DelimitedStem(stem) => {
+                let src_attrs = self.data_src_attrs(location);
                 let mut w = self.writer_mut();
-                write_block_div_open(&mut w, metadata, "stemblock")?;
+                write_block_div_open(&mut w, metadata, "stemblock", &src_attrs)?;
                 let _ = w;
                 self.render_title_with_wrapper(title, "<div class=\"title\">", "</div>\n")?;
                 let processor = self.processor.clone();
@@ -806,8 +826,9 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 // Comment blocks produce no output
             }
             DelimitedBlockType::DelimitedVerse(inlines) => {
+                let src_attrs = self.data_src_attrs(location);
                 let mut w = self.writer_mut();
-                write_block_div_open(&mut w, metadata, "verseblock")?;
+                write_block_div_open(&mut w, metadata, "verseblock", &src_attrs)?;
                 let _ = w;
                 self.render_title_with_wrapper(title, "<div class=\"title\">", "</div>\n")?;
                 let mut w = self.writer_mut();
@@ -1130,7 +1151,9 @@ mod tests {
         use acdc_parser::{AttributeValue, ElementAttributes};
 
         let mut attributes = ElementAttributes::default();
-        attributes.insert("bash".into(), AttributeValue::None);
+        // Parser stores `[source,bash]` as named `language="bash"` (4df6d8d
+        // moved language out of positional). detect_language reads this key.
+        attributes.insert("language".into(), AttributeValue::String("bash".into()));
 
         let metadata = BlockMetadata::new()
             .with_style(Some("source"))
