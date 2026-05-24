@@ -392,6 +392,10 @@
                 "type": "path",
                 "value": "mountain.png"
               },
+              "attributes": {
+                "height": "300",
+                "width": "500"
+              },
               "location": [
                 {
                   "line": 21,

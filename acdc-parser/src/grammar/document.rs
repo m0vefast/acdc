@@ -529,15 +529,44 @@ fn parse_table_block_impl<'input>(
                     ),
                     row_location,
                 );
-            } else {
+                // Overflow case: drop the row (current behavior — the cell
+                // can't fit and the user's table grammar is broken in a way
+                // that wrapping into the next row would produce surprising
+                // layouts. Asciidoctor reference also drops.)
+                continue;
+            } else if logical_col_count < ncols {
+                // Under-count: PAD the row with empty cells to reach ncols.
+                // Without this, the row is dropped entirely — silently losing
+                // user data when source has a missing cell (the most common
+                // authoring mistake). Asciidoctor reference renders such
+                // rows with the missing cells as empty, NOT dropped.
+                // Still emit the warning so authoring tools surface the issue.
                 state.add_generic_warning_at(
                     format!(
                         "table row has incorrect column count: actual={logical_col_count}, expected={ncols}, occupied_from_rowspans={occupied_from_rowspans}"
                     ),
                     row_location,
                 );
+                let pad_count = ncols - logical_col_count;
+                for _ in 0..pad_count {
+                    columns.push(crate::TableColumn::with_format(
+                        Vec::new(),
+                        1, 1, None, None, None,
+                    ));
+                }
+                // Fall through — row now has the right column count.
+            } else {
+                // Over-count without overflow (e.g. extra cells beyond ncols
+                // via colspan combinations). Drop the row — accepting it
+                // would shift subsequent rows' column alignment.
+                state.add_generic_warning_at(
+                    format!(
+                        "table row has incorrect column count: actual={logical_col_count}, expected={ncols}, occupied_from_rowspans={occupied_from_rowspans}"
+                    ),
+                    row_location,
+                );
+                continue;
             }
-            continue;
         }
 
         // Update active rowspans for this row:
@@ -4717,6 +4746,81 @@ peg::parser! {
     }
 }
 
+/// Either auto-numbered (`<.>`) or explicit (`<N>`).
+#[derive(Clone, Copy)]
+enum CalloutMarker {
+    Auto,
+    Explicit(usize),
+}
+
+/// Tries to parse a callout marker whose `<` sits at `lt_idx`. Returns the
+/// marker kind and the byte offset just past `>`, or `None` if the bytes
+/// at `lt_idx + 1..` don't form `<.>`, `<digits+>`, `<!.>`, or `<!digits+>`.
+///
+/// Per SOT `CalloutScanRx = /\\?<!?(|--)(\d+|\.)\1>/`, the optional `!`
+/// prefix marks the callout as "non-visible" — used to hide markers from
+/// `tag::`-extracted source while still emitting the callout in rendered
+/// output. The `!` is silently consumed; the rendered AST is identical
+/// to the visible form. The `(|--)` bracketed-delimiter form (`<--N-->`,
+/// `<!--N-->`) is a known divergence: asciidoctor emits surrounding
+/// `<!--` / `-->` as literal text around the callout, which requires
+/// multi-node emission this parser does not yet implement. No Glyph
+/// consumer relies on it today.
+fn parse_callout_marker(line: &str, lt_idx: usize) -> Option<(CalloutMarker, usize)> {
+    let after_lt = lt_idx.checked_add(1)?;
+    let rest = line.get(after_lt..)?;
+    // Optional non-visible `!` prefix — silently consumed.
+    let (inner_start, rest) = if let Some(without_bang) = rest.strip_prefix('!') {
+        (after_lt + 1, without_bang)
+    } else {
+        (after_lt, rest)
+    };
+    if rest.starts_with(".>") {
+        // `.>` spans 2 bytes from `inner_start`; marker_end is just past `>`.
+        return Some((CalloutMarker::Auto, inner_start + 2));
+    }
+    let rel_gt = rest.find('>')?;
+    let inner = rest.get(..rel_gt)?;
+    let number = inner.parse::<usize>().ok()?;
+    Some((CalloutMarker::Explicit(number), inner_start + rel_gt + 1))
+}
+
+/// Verifies that the remainder of `line` from `start` matches the
+/// Asciidoctor `CalloutScanRx` lookahead `(?: ?\\?<(?:\d+|\.)>)*CC_EOL`
+/// (where `CC_EOL = [ \t]*\n`). A chain is zero-or-more occurrences of
+/// `[ ]?[\\]?<(\d+|\.)>`, followed by optional trailing `[ \t]*` to EOL.
+fn is_chain_to_eol(line: &str, start: usize) -> bool {
+    let bytes = line.as_bytes();
+    let mut pos = start;
+    loop {
+        // Snapshot before attempting to peel a chain element — if the
+        // optional space we consume isn't followed by a marker, we need
+        // to roll back so the trailing-whitespace check sees that space.
+        let snapshot = pos;
+        // Optional single space.
+        if bytes.get(pos) == Some(&b' ') {
+            pos += 1;
+        }
+        // Optional backslash (escapes the marker but still counts as a slot).
+        if bytes.get(pos) == Some(&b'\\') {
+            pos += 1;
+        }
+        // Must be `<` to extend the chain; otherwise roll back and treat
+        // the rest as trailing whitespace.
+        if bytes.get(pos) != Some(&b'<') {
+            pos = snapshot;
+            break;
+        }
+        let Some((_, marker_end)) = parse_callout_marker(line, pos) else {
+            pos = snapshot;
+            break;
+        };
+        pos = marker_end;
+    }
+    // Accept iff the remainder from `pos` is whitespace only (`CC_EOL = [ \t]*\n`).
+    bytes.iter().skip(pos).all(|&c| c == b' ' || c == b'\t')
+}
+
 /// Resolves callouts in verbatim text, converting them to structured `CalloutRef` nodes.
 ///
 /// This function scans verbatim content for callout markers (`<1>`, `<.>`, etc.) and
@@ -4766,72 +4870,88 @@ fn resolve_verbatim_callouts<'a>(
             current_text.push('\n');
         }
 
-        let trimmed_end = line.trim_end();
-
-        // Check for auto-numbered callout <.>
-        if let Some(pos) = trimmed_end.rfind("<.>") {
-            // Add text before the callout
-            current_text.push_str(&line[..pos]);
-
-            // Flush current text as VerbatimText
-            if !current_text.is_empty() {
-                let flushed = std::mem::replace(
-                    &mut current_text,
-                    bumpalo::collections::String::new_in(arena),
-                );
-                inlines.push(InlineNode::VerbatimText(Verbatim {
-                    content: flushed.into_bump_str(),
-                    location: base_location.clone(),
-                }));
-            }
-
-            // Create CalloutRef for auto-numbered callout
-            let callout_ref = CalloutRef::auto(auto_number, base_location.clone());
-            inlines.push(InlineNode::CalloutRef(callout_ref.clone()));
-            callouts.push(callout_ref);
-            auto_number += 1;
-
-            // Add any trailing content after the callout marker
-            let after_marker = &line[pos + 3..];
-            if !after_marker.is_empty() {
-                current_text.push_str(after_marker);
-            }
-        } else if let Some((number, marker_start)) =
-            extract_callout_number_with_position(trimmed_end)
-        {
-            // Found an explicit callout like <5>
-            // Add text before the callout
-            current_text.push_str(&line[..marker_start]);
-
-            // Flush current text as VerbatimText
-            if !current_text.is_empty() {
-                let flushed = std::mem::replace(
-                    &mut current_text,
-                    bumpalo::collections::String::new_in(arena),
-                );
-                inlines.push(InlineNode::VerbatimText(Verbatim {
-                    content: flushed.into_bump_str(),
-                    location: base_location.clone(),
-                }));
-            }
-
-            // Create CalloutRef for explicit callout
-            let callout_ref = CalloutRef::explicit(number, base_location.clone());
-            inlines.push(InlineNode::CalloutRef(callout_ref.clone()));
-            callouts.push(callout_ref);
-
-            // Add any trailing content after the callout marker
-            // Find the end of the marker (the '>')
-            if let Some(marker_end_relative) = trimmed_end[marker_start..].find('>') {
-                let marker_end = marker_start + marker_end_relative + 1;
-                let after_marker = &line[marker_end..];
-                if !after_marker.is_empty() {
-                    current_text.push_str(after_marker);
+        // Iterative left-to-right scan per Asciidoctor `CalloutScanRx`
+        // (`lib/asciidoctor/rx.rb:373`):
+        //   `\\?<!?(|--)(\d+|\.)\1>(?=(?: ?\\?<!?\1(?:\d+|\.)\1>)*CC_EOL)`
+        // The regex has NO preceding-char anchor; mid-word `a<1>` IS a
+        // valid callout if the chain-to-EOL lookahead holds. False
+        // positives in arbitrary prose are prevented by the lookahead
+        // alone — e.g., `mid<2> word` fails because ` word` is not a
+        // chain to EOL.
+        let bytes = line.as_bytes();
+        let mut cursor = 0usize;
+        while cursor < bytes.len() {
+            // Find next '<' from cursor.
+            let Some(rel_lt) = line.get(cursor..).and_then(|s| s.find('<')) else {
+                if let Some(tail) = line.get(cursor..) {
+                    current_text.push_str(tail);
                 }
+                break;
+            };
+            let lt_idx = cursor + rel_lt;
+            // Escape: previous char is `\`. Asciidoctor's `\\?` is
+            // unconditional — applies anywhere (mid-word too), as long
+            // as the unescaped marker would itself be a valid callout
+            // (chain_to_eol holds). Drops the backslash on output.
+            let is_escaped =
+                lt_idx > 0 && bytes.get(lt_idx.saturating_sub(1)) == Some(&b'\\');
+            let Some((kind, marker_end)) = parse_callout_marker(line, lt_idx) else {
+                // Not a marker — emit '<' (and any preceding text up to it)
+                // as literal and advance past `<`.
+                if let Some(seg) = line.get(cursor..=lt_idx) {
+                    current_text.push_str(seg);
+                }
+                cursor = lt_idx + 1;
+                continue;
+            };
+            // Chain-to-EOL lookahead — the only false-positive guard.
+            if !is_chain_to_eol(line, marker_end) {
+                if let Some(seg) = line.get(cursor..=lt_idx) {
+                    current_text.push_str(seg);
+                }
+                cursor = lt_idx + 1;
+                continue;
             }
-        } else {
-            // No callout on this line, just add the content
-            current_text.push_str(line);
+            // Escaped form — emit literal `<N>` (without the `\`) and skip.
+            if is_escaped {
+                // Flush text [cursor..lt_idx-1] (drops the preceding `\`),
+                // then emit the literal marker bytes `<N>` or `<.>`.
+                if let Some(pre) = line.get(cursor..lt_idx.saturating_sub(1)) {
+                    current_text.push_str(pre);
+                }
+                if let Some(marker) = line.get(lt_idx..marker_end) {
+                    current_text.push_str(marker);
+                }
+                cursor = marker_end;
+                continue;
+            }
+            // It's a callout. Flush preceding text.
+            if let Some(pre) = line.get(cursor..lt_idx) {
+                current_text.push_str(pre);
+            }
+            if !current_text.is_empty() {
+                let flushed = std::mem::replace(
+                    &mut current_text,
+                    bumpalo::collections::String::new_in(arena),
+                );
+                inlines.push(InlineNode::VerbatimText(Verbatim {
+                    content: flushed.into_bump_str(),
+                    location: base_location.clone(),
+                }));
+            }
+            let callout_ref = match kind {
+                CalloutMarker::Auto => {
+                    let r = CalloutRef::auto(auto_number, base_location.clone());
+                    auto_number += 1;
+                    r
+                }
+                CalloutMarker::Explicit(number) => {
+                    CalloutRef::explicit(number, base_location.clone())
+                }
+            };
+            inlines.push(InlineNode::CalloutRef(callout_ref.clone()));
+            callouts.push(callout_ref);
+            cursor = marker_end;
         }
     }
 
@@ -4844,18 +4964,6 @@ fn resolve_verbatim_callouts<'a>(
     }
 
     (inlines, callouts)
-}
-
-/// Extract callout number and its start position from a line ending with `<N>`
-fn extract_callout_number_with_position(line: &str) -> Option<(usize, usize)> {
-    if line.ends_with('>')
-        && let Some(start) = line.rfind('<')
-    {
-        let number_str = &line[start + 1..line.len() - 1];
-        number_str.parse().ok().map(|n| (n, start))
-    } else {
-        None
-    }
 }
 
 /// Extract callout number from a line ending with <N>
@@ -4879,6 +4987,196 @@ fn extract_callout_number(line: &str) -> Option<usize> {
 )]
 mod tests {
     use super::*;
+
+    // --- is_chain_to_eol unit tests ---
+    // Locks SOT semantics from asciidoctor 2.0.26 `CalloutScanRx` lookahead
+    // `(?: ?\\?<(?:\d+|\.)>)*CC_EOL` (where `CC_EOL = [ \t]*\n`).
+
+    #[test]
+    fn chain_eol_empty_remainder_is_valid() {
+        assert!(is_chain_to_eol("foo<1>", 6));
+    }
+
+    #[test]
+    fn chain_eol_trailing_space_accepted() {
+        assert!(is_chain_to_eol("<1>  ", 3));
+    }
+
+    #[test]
+    fn chain_eol_trailing_tab_accepted() {
+        assert!(is_chain_to_eol("<1>\t", 3));
+    }
+
+    #[test]
+    fn chain_eol_mixed_trailing_whitespace() {
+        assert!(is_chain_to_eol("<1> \t ", 3));
+    }
+
+    #[test]
+    fn chain_eol_adjacent_marker() {
+        assert!(is_chain_to_eol("<1><2>", 3));
+    }
+
+    #[test]
+    fn chain_eol_single_space_between() {
+        assert!(is_chain_to_eol("<1> <2>", 3));
+    }
+
+    #[test]
+    fn chain_eol_double_space_breaks_chain() {
+        assert!(!is_chain_to_eol("<1>  <2>", 3));
+    }
+
+    #[test]
+    fn chain_eol_trailing_text_rejected() {
+        assert!(!is_chain_to_eol("<1> bar", 3));
+    }
+
+    #[test]
+    fn chain_eol_bad_followup_rejected() {
+        assert!(!is_chain_to_eol("<1><word>", 3));
+    }
+
+    #[test]
+    fn chain_eol_auto_marker_in_chain() {
+        assert!(is_chain_to_eol("<1><.>", 3));
+    }
+
+    #[test]
+    fn chain_eol_escape_in_chain_slot() {
+        // `\<2>` as chain extension: optional `\` then marker. Valid chain.
+        assert!(is_chain_to_eol("<1>\\<2>", 3));
+    }
+
+    #[test]
+    fn chain_eol_long_chain() {
+        assert!(is_chain_to_eol("<1> <2> <3> <.> <.>", 3));
+    }
+
+    #[test]
+    fn chain_eol_empty_marker_inner_rejected() {
+        assert!(!is_chain_to_eol("<1><>", 3));
+    }
+
+    #[test]
+    fn chain_eol_non_digit_inner_rejected() {
+        assert!(!is_chain_to_eol("<1><1a>", 3));
+    }
+
+    #[test]
+    fn chain_eol_unterminated_marker_rejected() {
+        assert!(!is_chain_to_eol("<1><2", 3));
+    }
+
+    #[test]
+    fn chain_eol_non_visible_marker_in_chain() {
+        // `<!2>` is a valid chain extension (non-visible variant).
+        assert!(is_chain_to_eol("<1><!2>", 3));
+    }
+
+    #[test]
+    fn chain_eol_non_visible_auto_in_chain() {
+        // `<!.>` (non-visible auto) is a valid chain extension.
+        assert!(is_chain_to_eol("<1><!.>", 3));
+    }
+
+    // --- resolve_verbatim_callouts integration tests ---
+
+    fn collect_callouts(input: &str) -> Vec<CalloutRef> {
+        let arena = bumpalo::Bump::new();
+        let (_, callouts) = resolve_verbatim_callouts(&arena, input, Location::default(), true);
+        callouts
+    }
+
+    fn collect_text(input: &str) -> String {
+        let arena = bumpalo::Bump::new();
+        let (inlines, _) = resolve_verbatim_callouts(&arena, input, Location::default(), true);
+        inlines
+            .iter()
+            .filter_map(|n| {
+                if let InlineNode::VerbatimText(v) = n {
+                    Some(v.content.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    #[test]
+    fn callouts_mid_word_at_eol_is_callout() {
+        // SOT (asciidoctor 2.0.26): `a<1>` renders `a` + conum(1).
+        assert_eq!(collect_callouts("a<1>").len(), 1);
+        assert_eq!(collect_text("a<1>"), "a");
+    }
+
+    #[test]
+    fn callouts_printf_pattern_at_eol_is_callout() {
+        // SOT: `printf("done")<1>` → callout. Verified empirically against
+        // asciidoctor 2.0.26.
+        assert_eq!(collect_callouts("printf(\"done\")<1>").len(), 1);
+    }
+
+    #[test]
+    fn callouts_mid_line_not_callout() {
+        // SOT: `mid<2> word` → all literal (chain-to-EOL fails on ` word`).
+        assert_eq!(collect_callouts("mid<2> word").len(), 0);
+        assert_eq!(collect_text("mid<2> word"), "mid<2> word");
+    }
+
+    #[test]
+    fn callouts_escape_mid_word_drops_backslash() {
+        // SOT: `b\<4>` → literal `b<4>` (backslash dropped, no callout).
+        assert_eq!(collect_callouts("b\\<4>").len(), 0);
+        assert_eq!(collect_text("b\\<4>"), "b<4>");
+    }
+
+    #[test]
+    fn callouts_escape_not_at_eol_preserves_backslash() {
+        // SOT: `\<2> tail` → literal `\<2> tail` (chain fails so escape
+        // doesn't apply; backslash preserved).
+        assert_eq!(collect_callouts("\\<2> tail").len(), 0);
+        assert_eq!(collect_text("\\<2> tail"), "\\<2> tail");
+    }
+
+    #[test]
+    fn callouts_adjacent_at_eol() {
+        // SOT: `a <1><2>` → text `a ` + two callouts.
+        assert_eq!(collect_callouts("a <1><2>").len(), 2);
+    }
+
+    #[test]
+    fn callouts_auto_number_sequence() {
+        // Auto markers increment 1,2 in left-to-right order across the line.
+        let cs = collect_callouts("<.><.>");
+        assert_eq!(cs.len(), 2);
+        assert_eq!(cs[0].number, 1);
+        assert_eq!(cs[1].number, 2);
+    }
+
+    #[test]
+    fn callouts_chain_break_rejects_first() {
+        // SOT: `<1><word>` → both literal because the chain breaks.
+        assert_eq!(collect_callouts("<1><word>").len(), 0);
+    }
+
+    #[test]
+    fn callouts_non_visible_explicit_marker() {
+        // SOT: `<!5>` parses as explicit callout 5 (the `!` is consumed
+        // silently — used to hide the marker from `tag::` extraction).
+        let cs = collect_callouts("a <!5>");
+        assert_eq!(cs.len(), 1);
+        assert_eq!(cs[0].number, 5);
+    }
+
+    #[test]
+    fn callouts_non_visible_auto_marker() {
+        // SOT: `<!.>` parses as auto-numbered callout (resolved to 1).
+        let cs = collect_callouts("a <!.>");
+        assert_eq!(cs.len(), 1);
+        assert_eq!(cs[0].number, 1);
+    }
 
     #[test]
     #[tracing_test::traced_test]

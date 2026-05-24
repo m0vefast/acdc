@@ -1,0 +1,11 @@
+EOL anchor — a callout marker `<N>` must be at end of line (after
+zero-or-more chained additional markers). When followed by literal
+text mid-line, `<N>` is NOT a callout. This protects source listings
+containing literal angle-bracket data (e.g., C++ templates, XML):
+
+----
+template<T> foo()
+mid <1> not at eol
+end of line <2>
+----
+<2> Only the trailing `<2>` is a real callout

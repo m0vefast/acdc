@@ -1,0 +1,6 @@
+// Inline `image:` with named attributes — `link=`, `window=` flow into
+// `attributes`; `role=` flows into `roles` (asciidoctor renders it as a
+// CSS class on the wrapper span). All three must survive serialization
+// so downstream renderers can apply link wrapping + role styling.
+// Verify in JSON: `attributes.link`, `attributes.window`, `roles: ["icon"]`.
+See image:icon.png[Settings,link=https://example.com,window=_blank,role=icon] for details.

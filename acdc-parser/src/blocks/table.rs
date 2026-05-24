@@ -8,6 +8,39 @@ struct CellPart {
     start: usize,
 }
 
+/// Check whether `line` contains an UNESCAPED occurrence of `separator`.
+/// For PSV (`|`) and DSV (`:`), `\|`/`\:` is an escape — the separator is
+/// content, not a delimiter. Naïve `line.contains(separator)` over-counts
+/// escapes as real separators, causing continuation lines that LOOK like
+/// they have a separator (because content contains `\|`) to be split into
+/// fake cells, dropping the original cell's content silently.
+fn line_has_unescaped_separator(line: &str, separator: &str) -> bool {
+    if separator.len() != 1 {
+        return line.contains(separator);
+    }
+    let sep_char = separator.chars().next().unwrap();
+    // PSV / DSV only escape with `\`.
+    if !matches!(sep_char, '|' | ':') {
+        return line.contains(separator);
+    }
+    let mut chars = line.char_indices().peekable();
+    while let Some((_idx, ch)) = chars.next() {
+        if ch == '\\' {
+            // Skip next char (whatever it is — escape consumes it).
+            if let Some(&(_, next_ch)) = chars.peek() {
+                if next_ch == sep_char {
+                    chars.next();
+                    continue;
+                }
+            }
+            // Lone `\` — treat as literal, continue scanning.
+        } else if ch == sep_char {
+            return true;
+        }
+    }
+    false
+}
+
 /// Split a line by separator, respecting backslash escapes.
 ///
 /// For PSV (`|`) and DSV (`:`), a backslash before the separator escapes it.
@@ -575,7 +608,9 @@ fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &s
 /// Continuation lines (no separator at all) contribute 0 — they will be
 /// absorbed into the previous cell's content by `parse_row_with_positions`.
 fn count_cell_colspans(line: &str, separator: &str) -> usize {
-    if !line.contains(separator) {
+    // Escape-aware: a line with only `\|` (no real separators) contributes 0
+    // (it's continuation content, not a new cell-start).
+    if !line_has_unescaped_separator(line, separator) {
         return 0;
     }
     let parts = split_line(line, separator);
@@ -624,10 +659,21 @@ fn is_new_row_start(line: &str, separator: &str) -> bool {
     if separator != "|" {
         return false;
     }
-
-    let Some(sep_pos) = line.find(separator) else {
-        return false;
-    };
+    // Escape-aware separator find. `\|` is content, not a row-start delimiter.
+    let mut chars = line.char_indices().peekable();
+    let mut sep_pos: Option<usize> = None;
+    while let Some((idx, ch)) = chars.next() {
+        if ch == '\\' {
+            // Skip escaped char (whatever it is).
+            chars.next();
+            continue;
+        }
+        if ch == '|' {
+            sep_pos = Some(idx);
+            break;
+        }
+    }
+    let Some(sep_pos) = sep_pos else { return false };
 
     let before_sep = line[..sep_pos].trim();
     if before_sep.is_empty() {
@@ -649,14 +695,20 @@ fn is_new_row_start(line: &str, separator: &str) -> bool {
 /// paragraph join with a single `\n`. Preserving the boundary matters most
 /// for `a`-cells, where the content is re-parsed as `AsciiDoc` blocks and
 /// the paragraph break may carry a nested table's own structure.
+///
+/// Returns `true` if any continuation lines were consumed — caller uses this
+/// to know whether the prior blank line was an intra-cell paragraph break
+/// (consumed = yes, the "blank" was inside a cell's content) vs an actual
+/// row terminator (consumed = no, the blank cleanly separated rows).
 fn handle_cross_row_continuation(
     lines: &[&str],
     i: &mut usize,
     current_offset: &mut usize,
     rows: &mut [Vec<ParsedCell>],
     separator: &str,
-) {
+) -> bool {
     let mut starting_new_paragraph = true;
+    let mut consumed_any = false;
     while let Some(&next_line) = lines.get(*i) {
         let trimmed = next_line.trim_end();
         // If line has separator or is empty, break - normal row processing
@@ -679,10 +731,12 @@ fn handle_cross_row_continuation(
                 last_cell.end = *current_offset + trimmed.len().saturating_sub(1);
             }
         }
+        consumed_any = true;
         starting_new_paragraph = false;
         *current_offset += next_line.len() + 1;
         *i += 1;
     }
+    consumed_any
 }
 
 impl Table<'_> {
@@ -702,6 +756,26 @@ impl Table<'_> {
         let mut current_offset = base_offset;
         let lines: Vec<&str> = text.lines().collect();
         let mut i = 0;
+        // Track whether the prior iteration's row was added via a path where
+        // a following blank+multi-line-row should merge in (newline-cell-
+        // layout within the same row) vs start a new row.
+        //
+        // Spec model:
+        // - INLINE-row (one logical line, multiple cells): blank terminates row.
+        // - NEWLINE-cell-layout row (each cell as its own line group):
+        //   the row continues across blank-separated cell groups until
+        //   `ncols` worth of cells fill, OR a non-block cell-start line
+        //   begins (which would mean inline-mode resumed). Blank between
+        //   cell groups of the SAME row is intra-row.
+        //
+        // Heuristic: the prior row qualifies for "newline-cell-layout
+        // continuation merge" ONLY IF its last cell's source spans multiple
+        // physical lines (the cell is itself a multi-line group, signalling
+        // we're in newline-cell-layout mode). A single-line cell (e.g.
+        // `|香蕉` alone) is an INCOMPLETE inline row, not newline-cell-
+        // layout — a blank terminates it and the next group starts a new row.
+        let mut prior_row_blank_terminated = false;
+        let mut prior_row_last_cell_multiline = false;
 
         tracing::debug!(
             ?has_header,
@@ -728,10 +802,29 @@ impl Table<'_> {
 
             // Check if this is a single-line-per-row table (line has multiple separators)
             // vs multi-line-per-row table (one cell per line, rows separated by empty lines)
-            // A line is single-line row if it has multiple separators (handles both `| a | b`
-            // and `2+| a | b` formats)
+            //
+            // PSV (`|`) supports multi-line cells; DSV (`:`) / TSV (`\t`) do not (every
+            // line is a complete row). For PSV, count UNESCAPED separators via
+            // `split_line` so that lines containing `\|` (e.g. AsciiDoc reference
+            // docs describing `a|` syntax inside backticks: `` `a\|` ``) aren't
+            // mis-classified as single-line rows. Previously the naïve
+            // `first_line.matches(separator).count()` over-counted escaped
+            // separators, triggering "unterminated table block" cascades — see
+            // Glyph render-fidelity tests for the user-visible failure mode.
             let first_line = line_ref.trim_end();
-            let is_single_line_row = first_line.matches(separator).count() > 1;
+            let is_single_line_row = if matches!(separator, "|" | "!") {
+                if first_line.contains(separator) {
+                    let parts = split_line(first_line, separator);
+                    // `split_line` for `|` returns leading empty + N content parts.
+                    // > 2 parts ⇒ at least 2 real cell boundaries ⇒ single-line row.
+                    parts.len() > 2
+                } else {
+                    false
+                }
+            } else {
+                // DSV / TSV: every line is a row (no multi-line cells).
+                first_line.matches(separator).count() > 0
+            };
 
             if is_single_line_row {
                 // Single-line row format: each line is a complete row
@@ -782,8 +875,26 @@ impl Table<'_> {
                     Self::parse_row_with_positions(&row_lines, separator, row_start_offset);
 
                 // For multi-line tables with explicit ncols, check if we need to merge
-                // this cell group with existing incomplete row (for nested table support)
+                // this cell group with existing incomplete row (for nested table support).
+                // BUT: only merge when NO blank line separated the rows — a blank line
+                // is the unambiguous row terminator per AsciiDoc spec, so the new cells
+                // belong to a NEW row regardless of prior row's completeness.
+                // Merge only when:
+                // (a) current row is multi-line (each cell-group → iteration),
+                // (b) prior row is incomplete (< ncols),
+                // (c) NOT (blank-line-after-single-line-row terminated prior).
+                // (c) is the spec-correct row boundary for inline rows that
+                // happen to be incomplete (e.g. authored `|R2C1|R2C2` in a
+                // 3-col table). Multi-line prior rows allow blanks as
+                // intra-row separators (newline cell layout).
+                // Merge only when the blank-separated rows are part of the
+                // SAME logical row in newline-cell-layout — signalled by the
+                // prior row's last cell being multi-line. Single-line prior
+                // (incomplete inline row) → blank terminates, push as new.
+                let allow_merge = !prior_row_blank_terminated || prior_row_last_cell_multiline;
+                let mut merged_this_iter = false;
                 if !is_single_line_row
+                    && allow_merge
                     && let Some(expected_cols) = ncols
                     && let Some(last_row) = rows.last_mut()
                 {
@@ -796,12 +907,15 @@ impl Table<'_> {
                             expected_cols,
                             "Merged cells into incomplete row"
                         );
+                        merged_this_iter = true;
                     } else {
                         rows.push(columns);
                     }
                 } else {
                     rows.push(columns);
                 }
+                // suppress unused warning
+                let _ = merged_this_iter;
             }
 
             // After processing the first row, check if blank line indicates header.
@@ -831,11 +945,11 @@ impl Table<'_> {
                 current_offset += empty_line.len() + 1;
                 i += 1;
             }
-
             // Handle continuation lines only if we skipped a blank line.
             // Without a blank line, there's no cross-row continuation scenario.
+            let mut continuation_consumed = false;
             if skipped_blank_line {
-                handle_cross_row_continuation(
+                continuation_consumed = handle_cross_row_continuation(
                     &lines,
                     &mut i,
                     &mut current_offset,
@@ -843,6 +957,21 @@ impl Table<'_> {
                     separator,
                 );
             }
+            // Pass the blank-line-terminator signal to the next iteration so
+            // the merge-into-incomplete-row logic respects spec row boundaries.
+            // BUT: if continuation actually consumed lines, the blank was an
+            // intra-cell paragraph break (the consumed lines belonged to the
+            // prior row's last cell) — NOT a true row terminator.
+            prior_row_blank_terminated = skipped_blank_line && !continuation_consumed;
+            // Track AFTER continuation runs — multi-line cell content from
+            // `handle_cross_row_continuation` only appears in the cell's
+            // `content` field AFTER that helper appends it. Checking earlier
+            // would always see just the first source line.
+            prior_row_last_cell_multiline = rows
+                .last()
+                .and_then(|r| r.last())
+                .map(|c| c.content.contains('\n'))
+                .unwrap_or(false);
         }
 
         rows
@@ -916,8 +1045,11 @@ impl Table<'_> {
         let mut current_offset = row_start_offset;
 
         for line in row_lines {
-            // Check if line contains the separator at all
-            if !line.contains(separator) {
+            // Check if line contains an UNESCAPED separator. A line with only
+            // escaped separators (e.g. `content with \|`) is content, NOT a
+            // new cell-start — should be appended to the previous cell as
+            // continuation.
+            if !line_has_unescaped_separator(line, separator) {
                 // Continuation line: append to last cell's content
                 if let Some(last_cell) = columns.last_mut() {
                     if last_cell.content.is_empty() {

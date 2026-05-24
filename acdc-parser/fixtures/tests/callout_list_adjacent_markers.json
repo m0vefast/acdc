@@ -9,7 +9,7 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Multiple callouts on the same line:",
+          "value": "Adjacent callouts without whitespace between markers — ",
           "location": [
             {
               "line": 1,
@@ -17,7 +17,103 @@
             },
             {
               "line": 1,
-              "col": 35
+              "col": 55
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "<1><2>",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 57
+                },
+                {
+                  "line": 1,
+                  "col": 62
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 1,
+              "col": 56
+            },
+            {
+              "line": 1,
+              "col": 63
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " is\nvalid because the chain-to-EOL lookahead allows zero or one space\nbetween successive markers (per Asciidoctor ",
+          "location": [
+            {
+              "line": 1,
+              "col": 64
+            },
+            {
+              "line": 3,
+              "col": 44
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "CalloutScanRx",
+              "location": [
+                {
+                  "line": 3,
+                  "col": 46
+                },
+                {
+                  "line": 3,
+                  "col": 58
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 3,
+              "col": 45
+            },
+            {
+              "line": 3,
+              "col": 59
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "):",
+          "location": [
+            {
+              "line": 3,
+              "col": 60
+            },
+            {
+              "line": 3,
+              "col": 61
             }
           ]
         }
@@ -28,8 +124,8 @@
           "col": 1
         },
         {
-          "line": 1,
-          "col": 35
+          "line": 3,
+          "col": 61
         }
       ]
     },
@@ -42,15 +138,15 @@
         {
           "name": "text",
           "type": "string",
-          "value": "x = 5 ",
+          "value": "z = 1 ",
           "location": [
             {
-              "line": 4,
+              "line": 6,
               "col": 1
             },
             {
-              "line": 5,
-              "col": 10
+              "line": 6,
+              "col": 12
             }
           ]
         },
@@ -61,27 +157,12 @@
           "number": 1,
           "location": [
             {
-              "line": 4,
+              "line": 6,
               "col": 1
             },
             {
-              "line": 5,
-              "col": 10
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": " ",
-          "location": [
-            {
-              "line": 4,
-              "col": 1
-            },
-            {
-              "line": 5,
-              "col": 10
+              "line": 6,
+              "col": 12
             }
           ]
         },
@@ -92,54 +173,23 @@
           "number": 2,
           "location": [
             {
-              "line": 4,
+              "line": 6,
               "col": 1
             },
             {
-              "line": 5,
-              "col": 10
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": "\ny = 10 ",
-          "location": [
-            {
-              "line": 4,
-              "col": 1
-            },
-            {
-              "line": 5,
-              "col": 10
-            }
-          ]
-        },
-        {
-          "name": "callout_reference",
-          "type": "inline",
-          "variant": "explicit",
-          "number": 3,
-          "location": [
-            {
-              "line": 4,
-              "col": 1
-            },
-            {
-              "line": 5,
-              "col": 10
+              "line": 6,
+              "col": 12
             }
           ]
         }
       ],
       "location": [
         {
-          "line": 3,
+          "line": 5,
           "col": 1
         },
         {
-          "line": 6,
+          "line": 7,
           "col": 4
         }
       ]
@@ -159,12 +209,12 @@
             "number": 1,
             "location": [
               {
-                "line": 7,
+                "line": 8,
                 "col": 1
               },
               {
-                "line": 7,
-                "col": 16
+                "line": 8,
+                "col": 14
               }
             ]
           },
@@ -172,27 +222,27 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Initialize x",
+              "value": "First step",
               "location": [
                 {
-                  "line": 7,
+                  "line": 8,
                   "col": 5
                 },
                 {
-                  "line": 7,
-                  "col": 16
+                  "line": 8,
+                  "col": 14
                 }
               ]
             }
           ],
           "location": [
             {
-              "line": 7,
+              "line": 8,
               "col": 1
             },
             {
-              "line": 7,
-              "col": 16
+              "line": 8,
+              "col": 14
             }
           ]
         },
@@ -206,12 +256,12 @@
             "number": 2,
             "location": [
               {
-                "line": 8,
+                "line": 9,
                 "col": 1
               },
               {
-                "line": 8,
-                "col": 17
+                "line": 9,
+                "col": 15
               }
             ]
           },
@@ -219,54 +269,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Integer value",
-              "location": [
-                {
-                  "line": 8,
-                  "col": 5
-                },
-                {
-                  "line": 8,
-                  "col": 17
-                }
-              ]
-            }
-          ],
-          "location": [
-            {
-              "line": 8,
-              "col": 1
-            },
-            {
-              "line": 8,
-              "col": 17
-            }
-          ]
-        },
-        {
-          "name": "listItem",
-          "type": "block",
-          "callout": {
-            "name": "callout_reference",
-            "type": "inline",
-            "variant": "explicit",
-            "number": 3,
-            "location": [
-              {
-                "line": 9,
-                "col": 1
-              },
-              {
-                "line": 9,
-                "col": 16
-              }
-            ]
-          },
-          "principal": [
-            {
-              "name": "text",
-              "type": "string",
-              "value": "Initialize y",
+              "value": "Second step",
               "location": [
                 {
                   "line": 9,
@@ -274,7 +277,7 @@
                 },
                 {
                   "line": 9,
-                  "col": 16
+                  "col": 15
                 }
               ]
             }
@@ -286,19 +289,19 @@
             },
             {
               "line": 9,
-              "col": 16
+              "col": 15
             }
           ]
         }
       ],
       "location": [
         {
-          "line": 7,
+          "line": 8,
           "col": 1
         },
         {
           "line": 9,
-          "col": 16
+          "col": 15
         }
       ]
     }
@@ -310,7 +313,7 @@
     },
     {
       "line": 9,
-      "col": 16
+      "col": 15
     }
   ]
 }

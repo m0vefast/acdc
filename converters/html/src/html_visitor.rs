@@ -16,8 +16,7 @@ use acdc_parser::{
     Admonition, AttributeValue, Audio, CalloutList, DelimitedBlock, DelimitedBlockType,
     DescriptionList, DiscreteHeader, Document, DocumentAttributes, Footnote, Header, Image,
     InlineNode, ListItem, Location, NORMAL, OrderedList, PageBreak, Paragraph, Section,
-    Substitution, SubstitutionSpec, TableOfContents, ThematicBreak, UnorderedList, VERBATIM,
-    Video,
+    Substitution, TableOfContents, ThematicBreak, UnorderedList, Video,
 };
 
 use crate::{Error, HtmlVariant, Processor, RenderOptions, docinfo::DocInfo};

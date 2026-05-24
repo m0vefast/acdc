@@ -1,0 +1,9 @@
+Backslash-escape on a callout marker — drops the backslash and emits
+`<N>` as literal text only when the unescaped marker would itself
+have been a valid callout (i.e., chain-to-EOL satisfied). Here the
+escaped `\<1>` sits at end of line where `<1>` would otherwise parse
+as a callout; the backslash is consumed and `<1>` appears as text:
+
+----
+Escape an EOL callout: \<1>
+----

@@ -1,0 +1,179 @@
+{
+  "name": "document",
+  "type": "block",
+  "blocks": [
+    {
+      "name": "comment",
+      "type": "block",
+      "content": " Inline `image:` with named attributes — `link=`, `window=` flow into",
+      "location": [
+        {
+          "line": 1,
+          "col": 1
+        },
+        {
+          "line": 1,
+          "col": 72
+        }
+      ]
+    },
+    {
+      "name": "comment",
+      "type": "block",
+      "content": " `attributes`; `role=` flows into `roles` (asciidoctor renders it as a",
+      "location": [
+        {
+          "line": 2,
+          "col": 1
+        },
+        {
+          "line": 2,
+          "col": 73
+        }
+      ]
+    },
+    {
+      "name": "comment",
+      "type": "block",
+      "content": " CSS class on the wrapper span). All three must survive serialization",
+      "location": [
+        {
+          "line": 3,
+          "col": 1
+        },
+        {
+          "line": 3,
+          "col": 72
+        }
+      ]
+    },
+    {
+      "name": "comment",
+      "type": "block",
+      "content": " so downstream renderers can apply link wrapping + role styling.",
+      "location": [
+        {
+          "line": 4,
+          "col": 1
+        },
+        {
+          "line": 4,
+          "col": 67
+        }
+      ]
+    },
+    {
+      "name": "comment",
+      "type": "block",
+      "content": " Verify in JSON: `attributes.link`, `attributes.window`, `roles: [\"icon\"]`.",
+      "location": [
+        {
+          "line": 5,
+          "col": 1
+        },
+        {
+          "line": 5,
+          "col": 78
+        }
+      ]
+    },
+    {
+      "name": "paragraph",
+      "type": "block",
+      "inlines": [
+        {
+          "name": "text",
+          "type": "string",
+          "value": "See ",
+          "location": [
+            {
+              "line": 6,
+              "col": 1
+            },
+            {
+              "line": 6,
+              "col": 4
+            }
+          ]
+        },
+        {
+          "name": "image",
+          "type": "inline",
+          "title": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Settings",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 5
+                },
+                {
+                  "line": 1,
+                  "col": 77
+                }
+              ]
+            }
+          ],
+          "target": {
+            "type": "path",
+            "value": "icon.png"
+          },
+          "attributes": {
+            "link": "https://example.com",
+            "window": "_blank"
+          },
+          "roles": [
+            "icon"
+          ],
+          "location": [
+            {
+              "line": 6,
+              "col": 5
+            },
+            {
+              "line": 6,
+              "col": 77
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " for details.",
+          "location": [
+            {
+              "line": 6,
+              "col": 78
+            },
+            {
+              "line": 6,
+              "col": 90
+            }
+          ]
+        }
+      ],
+      "location": [
+        {
+          "line": 6,
+          "col": 1
+        },
+        {
+          "line": 6,
+          "col": 90
+        }
+      ]
+    }
+  ],
+  "location": [
+    {
+      "line": 1,
+      "col": 1
+    },
+    {
+      "line": 6,
+      "col": 90
+    }
+  ]
+}

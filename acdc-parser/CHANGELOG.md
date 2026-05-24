@@ -61,6 +61,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so in-memory resolvers can avoid the per-include `Vec<u8>` allocation.
 - `read_and_decode_file` takes `Option<&DynFileResolver>` and prefers it
   over `std::fs::read` when wired.
+- **Verbatim callout resolver rewritten to match Asciidoctor `CalloutScanRx`
+  SOT** (`lib/asciidoctor/rx.rb:373`). Behavior flips:
+  - Multiple callouts per line: `a <1> <2>` correctly emits both callouts
+    (previously only the rightmost was extracted via `rfind`).
+  - Adjacent markers: `<1><2>` (no whitespace) is now a valid chain.
+  - Mid-word at EOL is a callout: `a<1>` (no preceding whitespace) parses
+    as `a` + callout(1), matching asciidoctor. Previously dropped to literal.
+  - Mid-line markers stay literal: `mid <1> line` (chain doesn't terminate
+    at EOL) emits all-literal text. Previously emitted as callout.
+  - Backslash escape `\<N>` strips the backslash and emits literal `<N>`
+    iff the unescaped marker would itself be a valid callout (chain-to-EOL
+    holds). Otherwise the backslash is preserved.
+  - Non-visible variant `<!N>` / `<!.>` is recognized — the `!` prefix is
+    silently consumed and the callout emits identically to the visible
+    form. Used to hide markers from `tag::`-extracted source.
+  - Known divergences (consumer-triggered, deferred until needed):
+    - Bracketed forms `<--N-->` / `<!--N-->` are NOT recognized — SOT
+      preserves the surrounding `<!--` / `-->` as literal text around the
+      callout, which requires multi-node emission this parser does not
+      yet implement.
+    - Callout numbers beyond `usize::MAX` (~20 digits on 64-bit) silently
+      fall through to literal text instead of parsing as huge callouts.
+      Real-world impact zero.
+- **`serialize_image` now emits `attributes` and `roles`** when the inline
+  `image:foo[link=…,role=…]` macro carries named attributes — previously
+  these were silently dropped from the JSON envelope, so downstream
+  renderers had no way to honor `link=`, `window=`, `width=`, `height=`,
+  or `role=`. Block image serialization is unaffected.
+
+### Fixed
+
+- `image:foo[link=https://example.com]` no longer silently drops the link
+  target. Existing consumers of the JSON envelope that don't read
+  `attributes` are unaffected; consumers that DO read it gain the new keys.
 
 ## [0.9.0] - 2026-04-26
 

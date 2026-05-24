@@ -11,12 +11,12 @@ use acdc_converters_core::substitutions::baseline_subs;
 use acdc_converters_core::substitutions::effective_subs;
 
 use acdc_parser::{
-    AttributeValue, Block, BlockMetadata, DelimitedBlock, DelimitedBlockType, InlineNode,
+    AttributeValue, Block, BlockMetadata, DelimitedBlock, DelimitedBlockType, InlineNode, Location,
     StemContent, StemNotation,
 };
 
 #[cfg(feature = "pre-spec-subs")]
-use acdc_parser::{Location, Plain, Substitution, SubstitutionSpec, substitute};
+use acdc_parser::{Plain, Substitution, SubstitutionSpec, substitute};
 
 use crate::{
     Error, HtmlVariant, HtmlVisitor, Processor, build_class, write_attribution,

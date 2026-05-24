@@ -30,6 +30,9 @@
             "type": "path",
             "value": "pause.png"
           },
+          "attributes": {
+            "title": "Pause stuff"
+          },
           "location": [
             {
               "line": 1,
