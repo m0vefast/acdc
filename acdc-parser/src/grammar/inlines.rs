@@ -1153,15 +1153,20 @@ peg::parser! {
             })))
         }
 
-        /// Pattern for cross-reference shorthand: <<id>> or <<id,custom text>>
+        /// Pattern for cross-reference shorthand: `<<id>>`, `<<id,text>>`,
+        /// `<<file.adoc#anchor>>`, `<<file.adoc#anchor,text>>`.
         ///
         /// Target may include any non-ASCII Unicode character (CJK, Hangul,
         /// Cyrillic, Arabic, etc.) — Asciidoctor's reference accepts CJK
         /// section IDs like `[#结论]` and the matching `<<结论>>` xref.
-        /// The leading char must still be a letter (ASCII or Unicode);
-        /// subsequent chars also allow digits, `_`, `-`.
+        /// The leading char is a letter, `_`, `#`, or non-ASCII Unicode
+        /// (Asciidoctor likewise renders `<<#anchor>>` as `<a href="#anchor">`);
+        /// subsequent chars also allow digits, `-`, plus `.`, `/`, `#`
+        /// for cross-document targets (`file.adoc#anchor`, `sub/file.adoc`).
+        /// Downstream code routes by whether target contains `.adoc` / `#` /
+        /// path separators.
         rule cross_reference_shorthand_pattern() -> (&'input str, Option<(usize, &'input str)>)
-        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
+        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
         {
             (target, content)
         }
@@ -1207,10 +1212,12 @@ peg::parser! {
             })))
         }
 
-        /// Match cross-reference shorthand syntax without consuming: <<id>> or <<id,text>>
-        /// Char class mirrors `cross_reference_shorthand_pattern` (Unicode-permissive).
+        /// Match cross-reference shorthand syntax without consuming: <<id>>,
+        /// <<id,text>>, <<file.adoc#anchor>>, or <<file.adoc>>. Char class
+        /// mirrors `cross_reference_shorthand_pattern` (Unicode-permissive,
+        /// plus `.`, `/`, `#` for cross-document targets).
         rule cross_reference_shorthand_match() -> ()
-        = "<<" ['a'..='z' | 'A'..='Z' | '_' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']* ("," (!">>" [_])+)? ">>"
+        = "<<" ['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']* ("," (!">>" [_])+)? ">>"
 
         /// Match cross-reference macro syntax without consuming.
         /// Three accepted shapes — mirror the parse-time rule:
@@ -2295,3 +2302,5 @@ peg::parser! {
         }
     }
 }
+// canary edit: 1779991490
+// canary edit 2: 1779991530 106EF54D-DE2A-4246-BA63-8B99F2DAD586
