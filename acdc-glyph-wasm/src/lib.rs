@@ -60,6 +60,8 @@ use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options, Saf
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
+mod validate;
+
 /// Wraps a JS callback `(path: string) => string | null` so acdc's include
 /// preprocessor can read files from a JS-managed source (e.g. Glyph's vault
 /// cache). The callback runs SYNCHRONOUSLY — embedders must pre-populate
@@ -202,6 +204,28 @@ fn warning_to_json(w: &acdc_parser::Warning) -> WarningJson {
     }
 }
 
+/// Assemble the wasm envelope's `warnings` array: acdc-parser's own
+/// non-fatal warnings PLUS Glyph-specific reference validation (unresolved
+/// xrefs / duplicate anchors) computed by [`validate`] over the same AST.
+/// Reference-warning lines are raw post-expansion positions — identical
+/// coordinate space to acdc's warnings, which Glyph's `asciidoc.ts`
+/// translates back to main-source lines.
+fn collect_all_warnings(result: &acdc_parser::ParseResult) -> Vec<WarningJson> {
+    let mut warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
+    warnings.extend(
+        validate::collect_reference_warnings(result.document())
+            .into_iter()
+            .map(|r| WarningJson {
+                kind: r.kind.to_string(),
+                message: r.message,
+                line: r.line,
+                column: r.column,
+                file: None,
+            }),
+    );
+    warnings
+}
+
 fn build_options(safe_mode: Option<String>) -> Options<'static> {
     let mode = safe_mode
         .as_deref()
@@ -259,8 +283,7 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
     match acdc_parser::parse(source, &opts) {
         Ok(result) => {
             let doc = result.document();
-            let warnings: Vec<WarningJson> =
-                result.warnings().iter().map(warning_to_json).collect();
+            let warnings: Vec<WarningJson> = collect_all_warnings(&result);
             // No `FileResolver` here, so every `include::` directive is
             // dropped by the preprocessor (resolved as missing file). The
             // directive line itself disappears from the output, shifting
@@ -372,8 +395,7 @@ pub fn parse_block_with_resolver(
     match acdc_parser::parse(source, &opts) {
         Ok(result) => {
             let doc = result.document();
-            let warnings: Vec<WarningJson> =
-                result.warnings().iter().map(warning_to_json).collect();
+            let warnings: Vec<WarningJson> = collect_all_warnings(&result);
             // Per-include expansion metadata — embedders (e.g. Glyph) use
             // this to translate post-expansion block positions back to the
             // original root-source line number, so editor cursor / scroll
