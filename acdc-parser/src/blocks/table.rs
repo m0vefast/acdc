@@ -671,12 +671,26 @@ fn count_cell_colspans(line: &str, separator: &str) -> usize {
         // ncols → drop" branch. This silently loses /quote-cb-style rows
         // in fixtures with `a|` modifier + multi-line content.
         if trimmed.is_empty() && i + 1 == total_parts && total_parts > 1 {
+            // Mirror the stricter `is_single_line_row` check above
+            // (`parse_rows_with_positions`): the trailing-`a|` heuristic
+            // must require the previous part to END in a STANDALONE cell
+            // specifier token (whitespace-separated, parsing as a complete
+            // FirstPart spec) — NOT just any text whose last char happens
+            // to be a style letter (false positives like "Same" ending in
+            // 'e' caused multi-line accumulation to over-count cells and
+            // bleed the next row's content into this row).
             let prev_ends_with_style = i > 0
                 && parts.get(i - 1).is_some_and(|p| {
                     let pt = p.content.trim_end();
-                    pt.ends_with('a') || pt.ends_with('s') || pt.ends_with('m')
-                        || pt.ends_with('l') || pt.ends_with('v') || pt.ends_with('e')
-                        || pt.ends_with('h') || pt.ends_with('d')
+                    let last_token = pt
+                        .rsplit_once(char::is_whitespace)
+                        .map_or(pt, |(_, after)| after);
+                    if last_token.is_empty() {
+                        return false;
+                    }
+                    let (_, spec_len) =
+                        CellSpecifier::parse(last_token, ParseContext::FirstPart);
+                    spec_len > 0 && spec_len == last_token.len()
                 });
             if !prev_ends_with_style {
                 continue;
@@ -909,11 +923,31 @@ impl Table<'_> {
                         && parts.last().is_some_and(|p| p.content.trim().is_empty())
                         && parts.get(parts.len() - 2).is_some_and(|p| {
                             let trimmed = p.content.trim_end();
-                            // Style letters preceding the final `|`.
-                            trimmed.ends_with('a') || trimmed.ends_with('s')
-                                || trimmed.ends_with('m') || trimmed.ends_with('l')
-                                || trimmed.ends_with('v') || trimmed.ends_with('e')
-                                || trimmed.ends_with('h') || trimmed.ends_with('d')
+                            // The trailing `a|` / `2+|` / `.2+|` / `^|` etc.
+                            // marker that signals a multi-line continuation
+                            // cell must be a STANDALONE token at the end —
+                            // separated from prior content by whitespace —
+                            // AND parse as a complete cell specifier under
+                            // FirstPart grammar. The previous ends_with-char
+                            // heuristic mis-fired on plain text words ending
+                            // in a style letter (e.g. "Same" ends with 'e',
+                            // "Total" ends with 'l') — those have NO trailing-
+                            // spec semantics and a row like `| Same | Same |`
+                            // is a fully-formed single-line row whose last
+                            // cell happens to be empty. Mis-detecting them as
+                            // multi-line continuation makes the collector
+                            // absorb the NEXT row into this one (see
+                            // `asciidoc-comprehensive-table-edit-all-cells`
+                            // Tables #25/#26/#37 case 1 regressions).
+                            let last_token = trimmed
+                                .rsplit_once(char::is_whitespace)
+                                .map_or(trimmed, |(_, after)| after);
+                            if last_token.is_empty() {
+                                return false;
+                            }
+                            let (_, spec_len) =
+                                CellSpecifier::parse(last_token, ParseContext::FirstPart);
+                            spec_len > 0 && spec_len == last_token.len()
                         });
                     parts.len() > 2 && !trailing_modifier_with_empty
                 } else {

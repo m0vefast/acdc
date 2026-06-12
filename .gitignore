@@ -10,3 +10,5 @@
 .claude/*.lock
 # wasm-pack alternate-target build (bundler). Glyph consumes pkg-web/ only.
 /acdc-glyph-wasm/pkg/
+hell_review/
+test-results/

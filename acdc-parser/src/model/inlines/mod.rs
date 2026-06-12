@@ -211,6 +211,14 @@ impl Serialize for InlineNode<'_> {
                 map.serialize_entry("type", "string")?;
                 map.serialize_entry("value", &raw.content)?;
                 map.serialize_entry("location", &raw.location)?;
+                // Expose the passthrough's effective substitution list so
+                // consumers can apply the correct sub semantics. Single/double
+                // `+...+` carry `[special_chars]`; triple `+++` and `pass:[...]`
+                // carry `[]` (raw output, no subs). Empty subs ⇒ render-as-raw,
+                // non-empty containing 'special_chars' ⇒ escape `<`/`>`/`&`
+                // before embedding (XSS-relevant: vault docs can otherwise inject
+                // `<script>` via single-`+` passthrough).
+                map.serialize_entry("subs", &raw.subs)?;
             }
             InlineNode::VerbatimText(verbatim) => {
                 // We use "text" here to make sure the TCK passes, even though this is raw

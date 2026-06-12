@@ -907,6 +907,35 @@ impl Preprocessor {
                 out.push_line(line.to_string());
             } else if line.starts_with("//") {
                 out.push_line(line.to_string());
+            } else if in_verbatim_block
+                && line.ends_with(']')
+                && !line.starts_with('[')
+                && line.contains("::")
+            {
+                // Inside a verbatim block (`----`/`....`/`++++`), directives
+                // like `include::`, `ifdef::`, `ifeval::` etc. render as
+                // literal source — they are NOT processed. Asciidoctor
+                // matches this behavior (see "Source block" semantics in the
+                // user manual). Without this guard, `[source,asciidoc]\n
+                // ----\nifdef::var[]\n…\nendif::[]\n----` would have its
+                // `ifdef`/`endif` lines silently dropped by the preprocessor
+                // (when var is undefined), corrupting source-line mapping
+                // for everything downstream and breaking cursor placement
+                // inside the listing's code-example body.
+                //
+                // Preserve the existing escape-unwrap for `\include` /
+                // `\ifdef` / etc. — these prefixes mean "literal directive,
+                // don't process" and asciidoctor strips the backslash for
+                // display. The directive itself is still NOT processed.
+                if line.starts_with("\\include")
+                    || line.starts_with("\\ifdef")
+                    || line.starts_with("\\ifndef")
+                    || line.starts_with("\\ifeval")
+                {
+                    out.push_line(line[1..].to_string());
+                } else {
+                    out.push_line(line.to_string());
+                }
             } else if line.ends_with(']') && !line.starts_with('[') && line.contains("::") {
                 let mut ctx = DirectiveContext {
                     line_number: &mut line_number,
