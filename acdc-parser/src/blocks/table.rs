@@ -1,5 +1,59 @@
 use crate::{ColumnStyle, HorizontalAlignment, Table, VerticalAlignment};
 
+/// Round 14 architectural fix: encapsulate separator dispatch into a single
+/// type. Rounds 10-13 each found a sibling helper that independently decided
+/// "byte length vs codepoint count" or "escape-aware vs literal contains" —
+/// every helper re-derived the dispatch from `&str` and could have its own
+/// bug. The `Separator` type computes the dispatch ONCE at construction;
+/// helpers consume `&Separator` and `match` on `kind`, so the compiler
+/// enforces all three cases are handled (no silent "byte length" path).
+///
+/// `Empty` is rejected at the document-grammar entry by `validate_separator`
+/// (`grammar/document.rs`); a defensive arm here ensures helpers don't panic
+/// if the invariant is ever violated upstream.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SepKind {
+    /// Empty — invalid; helpers return their "no-separator" answer.
+    Empty,
+    /// Single codepoint — supports escape-aware `\<sep>` handling. Single
+    /// ASCII byte falls under this case (1 byte == 1 codepoint).
+    SingleCodepoint(char),
+    /// Multi-codepoint literal string — `line.contains(raw)` / `line.find(raw)`
+    /// substring semantics; no `\<sep>` escape handling (asciidoctor PSV
+    /// escape semantics are defined only for single-char separators).
+    MultiCodepoint,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Separator<'a> {
+    pub raw: &'a str,
+    pub kind: SepKind,
+}
+
+impl<'a> Separator<'a> {
+    pub(crate) fn new(raw: &'a str) -> Self {
+        let mut chars = raw.chars();
+        let kind = match chars.next() {
+            None => SepKind::Empty,
+            Some(c) if chars.next().is_none() => SepKind::SingleCodepoint(c),
+            Some(_) => SepKind::MultiCodepoint,
+        };
+        Self { raw, kind }
+    }
+    pub(crate) fn single_byte(&self) -> Option<u8> {
+        // Round 66 fix: explicit variant arms (no wildcard) so future SepKind
+        // variants trigger compile error here — preserving the architectural
+        // promise documented at SepKind (compiler-enforced exhaustion). The
+        // dead `as_str` and `is_empty` accessors were removed at the same time
+        // per "shared infra needs a consumer at land time" — both lacked
+        // callers in the diff.
+        match self.kind {
+            SepKind::SingleCodepoint(c) if c.is_ascii() => Some(c as u8),
+            SepKind::SingleCodepoint(_) | SepKind::Empty | SepKind::MultiCodepoint => None,
+        }
+    }
+}
+
 /// A cell part with its unescaped content and original start position.
 struct CellPart {
     /// Unescaped content (e.g., `\|` becomes `|`)
@@ -25,31 +79,37 @@ struct CellPart {
 }
 
 /// Check whether `line` contains an UNESCAPED occurrence of `separator`.
-/// For PSV (`|`) and DSV (`:`), `\|`/`\:` is an escape — the separator is
-/// content, not a delimiter. Naïve `line.contains(separator)` over-counts
-/// escapes as real separators, causing continuation lines that LOOK like
-/// they have a separator (because content contains `\|`) to be split into
-/// fake cells, dropping the original cell's content silently.
-fn line_has_unescaped_separator(line: &str, separator: &str) -> bool {
-    if separator.len() != 1 {
-        return line.contains(separator);
-    }
-    let sep_char = separator.chars().next().unwrap();
-    // PSV / DSV only escape with `\`.
-    if !matches!(sep_char, '|' | ':') {
-        return line.contains(separator);
-    }
+/// For any single-char separator, `\<sep>` is an escape — the separator
+/// byte is content, not a delimiter. Naïve `line.contains(separator)`
+/// over-counts escapes as real separators, causing continuation lines that
+/// LOOK like they have a separator (because content contains `\<sep>`) to
+/// be split into fake cells, dropping the original cell's content silently.
+///
+/// Round 5: the historical `matches!(sep_char, '|' | ':')` allowlist meant
+/// `[separator=,]` / `[separator=?]` etc. would fall back to naïve
+/// `line.contains`, causing escape-detection asymmetry with
+/// `count_unescaped_separators` (which always honors `\<sep>`). Aligned to
+/// the universal `\<sep>` escape rule per asciidoctor PSV semantics — every
+/// PSV separator honors `\<sep>`.
+fn line_has_unescaped_separator(line: &str, separator: &Separator<'_>) -> bool {
+    // Round 14 architectural fix: dispatch is now on the `Separator` type's
+    // `kind` field, computed once at construction. Each match arm is
+    // exhaustively required by the compiler — no silent byte-length path.
+    let sep_char = match separator.kind {
+        SepKind::Empty => return false,
+        SepKind::MultiCodepoint => return line.contains(separator.raw),
+        SepKind::SingleCodepoint(c) => c,
+    };
     let mut chars = line.char_indices().peekable();
     while let Some((_idx, ch)) = chars.next() {
         if ch == '\\' {
-            // Skip next char (whatever it is — escape consumes it).
+            // Skip next char ONLY if it IS the separator (selective escape).
             if let Some(&(_, next_ch)) = chars.peek() {
                 if next_ch == sep_char {
                     chars.next();
-                    continue;
                 }
             }
-            // Lone `\` — treat as literal, continue scanning.
+            // Lone `\` (or `\` before non-separator) — treat as literal.
         } else if ch == sep_char {
             return true;
         }
@@ -107,11 +167,12 @@ fn split_escaped(line: &str, separator: char) -> Vec<CellPart> {
 ///
 /// This handles multi-line quoted values, escaped quotes, and all CSV edge cases.
 /// Returns rows with cells containing their content and accurate byte positions.
-fn parse_csv_table(text: &str, base_offset: usize) -> Vec<Vec<CellPart>> {
+fn parse_csv_table(text: &str, base_offset: usize, sep_byte: u8) -> Vec<Vec<CellPart>> {
     let text_bytes = text.as_bytes();
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true) // allow variable column counts
+        .delimiter(sep_byte)
         .from_reader(text_bytes);
 
     let mut rows = Vec::new();
@@ -132,7 +193,7 @@ fn parse_csv_table(text: &str, base_offset: usize) -> Vec<Vec<CellPart>> {
         for field in &record {
             // Find actual field position by scanning the original text
             let (field_content_start, next_pos) =
-                find_csv_field_position(text_bytes, scan_pos, field);
+                find_csv_field_position(text_bytes, scan_pos, field, sep_byte);
 
             cells.push(CellPart {
                 content: field.to_string(),
@@ -154,7 +215,7 @@ fn parse_csv_table(text: &str, base_offset: usize) -> Vec<Vec<CellPart>> {
 /// Returns `(content_start, next_scan_position)` where:
 /// - `content_start` is where the field's actual content begins (after opening quote if quoted)
 /// - `next_scan_position` is where to start scanning for the next field
-fn find_csv_field_position(text: &[u8], start: usize, expected_content: &str) -> (usize, usize) {
+fn find_csv_field_position(text: &[u8], start: usize, expected_content: &str, sep_byte: u8) -> (usize, usize) {
     let Some(&first_byte) = text.get(start) else {
         return (start, start);
     };
@@ -164,16 +225,16 @@ fn find_csv_field_position(text: &[u8], start: usize, expected_content: &str) ->
         let content_start = start + 1;
         // Find the closing quote (handle escaped quotes "")
         let end_pos = find_closing_quote(text, start + 1);
-        // Next field starts after closing quote and comma (or newline)
-        let next_pos = skip_to_next_field(text, end_pos);
+        // Next field starts after closing quote and separator (or newline)
+        let next_pos = skip_to_next_field(text, end_pos, sep_byte);
         (content_start, next_pos)
     } else {
         // Unquoted field: content starts at current position
         let content_start = start;
-        // Find end of field (comma or newline)
-        let end_pos = find_unquoted_field_end(text, start, expected_content.len());
+        // Find end of field (separator or newline)
+        let end_pos = find_unquoted_field_end(text, start, expected_content.len(), sep_byte);
         // Next field starts after the separator
-        let next_pos = skip_to_next_field(text, end_pos);
+        let next_pos = skip_to_next_field(text, end_pos, sep_byte);
         (content_start, next_pos)
     }
 }
@@ -200,12 +261,13 @@ fn find_closing_quote(text: &[u8], start: usize) -> usize {
 }
 
 /// Find the end of an unquoted CSV field.
-fn find_unquoted_field_end(text: &[u8], start: usize, content_len: usize) -> usize {
-    // The field ends at comma, CR, LF, or content_len bytes (whichever comes first)
+fn find_unquoted_field_end(text: &[u8], start: usize, content_len: usize, sep_byte: u8) -> usize {
+    // The field ends at the separator byte, CR, LF, or content_len bytes
+    // (whichever comes first).
     let mut pos = start;
     let mut remaining = content_len;
     while let Some(&byte) = text.get(pos) {
-        if byte == b',' || byte == b'\n' || byte == b'\r' {
+        if byte == sep_byte || byte == b'\n' || byte == b'\r' {
             return pos;
         }
         if remaining == 0 {
@@ -218,15 +280,15 @@ fn find_unquoted_field_end(text: &[u8], start: usize, content_len: usize) -> usi
 }
 
 /// Skip past the current field separator to find the start of the next field.
-fn skip_to_next_field(text: &[u8], pos: usize) -> usize {
+fn skip_to_next_field(text: &[u8], pos: usize, sep_byte: u8) -> usize {
     let mut pos = pos;
     // Skip closing quote if present
     if text.get(pos) == Some(&b'"') {
         pos += 1;
     }
-    // Skip comma or newline characters
+    // Skip separator or newline characters
     while let Some(&byte) = text.get(pos) {
-        if byte == b',' {
+        if byte == sep_byte {
             return pos + 1;
         }
         if byte == b'\r' || byte == b'\n' {
@@ -241,29 +303,29 @@ fn skip_to_next_field(text: &[u8], pos: usize) -> usize {
     pos
 }
 
-/// Determine if this is a CSV format table.
-fn is_csv_format(separator: &str) -> bool {
-    separator == ","
-}
+// `is_psv_table` was a runtime body-sniff that tried to recover whether the
+// table was PSV vs DSV from the separator byte + first body line. It was
+// deleted because the recovery is fundamentally impossible: `[separator=:]`
+// PSV with body `a:b:c` and `[format=dsv]` with body `:foo:bar` are
+// indistinguishable here, but the asciidoctor semantics are OPPOSITE. User
+// intent is now plumbed from `document.rs` (the only caller) as an
+// `is_psv: bool` parameter to `parse_rows_with_positions` — single source of
+// truth, decided where the intent is actually known.
 
 /// Split a line into cell parts using the appropriate method for the separator.
 ///
 /// Note: CSV format is handled separately via `parse_csv_table()` for multi-line support.
-fn split_line(line: &str, separator: &str) -> Vec<CellPart> {
-    if let Some(sep_char) = separator.chars().next() {
-        if separator.len() == 1 {
-            split_escaped(line, sep_char)
-        } else {
-            // Multi-char separator - no escape handling
-            split_multi_char(line, separator)
-        }
-    } else {
-        // Empty separator - return whole line as one part
-        vec![CellPart {
+fn split_line(line: &str, separator: &Separator<'_>) -> Vec<CellPart> {
+    // Round 14: dispatch via `Separator::kind`; compiler ensures all arms
+    // covered, no silent byte-length branch.
+    match separator.kind {
+        SepKind::SingleCodepoint(sep_char) => split_escaped(line, sep_char),
+        SepKind::MultiCodepoint => split_multi_char(line, separator.raw),
+        SepKind::Empty => vec![CellPart {
             content: line.to_string(),
             start: 0,
             forced_spec: None,
-        }]
+        }],
     }
 }
 
@@ -604,13 +666,24 @@ pub(crate) struct ParsedCell {
 
 /// Check if a blank line after the first row indicates a header.
 /// A header is indicated only if the first non-empty line after the blank
-/// contains a separator. If it's a continuation line (no separator), it's content
-/// that attaches to the previous cell, not a header indicator.
-fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &str) -> bool {
+/// contains an UNESCAPED separator. If it's a continuation line (no separator
+/// or only escaped ones), it's content that attaches to the previous cell,
+/// not a header indicator.
+///
+/// LIMITATION: this heuristic still false-positives on body lines whose
+/// natural prose contains the separator byte UNESCAPED — e.g. for
+/// `[separator=:]` the line `Note: see 12:30:45 timestamp` returns true and
+/// promotes the first row to header. Honors `\sep` escapes so authors with
+/// content that needs to NOT be header-promoted can opt out with backslash;
+/// a strict fix would re-parse the line as a candidate row and verify it
+/// produces at least `ncols` cells under the cell-spec grammar, mirroring
+/// asciidoctor's check. Documenting the gap because Round 8's escape-aware
+/// switch was once over-claimed as a general fix.
+fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &Separator<'_>) -> bool {
     for &line in lines.iter().skip(start_idx) {
         let trimmed = line.trim_end();
         if !trimmed.is_empty() {
-            return trimmed.contains(separator);
+            return line_has_unescaped_separator(trimmed, separator);
         }
     }
     false
@@ -618,9 +691,10 @@ fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &s
 
 /// Count the colspan-weighted cell contribution of a single PSV/DSV line.
 /// Used by the multi-line row collector to detect when accumulated cells
-/// have filled the row (so the next `|`-prefixed line starts a new row).
+/// have filled the row (so the next separator-prefixed line starts a new row).
 ///
-/// For PSV (`|` / `!`):
+/// When `is_psv` (set by the caller from `document.rs` based on user intent —
+/// works for ANY separator under user-asserted PSV semantics, not just `|`/`!`):
 /// - `parts[0]` (text before first separator) is skipped for content; if
 ///   it's itself a bare specifier like `.2+`, capture its colspan as
 ///   pending for `parts[1]`.
@@ -629,7 +703,7 @@ fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &s
 ///
 /// Continuation lines (no separator at all) contribute 0 — they will be
 /// absorbed into the previous cell's content by `parse_row_with_positions`.
-fn count_cell_colspans(line: &str, separator: &str) -> usize {
+fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> usize {
     // Escape-aware: a line with only `\|` (no real separators) contributes 0
     // (it's continuation content, not a new cell-start).
     if !line_has_unescaped_separator(line, separator) {
@@ -642,7 +716,11 @@ fn count_cell_colspans(line: &str, separator: &str) -> usize {
     let mut total: usize = 0;
     let mut pending_colspan: Option<usize> = None;
 
-    let start_idx = if matches!(separator, "|" | "!") {
+    // PSV: `parts[0]` is the empty slice BEFORE the leading separator. It is
+    // NOT a cell — skip it from col counting. DSV / TSV / CSV keep `parts[0]`
+    // as content. `is_psv` is plumbed from `parse_table_block_impl` in
+    // document.rs based on user intent (`[separator=]`/`[format=]`/fence).
+    let start_idx = if is_psv {
         let p0 = parts[0].content.trim();
         if !p0.is_empty() {
             let (spec, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
@@ -652,7 +730,7 @@ fn count_cell_colspans(line: &str, separator: &str) -> usize {
         }
         1
     } else {
-        // DSV (`:`): parts[0] is content
+        // DSV (`:` default / TSV `\t`): parts[0] is content
         0
     };
 
@@ -710,53 +788,99 @@ fn count_cell_colspans(line: &str, separator: &str) -> usize {
     total
 }
 
-/// Check if a line starting with a cell specifier followed by separator indicates a new row.
-/// This detects patterns like `a|`, `s|`, `2+|`, `^|`, `^.>2+s|` at the start of a line.
 /// Count unescaped occurrences of `separator` in `line`. Used by
 /// the row-collection loop to detect inline-row format (multi-separator
 /// line) vs continuation paragraphs of a multi-line `a|` cell.
-fn count_unescaped_separators(line: &str, separator: &str) -> usize {
-    let sep_ch = separator.chars().next().unwrap_or('|');
+fn count_unescaped_separators(line: &str, separator: &Separator<'_>) -> usize {
+    // Round 14: dispatch via `Separator::kind`; compiler-enforced exhaustion.
+    let sep_ch = match separator.kind {
+        SepKind::Empty => return 0,
+        SepKind::MultiCodepoint => return line.matches(separator.raw).count(),
+        SepKind::SingleCodepoint(c) => c,
+    };
+    // Round 34 fix: SELECTIVE backslash-consumption — only swallow next char
+    // when it IS the separator. Previously greedy consumption (`chars.next()`
+    // regardless) diverged from `line_has_unescaped_separator` /
+    // `split_escaped` (both selective per asciidoctor `(?<!\\)<sep>` regex).
+    // Under input `\\|` (literal backslash + escaped pipe), greedy gave 1
+    // while selective gives 0 — asciidoctor parses 2 cells. Aligning the
+    // three helpers to one escape rule eliminates the cross-helper drift
+    // pinned by Round 34 Expert A.
     let mut count = 0usize;
     let mut chars = line.chars().peekable();
     while let Some(ch) = chars.next() {
         if ch == '\\' {
-            chars.next();
-            continue;
-        }
-        if ch == sep_ch {
+            if let Some(&next_ch) = chars.peek() {
+                if next_ch == sep_ch {
+                    chars.next();
+                }
+            }
+            // Lone `\` (or `\` before non-separator) — treat as literal.
+        } else if ch == sep_ch {
             count += 1;
         }
     }
     count
 }
 
-fn is_new_row_start(line: &str, separator: &str) -> bool {
-    // Only applies to PSV tables (| separator)
-    if separator != "|" {
+/// Check if a line starting with a cell specifier followed by separator
+/// indicates a new row. Detects patterns like `a|`, `s|`, `2+|`, `^|`,
+/// `^.>2+s|` at the start of a line.
+fn is_new_row_start(line: &str, separator: &Separator<'_>, is_psv: bool) -> bool {
+    // Cell-spec prefix detection is PSV-only. `is_psv` is plumbed from
+    // `parse_table_block_impl` in document.rs; centralizing the gate here
+    // keeps the predicate consistent with every other PSV-only behavior in
+    // this file (count, single-line detection, multi-line collector,
+    // adjacent-anchor recovery).
+    if !is_psv {
         return false;
     }
-    // Escape-aware separator find. `\|` is content, not a row-start delimiter.
-    let mut chars = line.char_indices().peekable();
-    let mut sep_pos: Option<usize> = None;
-    while let Some((idx, ch)) = chars.next() {
-        if ch == '\\' {
-            // Skip escaped char (whatever it is).
-            chars.next();
-            continue;
+    // Round 14: dispatch via `Separator::kind`; compiler-enforced exhaustion.
+    let sep_ch = match separator.kind {
+        SepKind::Empty => return false,
+        SepKind::MultiCodepoint => {
+            let Some(pos) = line.find(separator.raw) else { return false };
+            return validate_row_start_at(line, pos);
         }
-        if ch == '|' {
-            sep_pos = Some(idx);
-            break;
+        SepKind::SingleCodepoint(c) => c,
+    };
+    let sep_pos: Option<usize> = {
+        // Round 34 fix: SELECTIVE backslash-consumption — only swallow next
+        // char when it IS the separator. Aligns with the universal escape
+        // discipline used by `line_has_unescaped_separator` / `split_escaped`
+        // / `count_unescaped_separators` (Round 34) so all four helpers
+        // agree on `\\<sep>` (literal backslash + escaped sep = 0 unescaped
+        // seps) instead of disagreeing per-helper.
+        let mut chars = line.char_indices().peekable();
+        let mut found: Option<usize> = None;
+        while let Some((idx, ch)) = chars.next() {
+            if ch == '\\' {
+                if let Some(&(_, next_ch)) = chars.peek() {
+                    if next_ch == sep_ch {
+                        chars.next();
+                    }
+                }
+                // Lone `\` — treat as literal.
+            } else if ch == sep_ch {
+                found = Some(idx);
+                break;
+            }
         }
-    }
+        found
+    };
     let Some(sep_pos) = sep_pos else { return false };
+    validate_row_start_at(line, sep_pos)
+}
 
+/// Helper for `is_new_row_start`: given the byte position of the first
+/// separator in `line`, return whether the bytes BEFORE it are a complete
+/// cell specifier. Extracted so both single-codepoint (escape-aware) and
+/// multi-codepoint (literal find) paths share the same validation.
+fn validate_row_start_at(line: &str, sep_pos: usize) -> bool {
     let before_sep = line[..sep_pos].trim();
     if before_sep.is_empty() {
         return false;
     }
-
     // Check if the content before separator is a valid cell specifier
     let (_, spec_len) = CellSpecifier::parse(before_sep, ParseContext::FirstPart);
     spec_len > 0 && spec_len == before_sep.len()
@@ -782,7 +906,7 @@ fn handle_cross_row_continuation(
     i: &mut usize,
     current_offset: &mut usize,
     rows: &mut [Vec<ParsedCell>],
-    separator: &str,
+    separator: &Separator<'_>,
 ) -> bool {
     let mut starting_new_paragraph = true;
     let mut consumed_any = false;
@@ -826,19 +950,34 @@ fn handle_cross_row_continuation(
 impl Table<'_> {
     pub(crate) fn parse_rows_with_positions(
         text: &str,
-        separator: &str,
+        separator: &Separator<'_>,
+        is_psv: bool,
+        is_csv: bool,
         has_header: &mut bool,
         base_offset: usize,
         ncols: Option<usize>,
     ) -> Vec<Vec<ParsedCell>> {
-        // CSV format needs special handling for multi-line quoted values
-        if is_csv_format(separator) {
-            return Self::parse_csv_rows_with_positions(text, has_header, base_offset);
+        // CSV format needs special handling for multi-line quoted values.
+        // The user-intent gates `is_psv` and `is_csv` are MUTUALLY EXCLUSIVE
+        // (both come from `document.rs`'s format/separator resolution table).
+        // CSV implies RFC 4180 multi-line-quoted semantics — route into the
+        // CSV stack regardless of separator byte (so `[%csv,separator=;]`
+        // works end-to-end). DSV / TSV / PSV fall through to the row-by-row
+        // parser below.
+        if is_csv {
+            return Self::parse_csv_rows_with_positions(text, separator, has_header, base_offset);
         }
 
         let mut rows: Vec<Vec<ParsedCell>> = Vec::new();
         let mut current_offset = base_offset;
         let lines: Vec<&str> = text.lines().collect();
+        // PSV/DSV/CSV/TSV decision is carried from the caller (document.rs)
+        // based on user intent (`[separator=X]` always means PSV;
+        // `[format=dsv|csv|tsv]` always means non-PSV; defaults derive from
+        // the default separator byte). NEVER recover from `separator` alone
+        // here — `[separator=:]` and `[format=dsv]` both arrive with
+        // separator=":" but have opposite PSV semantics. The historical
+        // runtime body-sniff `is_psv_table` is gone; intent is plumbed.
         let mut i = 0;
         // Track whether the prior iteration's row was added via a path where
         // a following blank+multi-line-row should merge in (newline-cell-
@@ -887,8 +1026,10 @@ impl Table<'_> {
             // Check if this is a single-line-per-row table (line has multiple separators)
             // vs multi-line-per-row table (one cell per line, rows separated by empty lines)
             //
-            // PSV (`|`) supports multi-line cells; DSV (`:`) / TSV (`\t`) do not (every
-            // line is a complete row). For PSV, count UNESCAPED separators via
+            // PSV intent (any user-asserted separator, including `:` via
+            // `[separator=:]` or `[format=psv]`) supports multi-line cells;
+            // pure DSV/TSV (no PSV intent) do not — every line is a complete
+            // row. For PSV, count UNESCAPED separators via
             // `split_line` so that lines containing `\|` (e.g. AsciiDoc reference
             // docs describing `a|` syntax inside backticks: `` `a\|` ``) aren't
             // mis-classified as single-line rows. Previously the naïve
@@ -896,8 +1037,21 @@ impl Table<'_> {
             // separators, triggering "unterminated table block" cascades — see
             // Glyph render-fidelity tests for the user-visible failure mode.
             let first_line = line_ref.trim_end();
-            let is_single_line_row = if matches!(separator, "|" | "!") {
-                if first_line.contains(separator) {
+            // PSV (any sep that isn't CSV `,` / TSV `\t` / ambiguous `:`) supports
+            // multi-line cells. DSV/TSV/CSV treat every line as one row, so the
+            // "is this a complete single-line row" check is PSV-only.
+            // Historical limit was hard-coded `"|" | "!"`; the gate is not a
+            // grammar constraint — `split_line` + `CellSpecifier::parse` work
+            // identically for any sep char (the spec is char-agnostic, only
+            // depends on what follows after the leading separator). See
+            // asciidoctor 2.x docs/tables/data-format/ — `[separator=X]` for
+            // arbitrary single-char X gets full PSV cell-spec support.
+            let is_single_line_row = if is_psv {
+                // Round 14 architectural fix: escape-aware. PSV `\<sep>` is
+                // an escape, not a delimiter; raw `contains` would let a
+                // line whose only seps are escaped (e.g. `\:foo`) trigger
+                // single-line-row detection and drop content downstream.
+                if line_has_unescaped_separator(first_line, separator) {
                     let parts = split_line(first_line, separator);
                     // `split_line` for `|` returns leading empty + N content parts.
                     // > 2 parts ⇒ at least 2 real cell boundaries ⇒ single-line row.
@@ -955,7 +1109,7 @@ impl Table<'_> {
                 }
             } else {
                 // DSV / TSV: every line is a row (no multi-line cells).
-                first_line.matches(separator).count() > 0
+                first_line.matches(separator.raw).count() > 0
             };
 
             if is_single_line_row {
@@ -994,7 +1148,7 @@ impl Table<'_> {
                         break;
                     }
                     // If we already have content and this line starts a new row, break
-                    if !row_lines.is_empty() && is_new_row_start(trimmed, separator) {
+                    if !row_lines.is_empty() && is_new_row_start(trimmed, separator, is_psv) {
                         break;
                     }
                     // Trailing-`a|` multi-line cell continuation: when a
@@ -1002,28 +1156,34 @@ impl Table<'_> {
                     // current line is a clear inline-row (multi-`|` line),
                     // break — the `a|` cell content ended; this is a new
                     // row. See `row_has_continuation_paragraph` doc above.
+                    // All three gates below are PSV-only multi-line-row
+                    // heuristics (continuation paragraphs, ncols-aware row
+                    // break, new-row detection). Use the captured `is_psv`
+                    // plumbed from `parse_table_block_impl` in document.rs —
+                    // recomputing the PSV decision from `separator` alone
+                    // here would re-introduce the historical cross-site drift.
                     if row_has_continuation_paragraph
-                        && matches!(separator, "|" | "!")
-                        && trimmed.starts_with(separator)
+                        && is_psv
+                        && trimmed.starts_with(separator.raw)
                         && count_unescaped_separators(trimmed, separator) > 1
                     {
                         break;
                     }
                     if !row_lines.is_empty()
-                        && matches!(separator, "|" | "!")
-                        && trimmed.starts_with(separator)
+                        && is_psv
+                        && trimmed.starts_with(separator.raw)
                         && let Some(expected) = ncols
                         && accumulated_cols >= expected
                     {
                         break;
                     }
                     if !row_lines.is_empty()
-                        && matches!(separator, "|" | "!")
-                        && !trimmed.starts_with(separator)
+                        && is_psv
+                        && !trimmed.starts_with(separator.raw)
                     {
                         row_has_continuation_paragraph = true;
                     }
-                    accumulated_cols += count_cell_colspans(trimmed, separator);
+                    accumulated_cols += count_cell_colspans(trimmed, separator, is_psv);
                     row_lines.push(trimmed);
                     current_offset += current_line.len() + 1; // +1 for newline
                     i += 1;
@@ -1032,7 +1192,7 @@ impl Table<'_> {
 
             if !row_lines.is_empty() {
                 let columns =
-                    Self::parse_row_with_positions(&row_lines, separator, row_start_offset);
+                    Self::parse_row_with_positions(&row_lines, separator, is_psv, row_start_offset);
 
                 // For multi-line tables with explicit ncols, check if we need to merge
                 // this cell group with existing incomplete row (for nested table support).
@@ -1143,24 +1303,72 @@ impl Table<'_> {
     /// table body at once rather than line-by-line.
     fn parse_csv_rows_with_positions(
         text: &str,
+        separator: &Separator<'_>,
         has_header: &mut bool,
         base_offset: usize,
     ) -> Vec<Vec<ParsedCell>> {
-        // Check for header indicator: first row followed by blank line
-        // For CSV, we need to detect this before parsing since the csv crate
-        // consumes the text as a stream.
-        let lines: Vec<&str> = text.lines().collect();
-        if lines.len() >= 2 {
-            // Find where first CSV record ends - look for first complete record
-            // A simple heuristic: if line 1 (0-indexed) is empty, we have a header
-            if let Some(&line) = lines.get(1) {
-                if line.trim().is_empty() {
+        // Round 13 Expert A P1-2 fix: RFC 4180-aware header detection. The
+        // prior `lines.get(1).trim().is_empty()` heuristic split on `\n`
+        // without honoring quoted multi-line records. A first record whose
+        // value contains an embedded `\n` would make `lines[1]` non-empty
+        // (header missed) or empty-inside-the-quote (header falsely set).
+        // Use the csv crate to find the first record's actual end byte
+        // offset, then check whether the next non-empty source line is
+        // preceded by a blank line.
+        //
+        // CSV separator override: a single byte is required by RFC 4180 grammar
+        // (the csv crate's delimiter API is byte-level). Validation at
+        // `document.rs::validate_separator` already rejected non-ASCII /
+        // multi-byte values, so `separator.len() == 1 && is_ascii()` is the
+        // invariant here. Defensive unwrap for the no-attr path (`,` byte).
+        // Round 14: `Separator::single_byte()` returns the ASCII byte iff the
+        // separator is one ASCII codepoint; multi-byte / non-ASCII rejected
+        // upstream by `validate_separator`. Defensive fallback to `,`.
+        let sep_byte = separator.single_byte().unwrap_or(b',');
+        {
+            let mut hr_reader = csv::ReaderBuilder::new()
+                .has_headers(false)
+                .flexible(true)
+                .delimiter(sep_byte)
+                .from_reader(text.as_bytes());
+            let mut records = hr_reader.records();
+            if let Some(Ok(first)) = records.next() {
+                let first_end = first
+                    .position()
+                    .map(|p| usize::try_from(p.byte()).unwrap_or(0))
+                    .unwrap_or(0);
+                // first_end points at the START byte of the record. Walk
+                // forward to the end of THIS record by consuming bytes up to
+                // and including a non-quoted newline.
+                let bytes = text.as_bytes();
+                let mut pos = first_end;
+                let mut in_quote = false;
+                while pos < bytes.len() {
+                    let b = bytes[pos];
+                    if in_quote {
+                        if b == b'"' {
+                            if bytes.get(pos + 1) == Some(&b'"') { pos += 2; continue; }
+                            in_quote = false;
+                        }
+                    } else if b == b'"' {
+                        in_quote = true;
+                    } else if b == b'\n' {
+                        pos += 1;
+                        break;
+                    }
+                    pos += 1;
+                }
+                // Check whether the immediately-following line is blank.
+                let after_first = &text[pos.min(text.len())..];
+                let trimmed_start = after_first.trim_start_matches(|c: char| c == '\r');
+                if trimmed_start.starts_with('\n')
+                    || (trimmed_start.is_empty() && pos < text.len())
+                {
                     *has_header = true;
                 }
             }
         }
-
-        let csv_rows = parse_csv_table(text, base_offset);
+        let csv_rows = parse_csv_table(text, base_offset, sep_byte);
         let mut rows = Vec::new();
 
         for csv_row in csv_rows {
@@ -1198,7 +1406,8 @@ impl Table<'_> {
 
     fn parse_row_with_positions(
         row_lines: &[&str],
-        separator: &str,
+        separator: &Separator<'_>,
+        is_psv: bool,
         row_start_offset: usize,
     ) -> Vec<ParsedCell> {
         let mut columns: Vec<ParsedCell> = Vec::new();
@@ -1261,25 +1470,29 @@ impl Table<'_> {
             //     (since `rfind(whitespace)` lands on the LAST token before
             //     `|`, which in those cases is `5*`, `2+`, or `items` — none
             //     containing `.` adjacent to a `+`).
-            let p0_trimmed = if matches!(separator, "|" | "!") {
+            // Adjacent-anchor recovery is a PSV-only fix-up. All four gates
+            // below consume the same captured `is_psv` from the function's
+            // entry — there is exactly one PSV decision per table, not 11.
+            let p0_trimmed = if is_psv {
                 parts[0].content.trim()
             } else {
                 ""
             };
-            let line_starts_with_spec = if matches!(separator, "|" | "!") {
-                if p0_trimmed.is_empty() {
-                    false
-                } else {
-                    let (_, spec_len) =
-                        CellSpecifier::parse(p0_trimmed, ParseContext::FirstPart);
-                    spec_len > 0 && spec_len == p0_trimmed.len()
-                }
-            } else {
+            // When `!is_psv`, `p0_trimmed` is already forced to "" above, so
+            // the inner branches degrade naturally without re-guarding on
+            // `is_psv` — clippy-pedantic flags the double-guard as
+            // collapsible. Keep the predicate compact and let the outer
+            // `if is_psv && parts.len() > 1 && (...)` gate be the single
+            // authoritative entry to the recovery block.
+            let line_starts_with_spec = if p0_trimmed.is_empty() {
                 false
+            } else {
+                let (_, spec_len) =
+                    CellSpecifier::parse(p0_trimmed, ParseContext::FirstPart);
+                spec_len > 0 && spec_len == p0_trimmed.len()
             };
-            let multi_line_continuation =
-                matches!(separator, "|" | "!") && p0_trimmed.is_empty();
-            if matches!(separator, "|" | "!")
+            let multi_line_continuation = is_psv && p0_trimmed.is_empty();
+            if is_psv
                 && parts.len() > 1
                 && (line_starts_with_spec || multi_line_continuation)
             {
@@ -1366,12 +1579,13 @@ impl Table<'_> {
             // e.g., "2+| content" -> part 0 is "2+", applies to part 1
             let mut pending_spec: Option<CellSpecifier> = None;
 
-            // Determine if first part should be treated as content or specifier/skip
-            // For PSV (|): first part is before the leading separator, skip it or treat as specifier
-            // For CSV (,) and DSV (:): first part is actual cell content
-
+            // Determine if first part should be treated as content or specifier/skip.
+            // For PSV: first part is before leading separator OR a cell-
+            // spec like `.3+`/`2+`/`a` — skip/absorb. For DSV/TSV/CSV the
+            // first part is content. Use `is_psv` directly — the
+            // `psv_skip_first` alias is redundant.
             for (i, part) in parts.iter().enumerate() {
-                if i == 0 && matches!(separator, "|" | "!") {
+                if i == 0 && is_psv {
                     // First part is before first separator (PSV format only)
                     let trimmed = part.content.trim();
                     if !trimmed.is_empty() {
@@ -1552,7 +1766,7 @@ mod tests {
     fn trailing_text_becomes_continuation_paragraph_of_last_cell() {
         let input = "| A | B\n\nTrailing\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         let [row] = rows.as_slice() else {
             panic!("expected 1 row, got {}", rows.len());
         };
@@ -1574,7 +1788,7 @@ mod tests {
     fn a_cell_preserves_blank_line_inside_nested_table_content() {
         let input = "a|\n!===\n! Inner A ! Inner B\n\nTrailing in inner cell\n!===\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, Some(1));
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, Some(1));
         let [row] = rows.as_slice() else {
             panic!("expected 1 row, got {}", rows.len());
         };
@@ -1604,7 +1818,7 @@ mod tests {
         // per `|`-prefixed group).
         let input = ".2+|food\u{00A0}.2+|apple |10\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         // Tightened from `!rows.is_empty()` — multibyte regression silently
         // dropped the trailing `.2+`, leaving 2 cells with rowspan=1.
         assert_eq!(rows[0].len(), 3, "expected 3 cells: food, apple, 10");
@@ -1623,7 +1837,7 @@ mod tests {
     fn no_recovery_on_star_rating_in_text() {
         let input = "|rated 5*|next\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         let row = &rows[0];
         assert_eq!(
             row.first().map(|c| c.content.as_str()),
@@ -1640,7 +1854,7 @@ mod tests {
     fn no_recovery_on_version_number_in_text() {
         let input = "|5G coverage 2+|GB\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         assert_eq!(
             rows[0].first().map(|c| c.content.as_str()),
             Some("5G coverage 2+"),
@@ -1660,7 +1874,7 @@ mod tests {
     fn recovery_still_fires_on_legitimate_double_anchor() {
         let input = ".2+|food .2+|apple |10\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         // Expect three cells: food (rs=2), apple (rs=2), 10.
         assert_eq!(rows[0].len(), 3, "expected 3 cells: food, apple, 10");
         assert_eq!(rows[0][0].content, "food");
@@ -1691,7 +1905,7 @@ mod tests {
         let input = ".2+|food\n|apple .2+|10\n|banana\n.3+|drink |cola |30\n|tea |15\n|coffee |12\n";
         let mut has_header = false;
         let rows =
-            Table::parse_rows_with_positions(input, "|", &mut has_header, 0, Some(3));
+            Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, Some(3));
         // The food half must be present (this is the regression — without the
         // multi-line layout fix, all the food/apple/10/banana cells get
         // bundled into one over-full row and the visible table loses food).
@@ -1728,7 +1942,7 @@ mod tests {
         // leaked in from the next cell's spec.
         let input = "a| first a| second a| third\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         assert_eq!(rows.len(), 1, "expected 1 row");
         assert_eq!(rows[0].len(), 3, "expected 3 cells, got {}", rows[0].len());
         assert_eq!(rows[0][0].content.trim(), "first");
@@ -1754,7 +1968,7 @@ mod tests {
     fn no_recovery_on_trailing_a_in_multiline_continuation_text() {
         let input = "|some text ending in a|next\n";
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(input, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(input, &Separator::new("|"), true, false, &mut has_header, 0, None);
         assert_eq!(
             rows[0].first().map(|c| c.content.as_str()),
             Some("some text ending in a"),
@@ -1778,23 +1992,23 @@ mod tests {
     #[test]
     fn count_unescaped_separators_skips_escaped_pipe() {
         assert_eq!(
-            count_unescaped_separators("\\| Col1 \\| Col2 \\|", "|"),
+            count_unescaped_separators("\\| Col1 \\| Col2 \\|", &Separator::new("|")),
             0,
             "all 3 pipes are escaped — must count 0",
         );
         assert_eq!(
-            count_unescaped_separators("| real | sep |", "|"),
+            count_unescaped_separators("| real | sep |", &Separator::new("|")),
             3,
             "all 3 pipes unescaped — must count 3",
         );
         assert_eq!(
-            count_unescaped_separators("\\| escaped | unescaped", "|"),
+            count_unescaped_separators("\\| escaped | unescaped", &Separator::new("|")),
             1,
             "first pipe escaped, second not — must count 1",
         );
         // Same for bang separator (variant for nested tables).
         assert_eq!(
-            count_unescaped_separators("\\! nested \\!", "!"),
+            count_unescaped_separators("\\! nested \\!", &Separator::new("!")),
             0,
             "bang separator escape must also work",
         );
@@ -1821,7 +2035,7 @@ mod tests {
         // "m", and one empty continuation). count_cell_colspans must
         // return 3 (matching parse_row, NOT 4 from over-firing heuristic).
         let line = "a| b| m|";
-        let n = count_cell_colspans(line, "|");
+        let n = count_cell_colspans(line, &Separator::new("|"), true);
         assert_eq!(
             n, 3,
             "trailing `m|` is plain content + delimiter, not continuation cell; \
@@ -1834,7 +2048,7 @@ mod tests {
     /// heuristic was originally designed for).
     #[test]
     fn count_cell_colspans_counts_standalone_a_pipe_as_one() {
-        let n = count_cell_colspans("a|", "|");
+        let n = count_cell_colspans("a|", &Separator::new("|"), true);
         assert_eq!(n, 1, "standalone `a|` is a continuation cell (got {n})");
     }
 
@@ -1845,12 +2059,12 @@ mod tests {
     #[test]
     fn count_cell_colspans_matches_parse_row_for_inline_span_style() {
         let line = "|2+ a|";
-        let count = count_cell_colspans(line, "|");
+        let count = count_cell_colspans(line, &Separator::new("|"), true);
         // parse_row produces 2 cells: [colspan=2 empty content, colspan=1
         // empty content]. Sum of colspans = 3 → count_cell_colspans must
         // also report 3 to keep accumulated_cols in sync with parse_row.
         let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(line, "|", &mut has_header, 0, None);
+        let rows = Table::parse_rows_with_positions(line, &Separator::new("|"), true, false, &mut has_header, 0, None);
         let parsed_colspan_sum: usize =
             rows[0].iter().map(|c| c.colspan).sum();
         assert_eq!(
@@ -1888,7 +2102,9 @@ mod tests {
         let mut has_header = false;
         let rows = Table::parse_rows_with_positions(
             input,
-            "|",
+            &Separator::new("|"),
+            true,
+            false,
             &mut has_header,
             /* base_offset */ 0,
             None,
@@ -1941,7 +2157,9 @@ mod tests {
         let mut has_header = false;
         let rows = Table::parse_rows_with_positions(
             input,
-            "|",
+            &Separator::new("|"),
+            true,
+            false,
             &mut has_header,
             /* base_offset */ 0,
             None,

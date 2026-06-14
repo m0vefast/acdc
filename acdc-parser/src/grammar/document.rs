@@ -280,28 +280,148 @@ fn parse_table_block_impl<'input>(
         }
     };
 
-    let separator = if let Some(AttributeValue::String(sep)) =
-        block_metadata.metadata.attributes.get("separator")
-    {
-        sep.to_string()
-    } else if let Some(AttributeValue::String(format)) =
-        block_metadata.metadata.attributes.get("format")
-    {
-        match &**format {
-            "csv" => ",",
-            "dsv" => ":",
-            "tsv" => "\t",
-            unknown_format => {
-                state.add_generic_warning_at(
-                    format!("unknown table format '{unknown_format}', using default separator"),
-                    table_location.clone(),
-                );
-                default_separator
-            }
+    // Resolve separator AND format intent together. The PSV/DSV/CSV/TSV
+    // decision must be carried from user intent (the attribute the user
+    // wrote) AND the fence char, NOT recovered later from the separator byte
+    // (which is ambiguous — `[separator=:]` PSV vs `[format=dsv]` default
+    // both arrive with separator=":"). `is_psv` is the single source of
+    // truth that `Table::parse_rows_with_positions` consumes.
+    //
+    // Fence-char defaults per asciidoctor docs/tables/data-format/:
+    //   `|===` → PSV, `!===` → PSV (nested), `,===` → CSV, `:===` → DSV.
+    // `is_psv_default(default_separator)` encodes that mapping.
+    fn is_psv_default(default_separator: &str) -> bool {
+        matches!(default_separator, "|" | "!")
+    }
+    // Resolution order (asciidoctor parity, per `lib/asciidoctor/table.rb`
+    // `parse_table_attributes`):
+    //   1. `format=` (if present) chooses the FORMAT (PSV / CSV / DSV / TSV)
+    //      and its DEFAULT delimiter (`|` / `,` / `:` / `\t`).
+    //   2. `separator=` (if present) overrides the DELIMITER CHAR only —
+    //      it does NOT force PSV. `[%csv,separator=;]` is a common
+    //      European-locale CSV form and stays CSV.
+    //   3. If only `separator=` is given (no `format=`), default to PSV —
+    //      asciidoctor treats bare `separator=` as a PSV-delimiter override.
+    //   4. Otherwise, fall back to fence-char defaults.
+    let format_attr = block_metadata
+        .metadata
+        .attributes
+        .get("format")
+        .and_then(|v| if let AttributeValue::String(s) = v { Some(s.as_ref()) } else { None });
+    let separator_attr = block_metadata
+        .metadata
+        .attributes
+        .get("separator")
+        .and_then(|v| if let AttributeValue::String(s) = v { Some(s.as_ref()) } else { None });
+    // Returns `(separator, is_psv, is_csv)` — `is_psv` and `is_csv` are
+    // mutually exclusive intent bits. DSV/TSV are neither; they fall through
+    // to the line-by-line row parser with their respective default delimiters.
+    // Round 11 fix: reject multi-byte separator on CSV path. The csv crate's
+    // `ReaderBuilder::delimiter` takes a single byte — multi-byte (e.g. `§`,
+    // `；`, `€`) silently degrades to `,` at the byte-extraction site in
+    // `parse_csv_rows_with_positions`, producing wrong cell counts with no
+    // user feedback. Reject at dispatch with a structural Warning so the
+    // user sees the problem instead of getting silently mangled output.
+    // Round 13 architectural fix: centralise separator validation. Rounds
+    // 10/11/12 each found a new helper / branch that silently degraded on
+    // an invalid separator (empty string, multi-byte, multi-codepoint). The
+    // pattern is "every arm enforces its own constraints" — root cause is
+    // that the constraints differ per format (CSV needs single ASCII byte
+    // for `csv::ReaderBuilder::delimiter`; PSV/DSV/TSV need single codepoint
+    // for the escape-aware row helpers). One helper enforces both with
+    // structural Warning emission and `default_for_format` fallback.
+    fn validate_separator<'a, F: FnOnce(&str) + 'a>(
+        sep_attr: Option<&'a str>,
+        default_for_format: &'a str,
+        format_label: &str,
+        require_ascii_byte: bool,
+        emit_warning: F,
+    ) -> &'a str {
+        let Some(sep) = sep_attr else { return default_for_format; };
+        if sep.is_empty() {
+            emit_warning(&format!(
+                "{format_label} separator must be non-empty; falling back to default '{default_for_format}'"
+            ));
+            return default_for_format;
         }
-        .to_string()
-    } else {
-        default_separator.to_string()
+        if require_ascii_byte {
+            if sep.len() != 1 || !sep.is_ascii() {
+                emit_warning(&format!(
+                    "CSV separator must be a single ASCII byte; '{sep}' is {} — falling back to default '{default_for_format}'",
+                    if sep.is_ascii() { "more than one byte" } else { "non-ASCII" }
+                ));
+                return default_for_format;
+            }
+        } else if sep.chars().count() != 1 {
+            emit_warning(&format!(
+                "{format_label} separator must be a single codepoint; '{sep}' is multi-codepoint — falling back to default '{default_for_format}'"
+            ));
+            return default_for_format;
+        }
+        sep
+    }
+    let table_loc_for_warn = table_location.clone();
+    let mut warn = |msg: &str| {
+        state.add_generic_warning_at(msg.to_string(), table_loc_for_warn.clone());
+    };
+    let (separator, is_psv, is_csv) = match format_attr {
+        Some("csv") => {
+            let sep = validate_separator(separator_attr, ",", "CSV", true, &mut warn);
+            (sep.to_string(), false, true)
+        }
+        Some("dsv") => {
+            let sep = validate_separator(separator_attr, ":", "DSV", false, &mut warn);
+            (sep.to_string(), false, false)
+        }
+        Some("tsv") => {
+            let sep = validate_separator(separator_attr, "\t", "TSV", false, &mut warn);
+            (sep.to_string(), false, false)
+        }
+        Some("psv") => {
+            let sep = validate_separator(separator_attr, "|", "PSV", false, &mut warn);
+            (sep.to_string(), true, false)
+        }
+        Some(unknown_format) => {
+            // Round 77 Expert A P1: unknown_format must fall through to
+            // fence-driven dispatch the SAME way the `None` arm does (Round 19
+            // architectural fix). Hardcoding `is_csv = false` here demoted
+            // `,===` + `[format=xyz]` from CSV multi-line-quoted parsing to
+            // DSV row-by-row parsing — a silent corruption when an unknown /
+            // mistyped format= attribute reaches a CSV fence. It also bypassed
+            // the `require_ascii_byte` gate on `validate_separator`, letting
+            // multi-byte separator slip through to `single_byte()` truncation.
+            // Mirror the None arm's derivation so the "use default" promise in
+            // the warning message is honored at the dispatch level too.
+            warn(&format!("unknown table format '{unknown_format}', using default separator"));
+            let is_psv = is_psv_default(default_separator);
+            let is_csv = !is_psv && default_separator == ",";
+            let format_label = if is_csv { "CSV" } else if is_psv { "PSV" } else { "DSV" };
+            let sep = validate_separator(separator_attr, default_separator, format_label, is_csv, &mut warn);
+            (sep.to_string(), is_psv, is_csv)
+        }
+        None => {
+            // Round 18 Expert A P1-1 fix: separator alone overrides DELIMITER
+            // only, NOT format. asciidoctor docs/tables/data-format/ §"The
+            // separator attribute is independent of the processing rules for
+            // the format". `,===` (CSV fence) + bare `[separator=;]` keeps
+            // CSV semantics with `;` delimiter; `:===` + bare separator keeps
+            // DSV. Only fence char drives format dispatch when no `format=`
+            // is given. Pre-fix the `separator_attr.is_some() || …` flag
+            // forced PSV cell-spec recovery onto CSV/DSV-shaped bodies.
+            //
+            // Round 19 Expert A P1-1 fix: when the fence drives `is_csv=true`,
+            // validation must also use the CSV byte rule (single ASCII byte)
+            // so `[separator=€]` etc. don't slip past the codepoint check
+            // and silently truncate at `single_byte().unwrap_or(b',')`
+            // downstream. Track `is_csv` BEFORE calling validate_separator
+            // so the require_ascii_byte flag + warning label match the
+            // dispatch target.
+            let is_psv = is_psv_default(default_separator);
+            let is_csv = !is_psv && default_separator == ",";
+            let format_label = if is_csv { "CSV" } else if is_psv { "PSV" } else { "DSV" };
+            let sep = validate_separator(separator_attr, default_separator, format_label, is_csv, &mut warn);
+            (sep.to_string(), is_psv, is_csv)
+        }
     };
 
     let (ncols, column_formats) = if let Some(AttributeValue::String(cols)) =
@@ -432,9 +552,15 @@ fn parse_table_block_impl<'input>(
 
     // Set this to true if the user mandates it!
     let mut has_header = block_metadata.metadata.options.contains(&"header");
+    // Round 14: Separator newtype centralizes dispatch (single-codepoint
+    // vs multi-codepoint vs empty) so every downstream helper consumes the
+    // pre-computed `kind` instead of independently deciding from `&str`.
+    let separator_kind = crate::blocks::table::Separator::new(&separator);
     let raw_rows = Table::parse_rows_with_positions(
         content,
-        &separator,
+        &separator_kind,
+        is_psv,
+        is_csv,
         &mut has_header,
         content_start + offset,
         ncols,
