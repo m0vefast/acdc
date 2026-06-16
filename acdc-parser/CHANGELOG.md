@@ -95,6 +95,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `image:foo[link=https://example.com]` no longer silently drops the link
   target. Existing consumers of the JSON envelope that don't read
   `attributes` are unaffected; consumers that DO read it gain the new keys.
+- PSV multi-line table cells in a NON-last column no longer drop their
+  continuation row's pre-separator content. Previously `is_single_line_row`
+  classified the first row (`|a |m1`) as a complete single-line row and parsed
+  the continuation (`m2 |c`) in a separate group with no open cell, dropping
+  `m2`. PSV row grouping is now unified into `collect_psv_row_group` with a
+  cross-line cell-open rule: a multi-cell line is a complete single-line row
+  UNLESS its last cell continues on the next line (the next line is non-empty,
+  does not start with a separator, and is not a new-row cell-spec). A
+  continuation row's pre-separator text now appends to the still-open previous
+  cell. `[cols="1d,1l,1d"]` `|a |m1` / `m2 |c` → `["a", "m1\nm2", "c"]`,
+  matching asciidoctor (verified on middle/last column, rowspan, colspan,
+  custom-separator, and escaped-pipe continuation shapes).
 
 ## [0.9.0] - 2026-04-26
 
