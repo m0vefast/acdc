@@ -402,6 +402,10 @@ impl Default for CellSpecifier {
 }
 
 /// Parse a single style letter into a `ColumnStyle`.
+///
+/// Only the seven canonical AsciiDoc cell styles map to a variant; any other
+/// lowercase letter is a syntactically-valid-but-semantically-unknown style
+/// that asciidoctor silently drops (see [`is_style_position_byte`]).
 fn parse_style_byte(byte: u8) -> Option<ColumnStyle> {
     match byte {
         b'a' => Some(ColumnStyle::AsciiDoc),
@@ -412,6 +416,46 @@ fn parse_style_byte(byte: u8) -> Option<ColumnStyle> {
         b'm' => Some(ColumnStyle::Monospace),
         b's' => Some(ColumnStyle::Strong),
         _ => None,
+    }
+}
+
+/// Whether `byte` occupies the optional single-letter STYLE position of a cell
+/// specifier. Asciidoctor's `CellSpecStartRx` ends in `([a-z])?` — ANY single
+/// ASCII lowercase letter is accepted at the style position, not just the seven
+/// canonical styles. Unknown letters (e.g. `v` for "verse", which is a block
+/// style but NOT a cell style) are consumed by the grammar and then dropped
+/// semantically (`parse_style_byte` returns `None` for them).
+///
+/// This matters for ROW-BOUNDARY detection: a line beginning `v|苹果` must be
+/// recognized as a new-row cell start (the `v|` is a — invalid — cell spec),
+/// exactly as asciidoctor does. Treating only the seven valid letters as a
+/// style position caused `v|`-prefixed body rows to be mis-absorbed as a
+/// continuation of the prior row, silently dropping their content.
+fn is_style_position_byte(byte: u8) -> bool {
+    byte.is_ascii_lowercase()
+}
+
+/// Decide whether the byte optionally occupying a cell specifier's `([a-z])?`
+/// STYLE slot should be CONSUMED (advancing `pos` past it). Single chokepoint
+/// for ALL THREE style-slot sites in [`CellSpecifier::build_result`] (after a
+/// span/dup operator, after an alignment marker, and the bare style-only spec)
+/// so a new site cannot silently reintroduce the unguarded-broadening bug.
+///
+/// - A CANONICAL style letter (one of the seven [`parse_style_byte`] maps) is
+///   always the slot, in any context.
+/// - A BROADENED non-canonical `[a-z]` is the slot ONLY when it cannot instead
+///   be CONTENT: (a) `context == FirstPart`, AND (b) it does not trail a BARE
+///   colspan/rowspan digit — one not consumed by a `*`/`+` operator. `2x` /
+///   `^2x` are `<digit><letter>` content, not a spec (asciidoctor requires an
+///   operator after a colspan number); the `+`/`*` branch passes
+///   `trails_bare_span = false` because its operator already validated the span.
+fn consume_style_slot(byte: Option<u8>, context: ParseContext, trails_bare_span: bool) -> bool {
+    match byte {
+        Some(b) if parse_style_byte(b).is_some() => true,
+        Some(b) => {
+            context == ParseContext::FirstPart && !trails_bare_span && is_style_position_byte(b)
+        }
+        None => false,
     }
 }
 
@@ -565,9 +609,12 @@ impl CellSpecifier {
         if (is_span || is_duplication) && has_span_or_dup {
             pos += 1;
 
-            // Parse optional style letter after operator
-            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
-            if style.is_some() {
+            // Style letter after the operator. The `*`/`+` operator already
+            // validated the colspan, so the slot is genuine even for a broadened
+            // non-canonical letter at FirstPart: trails_bare_span = false. (In
+            // InlineContent the chokepoint refuses it, so `2+verse` keeps `v`.)
+            let style = bytes.get(pos).copied().and_then(parse_style_byte);
+            if consume_style_slot(bytes.get(pos).copied(), context, false) {
                 pos += 1;
             }
 
@@ -594,9 +641,17 @@ impl CellSpecifier {
             };
             (spec, pos)
         } else if (halign.is_some() || valign.is_some()) && context == ParseContext::FirstPart {
-            // Alignment without span operator - still valid (only in FirstPart context)
-            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
-            if style.is_some() {
+            // Alignment without span operator - still valid (only in FirstPart).
+            // No operator here, so a parsed colspan/rowspan is BARE: `^2x` is
+            // `<align><digit><letter>` content, not a spec. Gate the broadened
+            // non-canonical letter on trails_bare_span so it cannot flip into a
+            // phantom row boundary (canonical letters still consumed).
+            let style = bytes.get(pos).copied().and_then(parse_style_byte);
+            if consume_style_slot(
+                bytes.get(pos).copied(),
+                context,
+                colspan.is_some() || rowspan.is_some(),
+            ) {
                 pos += 1;
             }
             (
@@ -612,10 +667,24 @@ impl CellSpecifier {
                 pos,
             )
         } else if context == ParseContext::FirstPart {
-            // Check for style-only specifier (e.g., `s|` for strong)
-            // Only accepted in FirstPart context (first-part in PSV tables)
-            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
-            if let Some(style) = style {
+            // Check for style-only specifier (e.g., `s|` for strong, or `v|`
+            // for the unknown "verse" style). Only accepted in FirstPart
+            // context (first-part in PSV tables). The style position accepts
+            // any single `[a-z]` (asciidoctor's `([a-z])?`): the byte is
+            // consumed so the prefix is recognized as a complete cell
+            // specifier — and thus a row boundary — even when the letter is
+            // not one of the seven canonical styles. Unknown letters resolve
+            // to `style = None` (dropped), matching asciidoctor, instead of
+            // leaking the letter into cell content.
+            // Bare style-only spec (no operator). A parsed colspan/rowspan is
+            // BARE (`2x` is `<digit><letter>` content), so gate the broadened
+            // non-canonical letter on trails_bare_span (canonical still consumed).
+            if consume_style_slot(
+                bytes.get(pos).copied(),
+                context,
+                colspan.is_some() || rowspan.is_some(),
+            ) {
+                let style = bytes.get(pos).copied().and_then(parse_style_byte);
                 pos += 1;
                 (
                     Self {
@@ -623,7 +692,7 @@ impl CellSpecifier {
                         rowspan: 1,
                         halign: None,
                         valign: None,
-                        style: Some(style),
+                        style,
                         is_duplication: false,
                         duplication_count: 1,
                     },
@@ -730,7 +799,8 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
     // as content. `is_psv` is plumbed from `parse_table_block_impl` in
     // document.rs based on user intent (`[separator=]`/`[format=]`/fence).
     let start_idx = if is_psv {
-        let p0 = parts[0].content.trim();
+        // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
+        let p0 = parts[0].content.trim_start();
         if !p0.is_empty() {
             let (spec, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
             if spec_len > 0 && spec_len == p0.len() {
@@ -745,7 +815,8 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
 
     let total_parts = parts.len();
     for (i, part) in parts.iter().enumerate().skip(start_idx) {
-        let trimmed = part.content.trim();
+        // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
+        let trimmed = part.content.trim_start();
         // Trailing empty part (line ends with separator) — usually a
         // bare line ender, no cell. BUT: when the previous part ends with
         // a cell style char (`a`, `s`, `m`, `l`, `v`, `e`, `h`, `d`) the
@@ -887,7 +958,14 @@ fn is_new_row_start(line: &str, separator: &Separator<'_>, is_psv: bool) -> bool
 /// cell specifier. Extracted so both single-codepoint (escape-aware) and
 /// multi-codepoint (literal find) paths share the same validation.
 fn validate_row_start_at(line: &str, sep_pos: usize) -> bool {
-    let before_sep = line[..sep_pos].trim();
+    // Asciidoctor's `CellSpecStartRx` is `^[ \t]*(...)?(...)?([a-z])?$`:
+    // LEADING whitespace is allowed, but the cell specifier must abut the
+    // separator with NO trailing whitespace. `s|x` / `v|x` are row starts;
+    // `s | x` / `r | s` are NOT (the space before `|` makes the line a
+    // content continuation). Trimming only the start preserves this
+    // distinction — trimming both ends would mis-classify `r | s` as a new
+    // row (spec_len would equal the trimmed length).
+    let before_sep = line[..sep_pos].trim_start();
     if before_sep.is_empty() {
         return false;
     }
@@ -1452,7 +1530,12 @@ impl Table<'_> {
             // Adjacent-anchor recovery is a PSV-only fix-up. All four gates
             // below consume the same captured `is_psv` from the function's
             // entry — there is exactly one PSV decision per table, not 11.
-            let p0_trimmed = if is_psv { parts[0].content.trim() } else { "" };
+            // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
+            let p0_trimmed = if is_psv {
+                parts[0].content.trim_start()
+            } else {
+                ""
+            };
             // When `!is_psv`, `p0_trimmed` is already forced to "" above, so
             // the inner branches degrade naturally without re-guarding on
             // `is_psv` — clippy-pedantic flags the double-guard as
@@ -1557,8 +1640,14 @@ impl Table<'_> {
             // `psv_skip_first` alias is redundant.
             for (i, part) in parts.iter().enumerate() {
                 if i == 0 && is_psv {
-                    // First part is before first separator (PSV format only)
-                    let trimmed = part.content.trim();
+                    // First part is before first separator (PSV format only).
+                    // Trim only the LEADING whitespace: asciidoctor's
+                    // `CellSpecStartRx` (`^[ \t]*…([a-z])?$`) accepts leading
+                    // ws but requires the specifier to abut the separator with
+                    // NO trailing ws. `r |` (space before `|`) is therefore
+                    // CONTENT, not a `r`-style spec — trimming both ends would
+                    // mis-recover it as a spec and silently drop the `r`.
+                    let trimmed = part.content.trim_start();
                     if !trimmed.is_empty() {
                         // Check if this looks like a specifier (e.g., "2+", "3*", "^.>", "s")
                         // Style-only specifiers (e.g., "s" for strong) are valid here
@@ -2355,5 +2444,239 @@ mod tests {
         // recovery-stashed forced_style).
         assert_eq!(c0.style, Some(ColumnStyle::AsciiDoc));
         assert_eq!(c1.style, Some(ColumnStyle::AsciiDoc));
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Regression suite for the cell-style-broadening fix (3 hell-verified
+    // P1 regressions the broadening introduced + the original fix's intent).
+    // ───────────────────────────────────────────────────────────────────
+
+    /// P1-A (direct): in `InlineContent` a non-canonical `[a-z]` after a span
+    /// operator is REAL CONTENT — it must NOT be consumed as a (dropped) style.
+    /// `2+verse` → `colspan=2`, but content begins at `verse` (`spec_len` lands
+    /// just past `2+`, i.e. 2 bytes), NOT past the `v` (which would drop it,
+    /// leaving `erse`).
+    #[test]
+    fn parse_inline_content_does_not_consume_noncanonical_style_letter() {
+        let (spec, spec_len) = CellSpecifier::parse("2+verse", ParseContext::InlineContent);
+        assert_eq!(spec.colspan, 2, "`2+` is a colspan-2 span operator");
+        assert_eq!(
+            spec_len,
+            2,
+            "spec must end right after `2+`; the non-canonical `v` is content, \
+             not a consumed-then-dropped style (got spec_len={spec_len}, which \
+             would leave content `{}`)",
+            &"2+verse"[spec_len..],
+        );
+        assert_eq!(
+            &"2+verse"[spec_len..],
+            "verse",
+            "the `v` must remain in cell content",
+        );
+        assert!(spec.style.is_none(), "non-canonical `v` is not a style");
+
+        // `5*nights` — duplication operator, non-canonical `n` must stay.
+        let (dup_spec, dup_len) = CellSpecifier::parse("5*nights", ParseContext::InlineContent);
+        assert!(dup_spec.is_duplication, "`5*` is a duplication operator");
+        assert_eq!(dup_spec.duplication_count, 5);
+        assert_eq!(
+            dup_len, 2,
+            "spec must end right after `5*`; `n` is content (got spec_len={dup_len})",
+        );
+        assert_eq!(&"5*nights"[dup_len..], "nights");
+    }
+
+    /// P1-A (regression guard): a CANONICAL style letter after a span operator
+    /// in `InlineContent` IS still consumed (unchanged behavior). `2+s` →
+    /// `colspan=2`, strong style, `spec_len` past the `s`.
+    #[test]
+    fn parse_inline_content_still_consumes_canonical_style_letter() {
+        let (spec, spec_len) = CellSpecifier::parse("2+s", ParseContext::InlineContent);
+        assert_eq!(spec.colspan, 2, "`2+` colspan-2");
+        assert_eq!(
+            spec.style,
+            Some(ColumnStyle::Strong),
+            "canonical `s` resolves to Strong style",
+        );
+        assert_eq!(spec_len, 3, "canonical `s` IS consumed (got {spec_len})");
+    }
+
+    /// P1-A (through the real PSV table parse — the `InlineContent` path): a
+    /// cell whose content is `2+verse` must survive intact; the broadening bug
+    /// silently dropped the `v`, leaving `erse`.
+    #[test]
+    fn psv_inline_cell_2plus_verse_content_preserved() {
+        // Two cells on one row: a plain first cell, then `2+verse` as the
+        // second cell's content. The second separator group is parsed via the
+        // InlineContent path.
+        let input = "| ok | 2+verse\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            input,
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None,
+        );
+        let [row] = rows.as_slice() else {
+            panic!("expected 1 row, got {}", rows.len());
+        };
+        // The `2+` is an inline colspan spec → the cell spans 2 columns but its
+        // content is `verse`, NOT `erse`.
+        let Some(last) = row.last() else {
+            panic!("expected at least one cell, got empty row");
+        };
+        assert_eq!(
+            last.content.trim(),
+            "verse",
+            "non-canonical `v` must not be dropped (broadening bug → `erse`)",
+        );
+    }
+
+    /// P1-C: `2x` in `FirstPart` is NOT a spec. `2` is a colspan digit but the
+    /// following `x` is not an operator (`+`/`*`) — asciidoctor does not treat
+    /// it as a cell specifier, so `spec_len` must be 0 (the broadened style slot
+    /// must NOT rescue the trailing `x` into a phantom style-only spec / row
+    /// boundary).
+    #[test]
+    fn parse_firstpart_2x_is_not_a_spec() {
+        let (_spec, spec_len) = CellSpecifier::parse("2x", ParseContext::FirstPart);
+        assert_eq!(
+            spec_len, 0,
+            "`2x` (colspan digit, no operator) must not parse as a spec \
+             (got spec_len={spec_len})",
+        );
+    }
+
+    /// P1-C (regression guard): a CANONICAL style-only spec `2s` in `FirstPart`
+    /// is unchanged. Asciidoctor accepts a canonical style letter even after a
+    /// colspan digit with no operator, so `2s` resolves to Strong and consumes
+    /// both bytes.
+    #[test]
+    fn parse_firstpart_2s_canonical_style_unchanged() {
+        let (spec, spec_len) = CellSpecifier::parse("2s", ParseContext::FirstPart);
+        assert_eq!(
+            spec.style,
+            Some(ColumnStyle::Strong),
+            "canonical `s` after colspan digit resolves to Strong",
+        );
+        assert_eq!(
+            spec_len, 2,
+            "canonical `2s` consumes both bytes (got {spec_len})"
+        );
+    }
+
+    /// P1 (alignment-branch fix, hell-review R1): the ALIGNMENT FirstPart branch
+    /// must apply the same bare-colspan guard as the style-only branch (now
+    /// centralized in `consume_style_slot`). `^2x` is
+    /// `<align><digit><letter>` content — the broadened non-canonical `x` after
+    /// a bare (operator-less) colspan must NOT be consumed. Before the fix the
+    /// alignment branch consumed `x` (spec_len=3), so `^2x|` flipped into a
+    /// phantom row boundary (full-match `spec_len == before_sep.len()`) with the
+    /// colspan silently dropped.
+    #[test]
+    fn parse_firstpart_align_2x_non_canonical_not_consumed() {
+        let (_spec, spec_len) = CellSpecifier::parse("^2x", ParseContext::FirstPart);
+        assert_ne!(
+            spec_len, 3,
+            "`^2x` must not consume the non-canonical `x` (spec_len={spec_len}); \
+             spec_len==3 would make `^2x|` a phantom row boundary",
+        );
+    }
+
+    /// Companion to the alignment-branch fix: a CANONICAL letter in the same
+    /// position is still consumed (`^2s` unchanged), and an explicit operator
+    /// restores the broadened slot — `^2+x` honors the colspan AND consumes the
+    /// non-canonical `x` as a (dropped) style, because the operator validated
+    /// the span.
+    #[test]
+    fn parse_firstpart_align_canonical_and_operator_unchanged() {
+        let (sp_s, len_s) = CellSpecifier::parse("^2s", ParseContext::FirstPart);
+        assert_eq!(sp_s.style, Some(ColumnStyle::Strong));
+        assert_eq!(
+            len_s, 3,
+            "canonical `^2s` consumes all three bytes (got {len_s})"
+        );
+
+        let (sp_x, len_x) = CellSpecifier::parse("^2+x", ParseContext::FirstPart);
+        assert_eq!(sp_x.colspan, 2, "`^2+x` honors the operator colspan");
+        assert_eq!(sp_x.style, None, "non-canonical `x` resolves to no style");
+        assert_eq!(
+            len_x, 4,
+            "`^2+x` consumes align+colspan+operator+style (got {len_x})"
+        );
+    }
+
+    /// Original-fix intent guard: a body row beginning `v|苹果` MUST be
+    /// recognized as a new-row cell start (the `v|` is an — invalid — cell
+    /// spec, a row boundary), with multibyte content `苹果` preserved. This is
+    /// the multibyte case the new comments advertise; pin it so the broadening
+    /// fix cannot silently revert.
+    #[test]
+    fn psv_v_pipe_multibyte_row_is_row_boundary() {
+        // First row, then a `v|`-prefixed second row. Without the broadened
+        // style position, the `v|` row was mis-absorbed as a continuation of
+        // row 1, silently dropping `苹果`.
+        let input = "|first row\n\nv|苹果\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            input,
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None,
+        );
+        // The `v|苹果` line is a distinct row whose single cell content is
+        // `苹果` (the `v|` style prefix is consumed, style dropped).
+        let found = rows
+            .iter()
+            .flat_map(|r| r.iter())
+            .any(|c| c.content.trim() == "苹果");
+        assert!(
+            found,
+            "`v|苹果` must be recognized as a row boundary with content `苹果`; \
+             rows = {rows:#?}",
+        );
+    }
+
+    /// P1-B: a `<spec> |` first part with TRAILING whitespace before the
+    /// separator is content, not a phantom counted cell. The three
+    /// spec-detection sites (`count_cell_colspans` ×2, adjacent-anchor gate)
+    /// must use `trim_start()` consistently with the changed row-boundary
+    /// parse path. Trimming BOTH ends mis-recovers `2+ ` as a colspan-2 spec
+    /// (`spec_len` == `trim().len()`) and desyncs `count_cell_colspans` from
+    /// `parse_rows_with_positions`.
+    ///
+    /// Concrete: `2+ | x` — first part `2+ `. `trim()` → `2+` parses as a
+    /// complete colspan-2 spec (`spec_len` 2 == len 2) → count seeds
+    /// `pending_colspan = 2`. `trim_start()` → `2+ ` whose `spec_len` (2) !=
+    /// len (3) → NOT a leading spec. The parse path (already on `trim_start`)
+    /// treats `2+ ` as content, so the two paths only agree once
+    /// `count_cell_colspans` also trims start-only.
+    #[test]
+    fn count_cell_colspans_trailing_ws_before_sep_is_content() {
+        let line = "2+ | x";
+        let count = count_cell_colspans(line, &Separator::new("|"), true);
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            line,
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None,
+        );
+        let parsed_colspan_sum: usize = rows[0].iter().map(|c| c.colspan).sum();
+        assert_eq!(
+            count, parsed_colspan_sum,
+            "count_cell_colspans({line:?})={count} must equal parse_row colspan \
+             sum={parsed_colspan_sum} (trailing-ws before-separator spec-detection \
+             desync between count and parse)",
+        );
     }
 }

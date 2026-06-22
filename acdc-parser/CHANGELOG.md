@@ -92,6 +92,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cell-style broadening regressions: a non-canonical `[a-z]` after a span/dup
+  operator (`2+verse`, `5*nights`) in inline cell content is no longer dropped;
+  `2x` (a colspan digit with no operator) no longer mis-parses as a style-only
+  spec / phantom row boundary; and the three remaining spec-detection sites
+  (`count_cell_colspans` ×2, adjacent-anchor recovery gate) now use
+  `trim_start()` consistently with the row-boundary parse path, eliminating a
+  count-vs-parse column desync on trailing whitespace before a separator.
 - `image:foo[link=https://example.com]` no longer silently drops the link
   target. Existing consumers of the JSON envelope that don't read
   `attributes` are unaffected; consumers that DO read it gain the new keys.
