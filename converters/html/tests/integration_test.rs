@@ -169,6 +169,56 @@ fn deprecated_role_warning_is_returned_in_conversion_result() -> Result<(), Erro
     Ok(())
 }
 
+#[test]
+fn explicit_ordered_list_numbering_styles() -> Result<(), Error> {
+    // An explicit `[<style>]` on an ordered list sets the CSS class (and `<ol type>`
+    // where applicable), overriding the depth-derived default. Matches asciidoctor.
+    let cases = [
+        ("arabic", "<ol class=\"arabic\">"),
+        ("decimal", "<ol class=\"decimal\">"),
+        ("loweralpha", "<ol class=\"loweralpha\" type=\"a\">"),
+        ("upperalpha", "<ol class=\"upperalpha\" type=\"A\">"),
+        ("lowerroman", "<ol class=\"lowerroman\" type=\"i\">"),
+        ("upperroman", "<ol class=\"upperroman\" type=\"I\">"),
+        ("lowergreek", "<ol class=\"lowergreek\">"),
+    ];
+    for (style, expected_ol) in cases {
+        let html = convert_string(&format!("[{style}]\n. one\n. two\n"), &[])?;
+        assert!(
+            html.contains(expected_ol),
+            "style `{style}` should render `{expected_ol}`:\n{html}"
+        );
+        assert!(
+            html.contains(&format!("<div class=\"olist {style}\">")),
+            "style `{style}` should render `<div class=\"olist {style}\">`:\n{html}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn preface_subsections_are_not_numbered() -> Result<(), Error> {
+    // Issue #408: with :sectnums:, subsections of a [preface] must stay
+    // unnumbered (asciidoctor does not emit "0.1." before them), while a normal
+    // chapter after the preface still numbers from 1.
+    let input = "= Title\n:sectnums:\n\n[preface]\n== Introduction\n\nintro\n\n=== Features\n\nfeatures\n\n== Real Chapter\n\ntext\n";
+    let html = convert_string(input, &[])?;
+
+    assert!(
+        html.contains("<h3 id=\"_features\">Features</h3>"),
+        "preface subsection should be unnumbered:\n{html}"
+    );
+    assert!(
+        html.contains("<h2 id=\"_introduction\">Introduction</h2>"),
+        "preface itself should be unnumbered:\n{html}"
+    );
+    assert!(
+        html.contains("<h2 id=\"_real_chapter\">1. Real Chapter</h2>"),
+        "normal chapter after preface should still number from 1:\n{html}"
+    );
+    Ok(())
+}
+
 #[cfg(feature = "highlighting")]
 mod syntax_highlighting {
     use super::*;

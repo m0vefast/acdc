@@ -6,6 +6,7 @@ use serde::{
 };
 
 use super::location::Location;
+use super::section::SectionKind;
 use super::title::Title;
 
 /// Section styles that should not receive automatic numbering.
@@ -103,12 +104,12 @@ pub struct TocEntry<'a> {
     pub level: u8,
     /// Optional cross-reference label (from `[[id,xreflabel]]` syntax)
     pub xreflabel: Option<&'a str>,
-    /// Whether this section should be numbered when `sectnums` is enabled.
-    ///
-    /// False for special section styles like `[bibliography]`, `[glossary]`, etc.
-    pub numbered: bool,
-    /// Optional style from block metadata (e.g., "appendix", "bibliography").
-    pub style: Option<&'a str>,
+    /// The section's structural category (special-section style, or `Normal`).
+    /// Converters use it to decide e.g. appendix labelling and which entries are
+    /// excluded from `:sectnums:` numbering.
+    pub kind: SectionKind,
+    /// Location of the section heading (the cross-reference target).
+    pub location: Location,
 }
 
 impl Serialize for TocEntry<'_> {
@@ -123,9 +124,60 @@ impl Serialize for TocEntry<'_> {
         if self.xreflabel.is_some() {
             state.serialize_entry("xreflabel", &self.xreflabel)?;
         }
-        if self.style.is_some() {
-            state.serialize_entry("style", &self.style)?;
+        if let Some(style) = self.kind.as_style() {
+            state.serialize_entry("style", style)?;
         }
         state.end()
+    }
+}
+
+/// The resolved text of a cross-reference target (a section or a titled block).
+///
+/// Collected during parsing into the `id → Reference` map on
+/// [`Document::references`](crate::Document), so a `<<id>>` reference resolves
+/// to its target's text in O(1). The id is the map key.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Reference<'a> {
+    /// Optional cross-reference label (from `[[id,xreflabel]]` syntax). When
+    /// set, it is the reference text; otherwise `title` is used.
+    pub xreflabel: Option<&'a str>,
+    /// The target's title (section or block title), when it has one. `None` for
+    /// a referenceable element with no title (e.g. an untitled block with an
+    /// `[[id]]`): such a reference exists but has no reference text, so an
+    /// `<<id>>` to it renders the literal `[id]` — distinct from an id that is
+    /// absent from the catalog entirely (an unresolved/broken reference).
+    pub title: Option<Title<'a>>,
+    /// Location of the target element (for navigation, e.g. LSP go-to-definition).
+    pub location: Location,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn toc_entry(kind: SectionKind) -> TocEntry<'static> {
+        TocEntry {
+            id: "_intro",
+            title: Title::default(),
+            level: 1,
+            xreflabel: None,
+            kind,
+            location: Location::default(),
+        }
+    }
+
+    #[test]
+    fn toc_entry_serializes_special_style() -> Result<(), serde_json::Error> {
+        let json = serde_json::to_value(toc_entry(SectionKind::Preface))?;
+        assert_eq!(json.get("style").and_then(|v| v.as_str()), Some("preface"));
+        Ok(())
+    }
+
+    #[test]
+    fn toc_entry_omits_style_for_normal_section() -> Result<(), serde_json::Error> {
+        let json = serde_json::to_value(toc_entry(SectionKind::Normal))?;
+        assert!(json.get("style").is_none());
+        Ok(())
     }
 }

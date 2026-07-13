@@ -4,15 +4,17 @@
     feature = "markdown",
     feature = "terminal",
     feature = "inspect",
+    feature = "lint",
     feature = "tck",
 ))]
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 
 #[cfg(any(
     feature = "html",
     feature = "manpage",
     feature = "markdown",
-    feature = "terminal"
+    feature = "terminal",
+    feature = "lint"
 ))]
 mod error;
 mod subcommands;
@@ -30,6 +32,7 @@ mod timing;
     feature = "markdown",
     feature = "terminal",
     feature = "inspect",
+    feature = "lint",
     feature = "tck",
 ))]
 #[derive(Parser)]
@@ -46,6 +49,7 @@ struct Cli {
     feature = "markdown",
     feature = "terminal",
     feature = "inspect",
+    feature = "lint",
     feature = "tck",
 ))]
 #[derive(Subcommand)]
@@ -62,6 +66,10 @@ enum Commands {
     #[cfg(feature = "inspect")]
     /// Inspect AST structure of `AsciiDoc` documents
     Inspect(subcommands::inspect::Args),
+
+    #[cfg(feature = "lint")]
+    /// Lint `AsciiDoc` documents
+    Lint(subcommands::lint::Args),
 
     #[cfg(feature = "tck")]
     /// Run TCK compliance tests (reads JSON from stdin)
@@ -90,12 +98,19 @@ fn setup_logging() {
     feature = "markdown",
     feature = "terminal",
     feature = "inspect",
+    feature = "lint",
     feature = "tck",
 ))]
 fn main() {
     setup_logging();
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let cli = match Cli::from_arg_matches(&matches) {
+        Ok(cli) => cli,
+        Err(error) => error.exit(),
+    };
 
+    #[cfg(feature = "lint")]
+    let mut full_error_output = true;
     let result = match cli.command {
         #[cfg(any(
             feature = "html",
@@ -110,6 +125,17 @@ fn main() {
             subcommands::inspect::run(&args).map_err(|e| miette::miette!("Inspect failed: {e}"))
         }
 
+        #[cfg(feature = "lint")]
+        Commands::Lint(args) => {
+            full_error_output = args.output_style.is_full();
+            match matches.subcommand() {
+                Some(("lint", lint_matches)) => subcommands::lint::run(&args, lint_matches),
+                _ => Err(miette::miette!(
+                    "internal error: missing lint argument matches"
+                )),
+            }
+        }
+
         #[cfg(feature = "tck")]
         Commands::Tck(args) => {
             subcommands::tck::run(&args).map_err(|e| miette::miette!("TCK failed: {e}"))
@@ -117,7 +143,19 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("{e:?}");
+        #[cfg(feature = "lint")]
+        {
+            if full_error_output {
+                eprintln!("{e:?}");
+            } else {
+                eprintln!("error: {e}");
+            }
+        }
+        #[cfg(not(feature = "lint"))]
+        {
+            eprintln!("{e:?}");
+        }
+        std::process::exit(1);
     }
 }
 
@@ -131,13 +169,14 @@ fn main() {
     feature = "markdown",
     feature = "terminal",
     feature = "inspect",
+    feature = "lint",
     feature = "tck",
 )))]
 fn main() {
     setup_logging();
     eprintln!(
         "acdc was built without any subcommand features. Enable at least \
-         one of: html, manpage, markdown, terminal, inspect, tck."
+         one of: html, manpage, markdown, terminal, inspect, lint, tck."
     );
     std::process::exit(2);
 }

@@ -54,24 +54,13 @@ pub(crate) fn offset_in_location(offset: usize, location: &Location) -> bool {
 pub(crate) fn location_to_range(loc: &Location) -> Range {
     Range {
         start: Position {
-            line: to_lsp_u32(loc.start.line.saturating_sub(1)),
-            character: to_lsp_u32(loc.start.column.saturating_sub(1)),
+            line: loc.start.line.saturating_sub(1),
+            character: loc.start.column.saturating_sub(1),
         },
         end: Position {
-            line: to_lsp_u32(loc.end.line.saturating_sub(1)),
-            character: to_lsp_u32(loc.end.column),
+            line: loc.end.line.saturating_sub(1),
+            character: loc.end.column,
         },
-    }
-}
-
-/// Convert a parser Position to an LSP Position
-///
-/// Note: acdc-parser uses 1-indexed, LSP uses 0-indexed
-#[must_use]
-pub(crate) fn parser_position_to_lsp(pos: &acdc_parser::Position) -> Position {
-    Position {
-        line: to_lsp_u32(pos.line.saturating_sub(1)),
-        character: to_lsp_u32(pos.column.saturating_sub(1)),
     }
 }
 

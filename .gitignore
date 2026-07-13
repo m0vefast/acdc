@@ -12,3 +12,6 @@
 /acdc-glyph-wasm/pkg/
 hell_review/
 test-results/
+# vibe-check per-checkout theme record (personal, not shared)
+# this is a skill provided by incident-io/claude-skills
+.claude/vibe-check-themes.md

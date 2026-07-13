@@ -23,6 +23,7 @@
 //!
 //! - [`code`] - Programming language detection for syntax highlighting
 //! - [`icon`] - Icon rendering mode configuration
+//! - [`inline_text`] - Plain-text extraction from inline nodes
 //! - [`substitutions`] - Text substitution utilities for escape handling
 //! - [`table`] - Table column width calculations
 //! - [`toc`] - Table of contents configuration
@@ -41,6 +42,8 @@ use acdc_parser::{AttributeValue, DocumentAttributes, SafeMode};
 pub mod code;
 mod doctype;
 pub mod icon;
+pub mod inline_text;
+pub mod list;
 pub mod section;
 pub mod substitutions;
 pub mod table;
@@ -50,6 +53,7 @@ pub mod visitor;
 mod warning;
 
 pub use doctype::Doctype;
+pub use inline_text::{InlineTextTransform, inlines_to_string};
 pub use warning::{Diagnostics, Warning, WarningSource};
 
 /// Decode HTML numeric character references (`&#NNN;` and `&#xHH;`) to Unicode characters.
@@ -437,15 +441,13 @@ impl PrettyDuration for std::time::Duration {
     fn pretty_print(&self) -> String {
         let nanos = self.as_nanos();
 
-        // This is actually fine. f64 can represent all integers up to u128::MAX: 2^128-1
-        // (roughly 3.8x10^38).
-        #[allow(clippy::cast_precision_loss)]
-        let f_nanos = nanos as f64;
         match nanos {
             0..=999 => format!("{nanos}ns"),
-            1_000..=999_999 => format!("{:.2}µs", f_nanos / 1_000.0),
-            1_000_000..=999_999_999 => format!("{:.2}ms", f_nanos / 1_000_000.0),
-            _ => format!("{:.2}s", f_nanos / 1_000_000_000.0),
+            1_000..=999_999 => format!("{:.2}µs", f64::from(self.subsec_nanos()) / 1_000.0),
+            1_000_000..=999_999_999 => {
+                format!("{:.2}ms", f64::from(self.subsec_nanos()) / 1_000_000.0)
+            }
+            _ => format!("{:.2}s", self.as_secs_f64()),
         }
         .trim_end_matches('0')
         .trim_end_matches('.')
@@ -455,17 +457,14 @@ impl PrettyDuration for std::time::Duration {
     fn pretty_print_precise(&self, precision: u8) -> String {
         let precision = precision.min(9);
         let nanos = self.as_nanos();
-        // This is actually fine. f64 can represent all integers up to u128::MAX: 2^128-1
-        // (roughly 3.8x10^38).
-        #[allow(clippy::cast_precision_loss)]
-        let f_nanos = nanos as f64;
+        let precision = usize::from(precision);
         match nanos {
             0..=999 => format!("{nanos}ns"),
-            1_000..=999_999 => format!("{:.1$}µs", nanos / 1_000, precision as usize),
+            1_000..=999_999 => format!("{:.1$}µs", nanos / 1_000, precision),
             1_000_000..=999_999_999 => {
-                format!("{:.1$}ms", nanos / 1_000_000, precision as usize)
+                format!("{:.1$}ms", nanos / 1_000_000, precision)
             }
-            _ => format!("{:.1$}s", f_nanos / 1_000_000_000.0, precision as usize),
+            _ => format!("{:.1$}s", self.as_secs_f64(), precision),
         }
     }
 }

@@ -448,164 +448,21 @@ fn include_lines_end_past_eof_should_clamp() {
     );
 }
 
-#[test]
-fn include_expansions_reports_correct_line_counts_per_directive() {
-    // Three includes with different filter shapes — each entry in
-    // include_expansions must report (source_line, actual_expanded_lines)
-    // matching what acdc fed into the preprocessed output.
-    let ch1 = "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n";
-    let ch2 = "// tag::a[]\nA-line-1\nA-line-2\n// end::a[]\nuntagged\n";
-    let resolver =
-        DynFileResolver::new(InMemoryFiles::new(&[("ch1.adoc", ch1), ("ch2.adoc", ch2)]));
-    let opts = Options::builder()
-        .with_file_resolver(resolver)
-        .with_virtual_current_file("main.adoc")
-        .build();
-    // Lines: 1 = title, 2 = blank, 3 = include full (10 lines),
-    //        4 = blank, 5 = include with lines= (3 lines: L2/L3/L4),
-    //        6 = blank, 7 = include with tag= (2 lines: A-line-1, A-line-2)
-    let src =
-        "= M\n\ninclude::ch1.adoc[]\n\ninclude::ch1.adoc[lines=2..4]\n\ninclude::ch2.adoc[tag=a]\n";
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    let exps = r.include_expansions();
-    eprintln!("include_expansions: {exps:#?}");
-    assert_eq!(exps.len(), 3, "expected one entry per root-level include");
-    // Source lines: 3, 5, 7 (1-based main-source line of each include::).
-    assert_eq!(exps[0].source_line, 3);
-    assert_eq!(exps[1].source_line, 5);
-    assert_eq!(exps[2].source_line, 7);
-    // Expanded line counts: full ch1 = 10, lines=2..4 = 3, tag=a = 2.
-    assert_eq!(
-        exps[0].expanded_lines, 10,
-        "full include should be 10 lines"
-    );
-    assert_eq!(exps[1].expanded_lines, 3, "lines=2..4 should be 3 lines");
-    assert_eq!(exps[2].expanded_lines, 2, "tag=a should be 2 lines");
-}
-
-#[test]
-fn include_expansions_reports_zero_for_missing_include() {
-    // Missing include → directive line is dropped from preprocessed output.
-    // The entry MUST still appear with expanded_lines=0 so consumers can
-    // compensate: every line after the include shifts back by 1 (the
-    // include line disappeared), and without an entry the consumer can't
-    // translate post-expansion positions correctly.
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[]));
-    let opts = Options::builder()
-        .with_file_resolver(resolver)
-        .with_virtual_current_file("main.adoc")
-        .build();
-    let r = acdc_parser::parse("= M\n\ninclude::missing.adoc[]\n", &opts).expect("parse");
-    let exps = r.include_expansions();
-    assert_eq!(exps.len(), 1, "missing include must still produce an entry");
-    assert_eq!(exps[0].source_line, 3);
-    assert_eq!(exps[0].expanded_lines, 0);
-}
-
-// ── conditional_drops (ifdef / ifndef / ifeval / endif) ─────────────────────
+// ── original-source line mapping through include + conditional (location remap)
 //
-// Same purpose as `include_expansions`: every preprocessor-induced source→
-// output line shift must be reported so an embedder can translate
-// post-expansion positions back to original source lines. Conditionals
-// disappear from the output (the directive lines themselves always; their
-// content too when the condition is false), so the embedder needs the list
-// of dropped source line numbers to compensate the same way.
-
+// The IncludeExpansion / conditional_drops line-map accessors were removed when
+// upstream's location remap (0ad5c19) landed: the parser now rewrites every
+// node's location to original-source coordinates itself, so an embedder reads
+// the correct line directly off each block instead of post-compensating. This
+// test pins that remap works through Glyph's `FileResolver` virtual-FS path
+// (our fork-specific integration, not covered by upstream's own remap tests):
+// content AFTER an include — including after a nested conditional that dropped
+// lines inside the included file — reports its ORIGINAL root-source line.
 #[test]
-fn conditional_drops_ifdef_false_drops_directive_content_and_endif() {
-    // attribute `foo` not set → ifdef::foo[] block dropped entirely.
-    // Source lines 3 (ifdef), 4 (content), 5 (endif) — 3 drops total so
-    // every output line after maps back +3.
-    let src = "= M\n\nifdef::foo[]\nhidden\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder().build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
-}
-
-#[test]
-fn conditional_drops_ifdef_true_keeps_content_records_directive_drop_only() {
-    // `foo` is defined → ifdef block kept. Multi-line kept content is
-    // pushed as one string ending in `\n`, which after `join("\n")`
-    // contributes one extra (empty) output line; that extra line
-    // silently swallows the endif drop, so we only record ifdef.
-    // Source: 3=ifdef, 4=content, 5=endif → 3 source consumed,
-    // 2 output produced (content + trailing empty) → 1 drop @ line 3.
-    let src = "= M\n\nifdef::foo[]\nkept\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder().with_attribute("foo", "").build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.conditional_drops(), &[3usize][..]);
-}
-
-#[test]
-fn conditional_drops_single_line_ifdef_true_records_no_drop() {
-    // Single-line `ifdef::foo[content]` form: 1 source line → 1 output
-    // line when condition is true → no drops needed.
-    let src = "= M\n\nifdef::foo[hello]\n\nAfter.\n";
-    let opts = Options::builder().with_attribute("foo", "").build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert!(r.conditional_drops().is_empty());
-}
-
-#[test]
-fn conditional_drops_single_line_ifdef_false_records_one_drop() {
-    // Single-line form, false condition → 1 source line dropped.
-    let src = "= M\n\nifdef::foo[hello]\n\nAfter.\n";
-    let opts = Options::builder().build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.conditional_drops(), &[3usize][..]);
-}
-
-#[test]
-fn conditional_drops_ifndef_false_branch_records_drops() {
-    // `ifndef::foo[]` is true when `foo` is NOT set. Inverted-sense
-    // sibling of ifdef — same accounting rules apply.
-    let src = "= M\n\nifndef::foo[]\nshown\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder().with_attribute("foo", "").build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    // foo IS set, so ifndef::foo[] block is dropped: 3 source lines.
-    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
-}
-
-#[test]
-fn conditional_drops_ifeval_false_drops_like_ifdef_false() {
-    // `ifeval::[]` shares the conditional dispatch path with ifdef/ifndef.
-    // Pin that the drop accounting is identical: false ifeval drops all
-    // consumed source lines (directive + content + endif).
-    let src = "= M\n\nifeval::[1 == 2]\nunreachable\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder().build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.conditional_drops(), &[3usize, 4, 5][..]);
-}
-
-#[test]
-fn conditional_drops_ifeval_true_records_directive_drop_only() {
-    // True ifeval keeps content; same kept-multiline trailing-`\n` quirk as
-    // ifdef-true → only the directive line drops.
-    let src = "= M\n\nifeval::[1 == 1]\nkept\nendif::[]\n\nAfter.\n";
-    let opts = Options::builder().build();
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.conditional_drops(), &[3usize][..]);
-}
-
-#[test]
-fn conditional_drops_inside_included_file_NOT_propagated() {
-    // CORRECTNESS INVARIANT (not a limitation): the nested preprocessor that
-    // runs for an included file has its own `PreprocessorState`; only the
-    // root document's `conditional_drops` reaches `PreprocessorResult`.
-    // Conditionals INSIDE an included file drop lines from the merged output,
-    // but those drops are already baked into the parent's
-    // `IncludeExpansion::expanded_lines` (= post-drop line count). The
-    // root-level translator computes a per-include shift of
-    // `expanded_lines - 1`, which is correct regardless of how many lines
-    // the nested preprocessor dropped — the post-drop count is what landed
-    // in the merged output.
-    //
-    // Pin this as the API guarantee — consumers (Glyph wasm bridge +
-    // JS translator) rely on `include_expansions[].expanded_lines` to
-    // already account for nested-conditional drops. If a future refactor
-    // double-counts by also bubbling nested drops up to
-    // `conditional_drops`, this test breaks and the embedder side MUST
-    // de-duplicate.
+fn block_after_include_reports_original_root_source_line() {
+    // The child drops 3 lines via a false ifdef, keeping 1 line. Without
+    // remap, `After.` at root line 5 would drift by the preprocessor's
+    // line shifts; with remap it must report line 5 exactly.
     let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
         "child.adoc",
         "ifdef::missing[]\nhidden line\nendif::[]\nKept by child.\n",
@@ -614,61 +471,8 @@ fn conditional_drops_inside_included_file_NOT_propagated() {
         .with_file_resolver(resolver)
         .with_virtual_current_file("main.adoc")
         .build();
-    let r = acdc_parser::parse("= M\n\ninclude::child.adoc[]\n", &opts).expect("parse");
-    // Root has ONE include expansion (the include directive), no conditional drops at root.
-    assert_eq!(
-        r.conditional_drops().len(),
-        0,
-        "nested conditional drops are NOT propagated (known limitation)"
-    );
-    // The include expansion reports the merged output line count. With the
-    // ifdef:false eating 3 lines, the included file contributes 1 line ("Kept by child.").
-    assert_eq!(r.include_expansions().len(), 1);
-    assert_eq!(r.include_expansions()[0].source_line, 3);
-    assert_eq!(r.include_expansions()[0].expanded_lines, 1);
-}
-
-#[test]
-fn nested_conditional_drop_does_not_drift_block_line_after_include() {
-    // Correctness proof for the invariant pinned in the test above. Build a
-    // child with a false ifdef that swallows 3 lines, then a root document
-    // with a paragraph AFTER the include. The paragraph's reported line
-    // number must equal its ORIGINAL root-source line (not shifted by the
-    // 3 lines the child dropped) — because `expanded_lines` already accounts
-    // for the drop and the root translator's per-include shift uses the
-    // post-drop count.
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[(
-        "child.adoc",
-        "ifdef::missing[]\nhidden line\nendif::[]\nKept by child.\n",
-    )]));
-    let opts = Options::builder()
-        .with_file_resolver(resolver)
-        .with_virtual_current_file("main.adoc")
-        .build();
-    // Root source lines:
-    //   1: `= M`
-    //   2: ``
-    //   3: `include::child.adoc[]`     → expands to 1 line ("Kept by child.")
-    //   4: ``
-    //   5: `After.`
+    // Root source lines: 1=`= M`, 2=``, 3=`include::child.adoc[]`, 4=``, 5=`After.`
     let r = acdc_parser::parse("= M\n\ninclude::child.adoc[]\n\nAfter.\n", &opts).expect("parse");
-    assert_eq!(r.include_expansions().len(), 1);
-    assert_eq!(r.include_expansions()[0].source_line, 3);
-    assert_eq!(
-        r.include_expansions()[0].expanded_lines,
-        1,
-        "expanded_lines must reflect post-drop count, baking in nested drops"
-    );
-    assert_eq!(
-        r.conditional_drops().len(),
-        0,
-        "nested drops are NOT re-counted at root level"
-    );
-    // R1-review hardening: actually walk the parsed blocks and assert
-    // `After.` reports its ORIGINAL root-source line (5). Without this the
-    // test only pins envelope metadata — the surrounding contract — but not
-    // the observable line-mapping. A regression that bubbles nested drops up
-    // would still let the metadata-only check pass while shifting the block.
     let after_block = r
         .document()
         .blocks
@@ -688,27 +492,7 @@ fn nested_conditional_drop_does_not_drift_block_line_after_include() {
     if let acdc_parser::Block::Paragraph(p) = after_block {
         assert_eq!(
             p.location.start.line, 5,
-            "`After.` MUST report root-source line 5, not the post-preprocess shifted line"
+            "`After.` MUST report root-source line 5 (location remap through FileResolver)"
         );
     }
-}
-
-#[test]
-fn conditional_drops_mixed_with_includes_sorted_by_source_line() {
-    // Both kinds in one document — `include_expansions` (sourceLine=3)
-    // and a false `ifdef` (lines 5/6/7). The wasm bridge merges and
-    // sorts them, but acdc itself records them in distinct fields.
-    // Pin both shapes so a future refactor that merges fields can't
-    // silently drop one.
-    let resolver = DynFileResolver::new(InMemoryFiles::new(&[("ch.adoc", "ch-line\n")]));
-    let opts = Options::builder()
-        .with_file_resolver(resolver)
-        .with_virtual_current_file("main.adoc")
-        .build();
-    let src = "= M\n\ninclude::ch.adoc[]\n\nifdef::foo[]\nhidden\nendif::[]\n\nAfter.\n";
-    let r = acdc_parser::parse(src, &opts).expect("parse");
-    assert_eq!(r.include_expansions().len(), 1);
-    assert_eq!(r.include_expansions()[0].source_line, 3);
-    assert_eq!(r.include_expansions()[0].expanded_lines, 1);
-    assert_eq!(r.conditional_drops(), &[5usize, 6, 7][..]);
 }

@@ -16,13 +16,17 @@ pub enum Error {
     #[error(transparent)]
     VideoUrl(#[from] acdc_converters_core::video::UrlError),
 
-    #[cfg(feature = "terminal-preview")]
+    #[cfg(feature = "terminal")]
     #[error(transparent)]
     Terminal(#[from] acdc_converters_terminal::Error),
 
-    #[cfg(feature = "terminal-preview")]
+    #[cfg(feature = "terminal")]
     #[error(transparent)]
-    TerminalRenderState(#[from] acdc_converters_terminal::cell_grid::Error),
+    TerminalGrid(#[from] acdc_converters_terminal::cell_grid::Error),
+
+    #[cfg(feature = "terminal")]
+    #[error(transparent)]
+    TerminalReplay(#[from] acdc_converters_terminal::replay::Error),
 
     #[error("input file and output file cannot be the same: {0}")]
     OutputPathSameAsInput(std::path::PathBuf),

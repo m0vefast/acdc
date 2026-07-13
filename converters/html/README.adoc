@@ -1,8 +1,12 @@
-# `acdc-converters-html`
+= `acdc-converters-html`
+:icons: font
+:toc: right
+
+toc::[]
 
 HTML converter for `AsciiDoc` documents. This is the default backend for `acdc`.
 
-## Usage
+== Usage
 
 [source,console]
 ....
@@ -25,13 +29,13 @@ Or convert from stdin to stdout:
 cat document.adoc | acdc convert --stdin
 ....
 
-## Features
+== Features
 
-### Standalone HTML Output
+=== Standalone HTML Output
 
 Generates complete, standalone HTML documents with embedded CSS. No external dependencies needed - the output file contains everything required for display.
 
-### Asciidoctor-Compatible Styling
+=== Asciidoctor-Compatible Styling
 
 Uses the same CSS as Asciidoctor for familiar, professional-looking output. The embedded stylesheet provides:
 
@@ -40,7 +44,7 @@ Uses the same CSS as Asciidoctor for familiar, professional-looking output. The 
 - Syntax highlighting support
 - Print-optimized styles
 
-### Full AsciiDoc Support
+=== Full AsciiDoc Support
 
 Supports all major AsciiDoc constructs:
 
@@ -53,20 +57,20 @@ Supports all major AsciiDoc constructs:
 - **Tables**: Full table support with headers, footers, cell formatting, cell spanning, and nested tables
 - **Cross-references**: Internal links and anchors
 - **Attributes**: Document-level attribute substitution
-- **Index terms**: Visible `((term))` and concealed `(((term,secondary,tertiary)))` with catalog generation
+- **Index terms**: Visible `((term))` and concealed `\(((term,secondary,tertiary)))` with catalog generation
 
-### Section Numbering
+=== Section Numbering
 
-Documents with `:sectnums:` render numbered section headings (e.g., "1. Introduction", "1.1. Overview"). Control numbering depth with `:secnumlevels:` (default 3, max 5).
+Documents with `:sectnums:` render numbered section headings (e.g., "1. Introduction", "1.1. Overview"). Control numbering depth with `:sectnumlevels:` (default 3, max 5).
 
 [source,console]
 ....
-acdc convert -a sectnums -a secnumlevels=2 document.adoc
+acdc convert -a sectnums -a sectnumlevels=2 document.adoc
 ....
 
 Table of contents entries are also numbered when `:sectnums:` is set.
 
-### Syntax Highlighting
+=== Syntax Highlighting
 
 Source blocks with a language specified render with syntax highlighting (requires the `highlighting` feature flag). Uses syntect with inline CSS styles.
 
@@ -78,13 +82,13 @@ acdc convert document.adoc
 
 Falls back to plain text when the language isn't recognized.
 
-### Stylesheets
+=== Stylesheets
 
-The HTML converter handles CSS output through document attributes, matching https://docs.asciidoctor.org/asciidoctor/latest/html-backend/stylesheet-modes/[Asciidoctor's stylesheet modes]. By default, CSS is embedded directly in the HTML `<style>` tag — no external files needed.
+The HTML converter handles CSS output through document attributes, matching https://docs.asciidoctor.org/asciidoctor/latest/html-backend/stylesheet-modes/[Asciidoctor's stylesheet modes]. By default, CSS is embedded directly in the HTML `<style>` tag, no external files needed.
 
 NOTE: Stylesheet handling only applies to standalone HTML output. In embedded mode (`acdc convert --embedded`), the `<head>` element is not generated, so stylesheet attributes have no effect on the output. `copycss` is also skipped.
 
-#### Default (embedded CSS)
+==== Default (embedded CSS)
 
 Out of the box, acdc embeds the full stylesheet and links Google Fonts:
 
@@ -93,9 +97,9 @@ Out of the box, acdc embeds the full stylesheet and links Google Fonts:
 acdc convert document.adoc
 ....
 
-The output is self-contained — one HTML file with everything included.
+The output is self-contained, one HTML file with everything included.
 
-#### External stylesheet (`:linkcss:`)
+==== External stylesheet (`:linkcss:`)
 
 Set `:linkcss:` to reference CSS via a `<link>` tag instead of embedding it. The built-in stylesheet is automatically written to disk next to the HTML output (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/stylesheet-modes/#link-mode[link mode]):
 
@@ -114,7 +118,7 @@ Or in the document header:
 
 This produces a `<link rel="stylesheet" href="./asciidoctor-light-mode.css">` in the HTML and copies the CSS file alongside the output.
 
-#### Custom stylesheet (`:stylesheet:`)
+==== Custom stylesheet (`:stylesheet:`)
 
 Point to your own CSS file with `:stylesheet:`. When combined with `:linkcss:`, it links to the file. Without `:linkcss:`, the file is read from disk and embedded (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/stylesheet-modes/#custom[custom stylesheet]):
 
@@ -129,7 +133,7 @@ acdc convert -a linkcss -a stylesheet=custom.css document.adoc
 
 The converter looks for the file relative to `:stylesdir:` (default: `.`) and the source document directory. If the file can't be read, it falls back to the built-in stylesheet.
 
-#### No stylesheet (`:!stylesheet:`)
+==== No stylesheet (`:!stylesheet:`)
 
 Suppress all CSS and webfont output entirely (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/stylesheet-modes/#disable[disable mode]):
 
@@ -146,9 +150,9 @@ Or in the document:
 :!stylesheet:
 ....
 
-No `<style>` block, no `<link>` tags for CSS or fonts — just raw HTML.
+No `<style>` block, no `<link>` tags for CSS or fonts, just raw HTML.
 
-#### Styles directory (`:stylesdir:`)
+==== Styles directory (`:stylesdir:`)
 
 Controls where stylesheet references point and where copies are written (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/manage-images/#stylesdir[stylesdir]):
 
@@ -159,9 +163,9 @@ acdc convert -a linkcss -a stylesdir=css document.adoc
 
 Produces `<link rel="stylesheet" href="css/asciidoctor-light-mode.css">` and writes the CSS to `css/`.
 
-#### Copy CSS (`:copycss:`)
+==== Copy CSS (`:copycss:`)
 
-When `:linkcss:` is set, `:copycss:` controls whether the stylesheet is written to the output directory. It's enabled by default. A non-empty value overrides the source path — useful when the CSS lives somewhere other than `:stylesdir:` (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/manage-images/#copycss[copycss]):
+When `:linkcss:` is set, `:copycss:` controls whether the stylesheet is written to the output directory. It's enabled by default. A non-empty value overrides the source path, useful when the CSS lives somewhere other than `:stylesdir:` (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/manage-images/#copycss[copycss]):
 
 [source,console]
 ....
@@ -169,7 +173,7 @@ When `:linkcss:` is set, `:copycss:` controls whether the stylesheet is written 
 acdc convert -a linkcss -a copycss=/path/to/source.css document.adoc
 ....
 
-#### Webfonts (`:webfonts:`)
+==== Webfonts (`:webfonts:`)
 
 By default, the converter links Google Fonts (Open Sans, Noto Serif, Droid Sans Mono). You can customize or disable this (see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/default-stylesheet/#webfonts[webfonts]):
 
@@ -184,7 +188,7 @@ acdc convert -a "webfonts=Roboto:400,700|Fira+Code:400" document.adoc
 
 Webfonts are suppressed automatically when `:!stylesheet:` is set.
 
-#### Dark mode
+==== Dark mode
 
 Set `:dark-mode:` to use the dark variant of the built-in stylesheet. This adds a `<meta name="color-scheme" content="dark">` tag and uses `asciidoctor-dark-mode.css` (or `html5s-dark-mode.css` for the semantic backend):
 
@@ -193,18 +197,43 @@ Set `:dark-mode:` to use the dark variant of the built-in stylesheet. This adds 
 acdc convert -a dark-mode document.adoc
 ....
 
-#### Terminal previews
+==== Terminal previews
 
-When the HTML converter is built with the `terminal-preview` Cargo feature,
-acdc can render terminal-like source blocks as selectable terminal previews.
+Two separate switches are involved:
+
+* The `terminal` Cargo feature is a build-time feature flag. It compiles the
+  HTML terminal renderer. From the CLI this is the `html-terminal` feature,
+  which just enables this crate's `terminal` feature.
+* The `:acdc-terminal:` document attribute is only a source-block opt-in.
+  It makes terminal-like source blocks render through that terminal renderer.
+
+When the Cargo feature is enabled, acdc supports two terminal-looking HTML
+render paths:
+
+* Source blocks such as `[source,console]` render as terminal previews only
+  when the document sets `:acdc-terminal:`.
+* `[terminal]` is an explicit block style for terminal session content. It
+  renders as terminal output whenever the `terminal` Cargo feature is enabled; the
+  `:acdc-terminal:` document attribute is not required.
+
 This is an acdc-only extension; Asciidoctor does not provide a
-`:terminal-preview:` attribute or equivalent built-in terminal preview feature.
+`:acdc-terminal:` attribute, the `[terminal]` or `[terminal%replay]` block
+styles, or any equivalent built-in terminal preview or replay feature.
+
+NOTE: Terminal rendering is built directly into the HTML converter, the
+`terminal` Cargo feature of `acdc-converters-html`, backed by the
+`acdc-converters-terminal` crate, rather than being loaded as a plug-in. If
+acdc grows a first-class extension mechanism, this functionality may migrate to
+an extension instead of being compiled into the converter.
+
+Use `:acdc-terminal:` when existing source blocks should look like terminal
+examples:
 
 [source,asciidoc]
 ....
 = Demo
-:terminal-preview:
-:terminal-preview-cols: 88
+:acdc-terminal:
+:acdc-terminal-cols: 88
 
 [source,console]
 ----
@@ -217,36 +246,112 @@ Terminal previews are supported for terminal-like source languages such as
 `console`, `terminal`, `shell`, `sh`, `bash`, `zsh`, `fish`, `powershell`,
 `ps1`, and `cmd`.
 
+Use `[terminal]` when the block content is a terminal session transcript or
+captured terminal output:
+
+[source,asciidoc]
+....
+[terminal,cols=80,rows=24]
+----
+$ cargo build --release
+   Compiling acdc v0.2.0
+    Finished release [optimized] in 2.34s
+$ echo done
+done
+----
+....
+
+The terminal session content is interpreted as terminal output, including ANSI
+escape sequences, and rendered as selectable styled HTML.
+
+Use `[terminal%replay]` when the block contains pre-recorded ANSI output that
+should be animated in HTML:
+
+[source,asciidoc]
+....
+[terminal%replay,cols=80,rows=24]
+----
+\x1b[32mDownloading\x1b[0m
+\x1b[32mComplete\x1b[0m
+----
+....
+
+Terminal replay is replay-only. acdc treats the block as recorded terminal
+data and does not execute commands, shells, scripts, VHS tapes, or other
+recording formats. Replay blocks require explicit terminal dimensions via
+`cols`/`rows` block attributes or `:acdc-terminal-cols:`/`:acdc-terminal-rows:`
+document attributes; invalid or missing dimensions fall back to a static
+terminal preview with a structured warning.
+
+Both formats render as an animated HTML replay driven by a small,
+self-contained inline player. The final frame is rendered into the page
+server-side, so readers without JavaScript (or who prefer reduced motion) still
+see the finished screen; only the animation is lost. The raw-ANSI replay samples
+dense recordings so the generated HTML stays small even for long output;
+`format=asciicast` keeps every recorded frame and stays compact by emitting each
+repeated line once and referencing it per frame. acdc draws no window chrome;
+the recorded title (asciicast only) is exposed as a `data-title` attribute so
+you can add your own.
+
+For `format=asciicast`, the recording is replayed at its own recorded size so
+its cursor movements render faithfully, then `rows` is the height of a window
+that follows the output like a scrolling terminal: when the recording is taller
+than `rows`, the replay shows the most recent `rows` lines and rests on the
+last lines of output (it does not freeze on a region the recording cleared at
+the end, such as a progress bar's live area).
+
+`[terminal]` and `[terminal%replay]` are acdc-only block styles. Asciidoctor
+renders them as a plain listing or literal block with the raw text (ANSI escapes
+included) left as-is, so documents that rely on them will not render the same
+under asciidoctor.
+
+[NOTE]
+====
+Terminal rendering runs the bundled terminal emulator only below the `server`
+safe mode. At `--safe-mode server` or `secure`, source-block previews,
+`[terminal]`, and `[terminal%replay]` degrade to a plain listing block and acdc
+emits a warning, because the emulator feeds document-controlled input through a
+native library (`libghostty-vt`). The default safe mode renders terminal blocks
+normally; raise the safe mode when converting untrusted documents, e.g.
+server-side, to keep that input away from the emulator.
+====
+
 [cols="1,2", options="header"]
 |===
 | Attribute | Effect
 
-| `:terminal-preview:`
-| Enables terminal previews for terminal-like source blocks.
+| `:acdc-terminal:`
+| Enables terminal preview rendering for terminal-like source blocks only.
 
-| `:terminal-preview-cols: N`
-| Sets the terminal grid width used to render previews. Defaults to `80`.
+| `:acdc-terminal-cols: N`
+| Sets the terminal grid width used to render source-block previews and `[terminal]` blocks. Defaults to `80`.
 
-| `:terminal-preview-rows: N`
-| Sets a fixed terminal grid height. When unset, acdc derives the height from the rendered terminal text plus a small padding row.
-
-| `:terminal-cols: N`
-| Alias for `:terminal-preview-cols:` when rendering HTML terminal previews.
-
-| `:terminal-rows: N`
-| Alias for `:terminal-preview-rows:` when rendering HTML terminal previews.
+| `:acdc-terminal-rows: N`
+| Sets a fixed terminal grid height for source-block previews and `[terminal]` blocks. When unset, acdc derives the height from the rendered terminal text plus a small padding row.
 
 | `:dark-mode:`
-| Uses the dark terminal preview shell colors, matching the HTML converter's dark stylesheet mode.
+| Uses dark terminal shell colors for both source-block previews and `[terminal]` blocks, matching the HTML converter's dark stylesheet mode.
+
+| `[terminal,cols=N]`
+| Overrides the terminal grid width for one explicit terminal session block.
+
+| `[terminal,rows=N]`
+| Overrides the terminal grid height for one explicit terminal session block. When unset, acdc derives the height from the content.
+
+| `[terminal%replay,cols=N,rows=N]`
+| Renders pre-recorded ANSI terminal output as an animated replay. Replay blocks require fixed dimensions and never execute commands or recording files.
+
+| `[terminal%replay,replay-duration-ms=N]`
+| Overrides the generated replay's total playback duration in milliseconds.
 |===
 
-#### Syntax highlighting CSS
+==== Syntax highlighting CSS
 
-When using class-based syntax highlighting (`:syntect-css: class`), the highlighting CSS is handled the same way — embedded by default, or linked/written to disk when `:linkcss:` is set. See the <<Syntax Highlighting>> section above.
+When using class-based syntax highlighting (`:syntect-css: class`), the highlighting CSS is handled the same way, embedded by default, or linked/written to disk when `:linkcss:` is set. See the <<Syntax Highlighting>> section above.
 
-### Docinfo files
+=== Docinfo files
 
-Docinfo files let you inject custom HTML into specific positions in the output — analytics snippets, custom `<meta>` tags, banners, footers, or anything else that doesn't belong in the AsciiDoc source itself.
+Docinfo files let you inject custom HTML into specific positions in the output, analytics snippets, custom `<meta>` tags, banners, footers, or anything else that doesn't belong in the AsciiDoc source itself.
 
 Enable docinfo with the `:docinfo:` document attribute:
 
@@ -258,12 +363,12 @@ Enable docinfo with the `:docinfo:` document attribute:
 
 The `:docinfo:` attribute accepts:
 
-- `shared` — load shared docinfo files (used across all documents)
-- `private` — load private docinfo files (specific to this document). This is the default when `:docinfo:` is set with no value
+- `shared`: load shared docinfo files (used across all documents)
+- `private`: load private docinfo files (specific to this document). This is the default when `:docinfo:` is set with no value
 - Granular values: `shared-head`, `shared-header`, `shared-footer`, `private-head`, `private-header`, `private-footer`
 - Comma-separated combinations: `shared, private-footer`
 
-#### File naming
+==== File naming
 
 Docinfo files follow a naming convention based on scope and injection position:
 
@@ -286,7 +391,7 @@ Docinfo files follow a naming convention based on scope and injection position:
 
 For a document named `guide.adoc`, the private head file would be `guide-docinfo.html`.
 
-#### Docinfo directory (`:docinfodir:`)
+==== Docinfo directory (`:docinfodir:`)
 
 By default, docinfo files are loaded from the same directory as the source document. Set `:docinfodir:` to load them from a different location:
 
@@ -299,9 +404,9 @@ By default, docinfo files are loaded from the same directory as the source docum
 
 The path is resolved relative to the source document directory, or can be absolute.
 
-#### Attribute substitution (`:docinfosubs:`)
+==== Attribute substitution (`:docinfosubs:`)
 
-Docinfo content is processed with attribute substitution by default — `\{attribute-name}` references in docinfo files are replaced with their values. Control this with `:docinfosubs:`:
+Docinfo content is processed with attribute substitution by default, `\{attribute-name}` references in docinfo files are replaced with their values. Control this with `:docinfosubs:`:
 
 [source,asciidoc]
 ....
@@ -312,11 +417,11 @@ Docinfo content is processed with attribute substitution by default — `\{attri
 
 NOTE: Currently only `attributes` substitution is supported for docinfo content.
 
-#### Injection points
+==== Injection points
 
-- **Head** — injected just before the closing `</head>` tag
-- **Header** — injected immediately after the opening `<body>` tag
-- **Footer** — injected just before the closing `</body>` tag
+- **Head**: injected just before the closing `</head>` tag
+- **Header**: injected immediately after the opening `<body>` tag
+- **Footer**: injected just before the closing `</body>` tag
 
 When both private and shared files exist for the same position, private content is injected first.
 
@@ -324,7 +429,96 @@ NOTE: Docinfo is disabled when running in secure safe mode (`--safe-mode secure`
 
 For full details, see the https://docs.asciidoctor.org/asciidoc/latest/docinfo/[Asciidoctor docinfo documentation].
 
-### Table Enhancements
+=== Customizing the CSS
+
+The output is class-based, so you can restyle it without forking the converter. Use whichever seam fits:
+
+* **Override specific rules.** Load your own stylesheet after acdc's and target its classes. Body content uses the standard Asciidoctor classes (`.listingblock`, `.admonitionblock`, `.tableblock`, and so on). The terminal preview and replay expose a stable class/attribute contract:
++
+[cols="1,3"]
+|===
+| Classes | Both share the base `.terminal-view` and a theme class (`.terminal-view--light` / `.terminal-view--dark`), and the block wrapper carries `.terminal-block`. Static preview adds `.terminal-view__screen` (the `<pre>`). Replay adds the `.terminal-view--replay` marker and `.terminal-view__viewport` > `.terminal-view__stream` > `.terminal-view__row`.
+| Attributes | `data-title` (the recorded title, asciicast only, present only when the recording carried one) for building your own title bar, e.g. `.terminal-view--replay::before{content:attr(data-title)}`
+|===
+
+* **Replace the whole stylesheet.** Use `:stylesheet: my.css` (see <<Custom stylesheet (`:stylesheet:`)>>), embedded or linked with `:linkcss:`. `:copycss:` copies the built-in CSS out as a starting point.
+* **Augment the `<head>`.** Inject extra `<style>`/`<link>` with <<Docinfo files>> (`:docinfo: shared-head`).
+* **Embedded mode.** There is no `<head>`, so the embedding page owns the stylesheet. Override acdc's classes from your page's own CSS.
+
+==== Inline styles that need `!important`
+
+Most output is class-based and fully overridable by the seams above. A few elements carry an inline `style=` attribute, which beats *any* stylesheet rule (embedded, linked, replaced, or injected via docinfo) unless your rule uses `!important`:
+
+[cols="2,3"]
+|===
+| Inline-styled | How to override
+
+| Syntax-highlighted code colours | Inline is the default; set `:syntect-css: class` to emit overridable `syntax-*` classes (plus a `<style>` block) instead.
+| A recording's own colours | The cell palette, plus a replay container's background/foreground when the cast recorded a theme; use `!important`.
+| Table column and table widths | Per-table values (matches Asciidoctor); use `!important`.
+| Page break; image `align`/`float` (semantic backend) | Match Asciidoctor's output; use `!important`.
+|===
+
+The static preview container's colours are *not* inline: they come from `.terminal-view--light` / `.terminal-view--dark`, so override those classes directly. A replay with no recorded theme (raw ANSI, or a theme-less cast) uses those same classes; only a cast that carried its own theme paints the container colours inline.
+
+For example, to recolour terminal cells:
+
+[source,css]
+....
+.terminal-view__screen span { color: #eaeaea !important; }
+....
+
+NOTE: With `:!stylesheet:` (all CSS suppressed) the static preview shows no colours, consistent with opting out of styling entirely.
+
+=== Content Security Policy
+
+By default acdc sets no CSP; the policy is up to whatever serves the file (your web server, CDN, or the page you embed into), exactly like https://antora.org[Antora].
+
+==== Opt in with `:csp:`
+
+Set `:csp:` to have acdc emit a self-contained `<meta http-equiv="Content-Security-Policy">` that hardens standalone output with no server configuration:
+
+[source,console]
+....
+acdc convert -a csp document.adoc
+....
+
+The emitted policy locks scripts to acdc's own inline scripts by hash (no `'unsafe-inline'` for `script-src`), plus the MathJax CDN when `:stem:` is set; keeps `style-src 'unsafe-inline'` (acdc emits inline styles, including recording-coloured terminal cells, that cannot be hashed); and stays permissive on images, media, and video embeds so document content keeps loading.
+
+Keep in mind a CSP only *restricts* — it does not enable. A page with no CSP already runs anywhere, and a `<meta>` CSP cannot loosen a policy your host sends as a response header (the browser enforces the intersection). So `:csp:` is for shipping a hardened, self-contained page, not for "making it work" somewhere. Two consequences: `frame-ancestors` is omitted (it is ignored in a `<meta>` CSP — set it as a header), and an inline `<script>` you inject via <<Docinfo files>> will not run under `:csp:` unless you add its own hash. Embedded output has no `<head>`, so `:csp:` is standalone-only.
+
+==== Setting the policy yourself
+
+To set the CSP via a server header instead (or in embedded mode), a baseline that covers everything acdc emits:
+
+[source]
+....
+default-src 'self';
+script-src 'self' 'unsafe-inline';
+style-src  'self' 'unsafe-inline';
+img-src    'self' data:;
+font-src   'self';
+connect-src 'self';
+frame-ancestors 'none'
+....
+
+`'unsafe-eval'` is never needed. Add the entries below only when you use the matching feature:
+
+[cols="1,2"]
+|===
+| Feature | CSP additions
+
+| Webfonts (on by default) | add `https://fonts.googleapis.com` to `style-src` and `https://fonts.gstatic.com` to `font-src`
+| `:stem:` (MathJax) | add `https://cdn.jsdelivr.net` to `script-src`
+| `icons=font` (Font Awesome) | add `https://cdn.jsdelivr.net` to `style-src`
+| Remote or data-URI images | adjust `img-src`
+|===
+
+For a fully self-contained policy with no external origins, disable webfonts (`:!webfonts:`) and skip `:stem:` and `icons=font`. The baseline above then needs nothing extra.
+
+To keep `script-src` off `'unsafe-inline'`, allowlist acdc's two constant inline scripts by hash instead: the terminal-replay player (`acdc_converters_html::REPLAY_PLAYER_SCRIPT_CSP_HASH`) and, with `:stem:`, the MathJax config (`MATHJAX_CONFIG_CSP_HASH`). For assembling your own head (embedded mode), the converter also exposes the script strings and the MathJax loader URL (`REPLAY_PLAYER_SCRIPT`, `MATHJAX_CONFIG_SCRIPT`, `MATHJAX_LOADER_URL`), and a `content_security_policy(&CspFeatures { .. })` builder that produces the same policy `:csp:` emits for the features a document uses. If the player script is blocked, the replay still shows its final frame and only the animation is lost.
+
+=== Table Enhancements
 
 Full table feature support:
 
@@ -333,7 +527,7 @@ Full table feature support:
 - **Nested tables**: Using `!===` delimiter in AsciiDoc cells
 - **Cell-level formatting**: Alignment, styles (strong, emphasis, monospace, etc.)
 
-### Substitution Control
+=== Substitution Control
 
 Verbatim blocks (listing, literal) support the `subs` attribute:
 
@@ -342,7 +536,7 @@ Verbatim blocks (listing, literal) support the `subs` attribute:
 - `subs=+attributes` - enable attribute expansion
 - `subs=+replacements` - enable typography (arrows, dashes, ellipsis)
 
-### Icon support
+=== Icon support
 
 When `:icons: font` is set, icon macros render as https://fontawesome.com/[Font Awesome] `<i>` elements. By default the icon uses `fa-solid`, but you can select a specific FA family with the `set` (or `pack`) attribute on the macro:
 
@@ -400,7 +594,7 @@ Both shorthand and long-form values are supported:
 
 For details on the icon macro syntax, see the https://docs.asciidoctor.org/asciidoc/latest/macros/icons/[AsciiDoc icon macro documentation]. For available icons per family, see the https://fontawesome.com/search[Font Awesome icon gallery].
 
-### Mathematical Formulas (Stem)
+=== Mathematical Formulas (Stem)
 
 Render mathematical formulas using MathJax 4. Enable it by setting the `:stem:` document attribute.
 
@@ -437,7 +631,7 @@ When enabled, MathJax is loaded from the jsdelivr CDN (`cdn.jsdelivr.net/npm/mat
 
 To suppress MathJax processing on specific elements, add the CSS class `nostem`, `nolatexmath`, or `noasciimath`.
 
-### Semantic HTML5 Output (`html5s`)
+=== Semantic HTML5 Output (`html5s`)
 
 An alternative backend that produces semantic HTML5 instead of the traditional div-based layout, inspired by Jakub Jirutka's https://github.com/jirutka/asciidoctor-html5s[asciidoctor-html5s] gem for Asciidoctor. Enable it with `--backend html5s`:
 
@@ -459,11 +653,11 @@ Key differences from the standard backend:
 
 The semantic variant ships with its own stylesheet (light and dark mode) and supports a few additional document attributes:
 
-- `:html5s-force-stem-type:` — override the stem notation (`latexmath` or `asciimath`) regardless of the `:stem:` value
-- `:html5s-image-default-link: self` — make all images link to themselves by default
-- `:html5s-image-self-link-label:` — custom aria label for self-linked images (default: "Open the image in full size")
+- `:html5s-force-stem-type:`: override the stem notation (`latexmath` or `asciimath`) regardless of the `:stem:` value
+- `:html5s-image-default-link: self`: make all images link to themselves by default
+- `:html5s-image-self-link-label:`: custom aria label for self-linked images (default: "Open the image in full size")
 
-### Document Attributes
+=== Document Attributes
 
 Set document attributes via command line:
 
@@ -472,7 +666,7 @@ Set document attributes via command line:
 acdc convert -a toc=left -a toclevels=3 -a icons=font document.adoc
 ....
 
-### Performance Timing
+=== Performance Timing
 
 Enable timing information to see conversion performance:
 
@@ -488,7 +682,7 @@ Input file: document.adoc
 Generated HTML file: document.html
 ....
 
-## Output Structure
+== Output Structure
 
 Generated HTML includes:
 
@@ -498,37 +692,37 @@ Generated HTML includes:
 - Table of contents (if enabled via `:toc:` attribute)
 - Semantic HTML elements matching AsciiDoc structure
 
-## Examples
+== Examples
 
-### Basic Conversion
+=== Basic Conversion
 
 [source,console]
 ....
 acdc convert README.adoc
 ....
 
-### With Table of Contents
+=== With Table of Contents
 
 [source,console]
 ....
 acdc convert -a toc=left -a toclevels=2 guide.adoc
 ....
 
-### Book Doctype
+=== Book Doctype
 
 [source,console]
 ....
 acdc convert --doctype book -a toc book.adoc
 ....
 
-### Safe Mode
+=== Safe Mode
 
 [source,console]
 ....
 acdc convert --safe-mode safe document.adoc
 ....
 
-## Technical Details
+== Technical Details
 
 The HTML converter:
 
@@ -540,7 +734,7 @@ The HTML converter:
 - Embeds the Asciidoctor CSS stylesheet for consistent styling
 - Includes file modification timestamps in metadata
 
-## Differences from Asciidoctor
+== Differences from Asciidoctor
 
 While the HTML converter aims for compatibility with Asciidoctor, there are some known differences and limitations.
 

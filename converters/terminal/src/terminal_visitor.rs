@@ -8,7 +8,7 @@ use acdc_converters_core::{
 };
 use acdc_parser::{
     Admonition, Audio, CalloutList, DelimitedBlock, DescriptionList, DiscreteHeader, Document,
-    Header, Image, InlineNode, ListItem, OrderedList, PageBreak, Paragraph, Section,
+    Header, Image, InlineNode, ListItem, OrderedList, PageBreak, Paragraph, Section, SectionKind,
     TableOfContents, ThematicBreak, UnorderedList, Video,
 };
 use crossterm::{
@@ -20,7 +20,7 @@ use crate::Processor;
 
 /// Terminal visitor that generates terminal output from `AsciiDoc` AST
 pub struct TerminalVisitor<'a, 'd, W: Write> {
-    writer: W,
+    pub(crate) writer: W,
     pub(crate) processor: Processor<'a>,
     /// Per-conversion diagnostics handle.
     pub(crate) diagnostics: Diagnostics<'d>,
@@ -88,11 +88,7 @@ impl<W: Write> Visitor for TerminalVisitor<'_, '_, W> {
     }
 
     fn visit_section(&mut self, section: &Section) -> Result<(), Self::Error> {
-        let is_index_section = section
-            .metadata
-            .style
-            .as_ref()
-            .is_some_and(|s| *s == "index");
+        let is_index_section = section.kind == SectionKind::Index;
 
         // Index sections are only rendered if they're the last section
         if is_index_section && !self.processor.has_valid_index_section() {

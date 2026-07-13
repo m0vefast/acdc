@@ -1,0 +1,81 @@
+= `acdc-lint`
+
+Lint command support for `acdc`.
+
+This crate owns the initial lint registry, lint groups, lint-level model, lint execution, and report types used by `acdc lint`.
+
+== Programmatic use
+
+Bring `Lintable` into scope and call `lint` on a filesystem path or an in-memory string:
+
+[source,rust]
+----
+use std::path::Path;
+
+use acdc_lint::{LintOptions, Lintable};
+
+let report = Path::new("README.adoc").lint(&LintOptions::default())?;
+let report = "= Title\n\nContent.\n".lint(&LintOptions::default())?;
+----
+
+== Lint levels
+
+The command-line model follows `rustc` and Clippy:
+
+* `allow` suppresses a lint or lint group
+* `warn` emits diagnostics without failing the run
+* `deny` treats emitted diagnostics as errors
+* `forbid` treats emitted diagnostics as errors and prevents later flags from lowering the level
+
+When multiple flags target the same lint, later flags win unless a previous `forbid` applies.
+
+Level overrides can also be scoped to a source location for one lint ID:
+
+[source,console]
+----
+acdc lint -A section-title-capitalization@37 docs/architecture.adoc
+acdc lint -D image-alt-text@10:1-10:80 docs/architecture.adoc
+acdc lint -A delimited-block-minimal-delimiter@977,968 docs/architecture.adoc
+----
+
+Supported scopes are `LINE`, `START-END`, `LINE:COLUMN`, and `LINE:COLUMN-LINE:COLUMN`.
+Multiple scopes for the same lint ID can be separated with commas after one `@`.
+Line-only scopes match any diagnostic on that line.
+Scoped overrides apply to lint IDs, not groups.
+When a scoped override no longer matches any diagnostic, the linter reports it as stale so local suppressions do not silently drift away from the source they were written for.
+
+== Lint set
+The lints themselves are based on recommendations from the https://asciidoctor.org/docs/asciidoc-recommended-practices/[Asciidoctor recommended-practices draft].
+
+The lint names are organized by `AsciiDoc` authoring intent rather than by any external linter's rule IDs.
+See link:RULES.adoc[`acdc-lint` Rules] for the full lint ID and group reference.
+
+The `recommended-practices` group starts with implemented checks that have clear detection, clear remediation, and low expected style noise:
+
+* `document-extension`
+* `one-sentence-per-line`
+* `section-title-symmetric-marker`
+* `section-title-setext-style`
+* `delimited-block-minimal-delimiter`
+* `attribute-url-prefix`
+* `imagesdir`
+* `nested-unordered-list-marker`
+* `adjacent-list-separator`
+
+The `document-title-author` and `document-title-revision` lints are registered but intentionally opt-in because many snippets, partials, and internal docs omit those header lines on purpose.
+
+acdc does not currently support counters; `counter-syntax` surfaces unsupported `{counter:...}` and `{counter2:...}` usage, while counter naming style remains intentionally omitted.
+
+Available groups are:
+
+* `all`
+* `recommended-practices`
+* `document-structure`
+* `source-format`
+* `semantic-asciidoc`
+* `resources`
+
+== Features
+
+`pre-spec-subs` is default-on and forwarded to `acdc-parser`.
+`setext` and `network` are available for parser compatibility with the rest of the workspace.

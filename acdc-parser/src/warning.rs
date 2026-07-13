@@ -44,10 +44,29 @@ impl Warning {
     pub fn advice(&self) -> Option<&'static str> {
         match &self.kind {
             WarningKind::SectionLevelOutOfSequence { .. } => Some(
-                "The first section after the document title must be level 1 (==). Renumber the section headings so levels increment by one.",
+                "Section levels must increment by at most one. Renumber the heading so it is one level deeper than its parent (the document title counts as level 0).",
             ),
-            WarningKind::UnterminatedTable { .. } => Some(
+            WarningKind::UnterminatedTable { .. }
+            | WarningKind::UnterminatedDelimitedBlock { .. } => Some(
                 "The opening delimiter was found but no matching closing delimiter was seen before end of document. Add the closing delimiter on its own line, or remove the opening delimiter if not intended.",
+            ),
+            WarningKind::TableUnknownFormat { .. } => Some(
+                "Use a supported table format (`csv`, `dsv`, or `tsv`) or remove the `format` attribute to use the table delimiter's default separator.",
+            ),
+            WarningKind::TableIncompleteRow => Some(
+                "Complete the final table row or remove the trailing cells that do not fill the configured column count.",
+            ),
+            WarningKind::TableCellOverflow { .. } | WarningKind::TableColumnCount { .. } => Some(
+                "Adjust the `cols` attribute or the row's cells/spans so each row occupies the configured number of columns.",
+            ),
+            WarningKind::NonStandardAuthorLine { .. } => Some(
+                "Author lines use `firstname [middlename] [lastname] [<email>]`, with multiple authors separated by `;`. Keeping the whole line as a single author name.",
+            ),
+            WarningKind::UnresolvedReference { .. } => Some(
+                "Define an anchor with this id (e.g. `[[id]]` or `[#id]` on a block or section), or fix the reference to point at an existing id.",
+            ),
+            WarningKind::LegacyFloatDiscreteHeading => Some(
+                "Replace the `float` attribute with `discrete` (e.g. `[discrete]`). `float` here does not control layout; it is an older name for a discrete (free-floating) heading.",
             ),
             WarningKind::Other(_) => None,
         }
@@ -65,9 +84,9 @@ impl fmt::Display for Warning {
             .and_then(|p| p.file_name())
             .and_then(|s| s.to_str())
         {
-            write!(f, "{name}: {}: {}", loc.positioning, self.kind)
+            write!(f, "{name}: {}: {}", loc, self.kind)
         } else {
-            write!(f, "{}: {}", loc.positioning, self.kind)
+            write!(f, "{}: {}", loc, self.kind)
         }
     }
 }
@@ -82,15 +101,18 @@ impl fmt::Display for Warning {
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum WarningKind {
-    /// The document has a title (level 0) but the first section after it
-    /// is not level 1. Matches asciidoctor's "section title out of
-    /// sequence" check.
-    #[error("expected level 1 (==) as first section, got level {got} ({markers})")]
+    /// A section title skips a level relative to its parent — either the first
+    /// section after the document title is deeper than level 1, or a nested
+    /// section jumps more than one level below its parent. Matches asciidoctor's
+    /// "section title out of sequence" check; the section is still rendered at
+    /// its literal level.
+    #[error("section title out of sequence: expected level {expected}, got level {got}")]
     SectionLevelOutOfSequence {
-        /// The observed section level (e.g. 2 for `===`).
+        /// The level the section was expected to be (one deeper than its
+        /// parent; `1` for the first section under a document title).
+        expected: u8,
+        /// The observed section level (e.g. `2` for `===`).
         got: u8,
-        /// The `=` markers that produced the observed level.
-        markers: String,
     },
 
     /// A table's opening delimiter was matched but no corresponding
@@ -105,6 +127,92 @@ pub enum WarningKind {
         delimiter: String,
     },
 
+    /// A delimited block's opening delimiter was matched but no corresponding
+    /// closing delimiter was found before end of input. Matches asciidoctor's
+    /// "unterminated <kind> block" warning; the block is still rendered,
+    /// closed at end of input. Tables use the separate [`UnterminatedTable`]
+    /// variant.
+    ///
+    /// `delimiter` is the literal opening token as it appeared in the source
+    /// (e.g. `"===="`, `"----"`).
+    ///
+    /// [`UnterminatedTable`]: WarningKind::UnterminatedTable
+    #[error("unterminated {kind} block (opened by `{delimiter}`)")]
+    UnterminatedDelimitedBlock {
+        /// The block kind: `"example"`, `"listing"`, `"literal"`,
+        /// `"sidebar"`, `"quote"`, `"open"`, `"comment"`, or `"pass"`.
+        kind: &'static str,
+        /// The opening delimiter that was left unmatched.
+        delimiter: String,
+    },
+
+    /// A table declared an unsupported `format` attribute, so the parser fell
+    /// back to the table delimiter's default separator.
+    #[error("unknown table format `{format}`, using default separator")]
+    TableUnknownFormat {
+        /// The unsupported format value.
+        format: String,
+    },
+
+    /// A table ended with cells that could not fill a complete row, so those
+    /// trailing cells were dropped.
+    #[error("dropping cells from incomplete row detected end of table")]
+    TableIncompleteRow,
+
+    /// A table row contained a cell/span that exceeded the configured column
+    /// count, so the row was dropped.
+    #[error(
+        "dropping cell because it exceeds specified number of columns: actual={actual}, expected={expected}"
+    )]
+    TableCellOverflow {
+        /// The row's logical column count.
+        actual: usize,
+        /// The configured column count.
+        expected: usize,
+    },
+
+    /// A table row's logical column count did not match the configured column
+    /// count, so the row was dropped.
+    #[error(
+        "table row has incorrect column count: actual={actual}, expected={expected}, occupied_from_rowspans={occupied_from_rowspans}"
+    )]
+    TableColumnCount {
+        /// The row's logical column count.
+        actual: usize,
+        /// The configured column count.
+        expected: usize,
+        /// Columns already occupied by active rowspans.
+        occupied_from_rowspans: usize,
+    },
+
+    /// A document header author line did not match the structured
+    /// `firstname [middlename] [lastname] [<email>]` form, so the whole line
+    /// was kept as a single author's name. asciidoctor accepts this silently;
+    /// acdc surfaces it so a malformed author line is easy to spot.
+    #[error(
+        "author line `{line}` is not in `firstname [middlename] [lastname] [<email>]` form; using the whole line as a single author name"
+    )]
+    NonStandardAuthorLine {
+        /// The author line as parsed (after attribute substitution).
+        line: String,
+    },
+
+    /// A cross-reference (`<<id>>` / `xref:id[]`) points at an id that is not
+    /// defined anywhere in the document. Matches asciidoctor's "invalid
+    /// reference" warning.
+    #[error("invalid reference: {target}")]
+    UnresolvedReference {
+        /// The unresolved target id.
+        target: String,
+    },
+
+    /// A discrete heading was marked with the legacy `float` attribute rather
+    /// than `discrete`. `float` is only supported because an older version of
+    /// `AsciiDoc` called discrete headings "floating titles"; the current spec
+    /// prefers `discrete`.
+    #[error("`float` is a legacy alias for a discrete heading; prefer `discrete`")]
+    LegacyFloatDiscreteHeading,
+
     /// Ad-hoc message not yet categorised into a typed variant.
     #[error("{0}")]
     Other(Cow<'static, str>),
@@ -113,7 +221,7 @@ pub enum WarningKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Position, Positioning};
+    use crate::Position;
 
     #[test]
     fn display_without_location() {
@@ -125,18 +233,18 @@ mod tests {
     fn display_with_location_no_file() {
         let loc = SourceLocation {
             file: None,
-            positioning: Positioning::Position(Position { line: 5, column: 1 }),
+            location: crate::Location::point(Position::new(5, 1)),
         };
         let w = Warning::new(
             WarningKind::SectionLevelOutOfSequence {
+                expected: 2,
                 got: 3,
-                markers: "====".into(),
             },
             Some(loc),
         );
         assert_eq!(
             format!("{w}"),
-            "line: 5, column: 1: expected level 1 (==) as first section, got level 3 (====)",
+            "line: 5, column: 1: section title out of sequence: expected level 2, got level 3",
         );
     }
 
@@ -144,18 +252,18 @@ mod tests {
     fn display_with_location_and_file() {
         let loc = SourceLocation {
             file: Some(std::path::PathBuf::from("/docs/guide.adoc")),
-            positioning: Positioning::Position(Position { line: 5, column: 1 }),
+            location: crate::Location::point(Position::new(5, 1)),
         };
         let w = Warning::new(
             WarningKind::SectionLevelOutOfSequence {
+                expected: 2,
                 got: 3,
-                markers: "====".into(),
             },
             Some(loc),
         );
         assert_eq!(
             format!("{w}"),
-            "guide.adoc: line: 5, column: 1: expected level 1 (==) as first section, got level 3 (====)",
+            "guide.adoc: line: 5, column: 1: section title out of sequence: expected level 2, got level 3",
         );
     }
 

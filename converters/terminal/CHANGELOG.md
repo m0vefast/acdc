@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An ordered list with an explicit numbering style (`[loweralpha]`, `[upperalpha]`,
+  `[lowerroman]`, `[upperroman]`, `[lowergreek]`, `[arabic]`, `[decimal]`) renders
+  its markers in that style (e.g. `a.`, `IV.`, `α.`) instead of always `1.`, `2.`.
+- Terminal replay frame capture (`replay::capture` / `capture_windowed`) turns
+  recorded ANSI into ordered, deduplicated `CellGrid` frames for animated replay
+  renderers; `capture_windowed` is a fast path for append-only recordings. Each
+  captured cell keeps its palette index alongside the resolved colour, so a
+  player can re-resolve it against a recording's own palette.
+- The `asciicast` module parses asciicast v2/v3 (`.cast`) recordings into a
+  `Recording` of replay frames (via `asciicast-rs`). Recorded commands and input
+  are never executed; long idle gaps are compressed (the header's
+  `idle_time_limit`, a caller override, or a default), and the recording's theme,
+  palette, and title are exposed for faithful playback.
 - `[subs="-replacements"]` on a paragraph now keeps typography source (`--`,
   `(C)`, `->`, `...`) literal instead of converting to Unicode.
 - User-facing converter warnings are now collected in `ConversionResult` for
@@ -30,7 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Word wrapping for content inside box-drawn blocks (sidebars, examples, admonitions, quote blocks)
 - Unicode-aware character width measurement for correct CJK and emoji wrapping
 - `Processor::with_terminal_width()` for deterministic width control in tests and fixture generation.
-- Section numbering support (`sectnums`, `partnums`, appendix tracking).
+- Section numbering support (`sectnums`, `partnums`, appendix tracking); special-style
+  sections (`[preface]`, `[glossary]`, etc.) and their subsections are left unnumbered.
+  Appendix subsections are numbered with the appendix letter as the top component
+  (`A.1`, `A.1.1`, `B.1`); with `:!appendix-caption:` the heading shows the bare letter
+  numeral (`A.`).
 - Index term collection and alphabetized index catalog rendering (`[index]` sections).
 - Table column alignment and column style support (strong, emphasis, header).
 - Alternating row shading in tables for readability.

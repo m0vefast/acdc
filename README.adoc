@@ -16,6 +16,9 @@ For architecture and design decisions, see link:./ARCHITECTURE.adoc[ARCHITECTURE
 # Parse and convert AsciiDoc to HTML
 cargo run --bin acdc -- convert document.adoc
 
+# Inspect the lint command and available lint-level flags
+cargo run --bin acdc -- lint --help
+
 # Run the test suite
 cargo nextest run
 ----
@@ -28,35 +31,38 @@ See link:./acdc-cli/README.adoc[acdc-cli README] for all CLI options, backends, 
 acdc/
 ├── acdc-cli/                 # Command-line interface
 │   └── src/
-│       └── main.rs          # CLI entry point
+│       └── main.rs           # CLI entry point
+├── acdc-lint/                # Lint command support for recommended-practice checks
 ├── acdc-lsp/                 # Language Server Protocol server
 │   └── src/
-│       ├── capabilities/    # LSP features (diagnostics, hover, completion, rename, references, semantic tokens, …)
-│       └── state/           # Document and workspace state (cross-file anchor index)
-├── acdc-parser/             # Core parser and AST
+│       ├── capabilities/     # LSP features (diagnostics, hover, completion, rename, references, semantic tokens, …)
+│       └── state/            # Document and workspace state (cross-file anchor index)
+├── acdc-parser/              # Core parser and AST
 │   ├── src/
-│   │   ├── grammar/         # PEG grammar definitions
-│   │   ├── model/           # AST data structures
-│   │   ├── preprocessor/    # Include and conditional handling
-│   │   └── proptests/       # Property-based testing
-│   └── fixtures/            # Test fixtures
-├── acdc-editor-wasm/        # WASM live editor (syntax highlight + preview)
-└── converters/              # Output converters
-    ├── core/               # Shared traits (Processable, Visitor)
-    ├── dev/                # Development utilities (unpublished)
-    ├── html/               # HTML5 converter
-    ├── manpage/            # Native roff/troff manpage output
-    ├── markdown/           # Markdown converter (CommonMark & GFM)
-    └── terminal/           # Rich terminal output
+│   │   ├── grammar/          # PEG grammar definitions
+│   │   ├── model/            # AST data structures
+│   │   ├── preprocessor/     # Include and conditional handling
+│   │   └── proptests/        # Property-based testing
+│   └── fixtures/             # Test fixtures
+├── acdc-editor-wasm/         # WASM live editor (syntax highlight + preview)
+└── converters/               # Output converters
+    ├── core/                 # Shared traits (Processable, Visitor)
+    ├── dev/                  # Development utilities (unpublished)
+    ├── html/                 # HTML5 converter
+    ├── manpage/              # Native roff/troff manpage output
+    ├── markdown/             # Markdown converter (CommonMark & GFM)
+    └── terminal/             # Rich terminal output
 ----
 
 == Tooling
 
 * link:./acdc-cli[acdc-cli] - AsciiDoc processor (CLI)
 * link:./acdc-editor-wasm[acdc-editor-wasm] - WASM live editor with syntax highlighting and preview
+* link:./acdc-lint[acdc-lint] - lint command support for AsciiDoc recommended-practice checks
 * link:./acdc-lsp[acdc-lsp] - Language Server Protocol implementation
 * link:./acdc-parser[acdc-parser] - AsciiDoc parser library
 * link:./converters[converters] - collection of AsciiDoc converters (HTML, manpage, markdown, terminal)
+* link:./converters/dev[acdc-converters-dev] - internal dev-only converter utilities (unpublished)
 
 == Architecture overview
 

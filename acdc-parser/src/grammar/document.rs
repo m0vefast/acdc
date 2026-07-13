@@ -1,14 +1,18 @@
 // The `peg` macro adds 5 hidden parameters to every rule function, so even
 // rules with just 3 explicit params exceed clippy's 7-argument threshold.
 #![allow(clippy::too_many_arguments)]
+
+use std::{borrow::Cow, collections::HashMap, rc::Rc};
+
 use crate::{
     Admonition, AdmonitionVariant, Anchor, AnchorKind, AttributeValue, Attribution, Audio, Author,
     Block, BlockMetadata, CalloutList, CalloutListItem, CalloutRef, CiteTitle, Comment,
-    DelimitedBlock, DelimitedBlockType, DescriptionList, DescriptionListItem, DiscreteHeader,
-    Document, DocumentAttribute, DocumentAttributes, Error, Header, Image, InlineNode, ListItem,
-    ListItemCheckedStatus, Location, OrderedList, PageBreak, Paragraph, Plain, Raw, Section,
-    Source, SourceLocation, StemContent, StemNotation, Subtitle, Table, TableOfContents, TableRow,
-    ThematicBreak, Title, UnorderedList, Verbatim, Video,
+    CommentKind, DelimitedBlock, DelimitedBlockType, DescriptionList, DescriptionListItem,
+    DiscreteHeader, Document, DocumentAttribute, DocumentAttributes, Error, Header, Image,
+    InlineMacro, InlineNode, ListItem, ListItemCheckedStatus, Location, OrderedList, PageBreak,
+    Paragraph, Plain, Raw, Reference, Section, Source, SourceLocation, StemContent, StemNotation,
+    Subtitle, Table, TableOfContents, TableRow, ThematicBreak, Title, TocEntry, UnorderedList,
+    Verbatim, Video,
     grammar::{
         ParserState,
         attributes::AttributeEntry,
@@ -22,8 +26,7 @@ use crate::{
         table::parse_table_cell,
     },
     model::{
-        LeveloffsetRange, ListLevel, Locateable, SectionLevel, UNNUMBERED_SECTION_STYLES,
-        strip_quotes,
+        LeveloffsetRange, ListLevel, SectionKind, SectionLevel, strip_quotes,
         substitution::{HEADER, SubsFlags},
     },
 };
@@ -38,8 +41,6 @@ use super::helpers::{
     process_attribute_list, strip_url_backslash_escapes, title_looks_like_description_list,
 };
 use super::setext;
-use std::borrow::Cow;
-use std::rc::Rc;
 
 /// Helper to check delimiter matching and return error if mismatched
 fn check_delimiters(
@@ -53,6 +54,642 @@ fn check_delimiters(
     } else {
         Err(Error::mismatched_delimiters(detail, block_type))
     }
+}
+
+/// Resolve a delimited block's closing delimiter into its `close_delimiter_location`.
+///
+/// When the block was closed (`p.close` is `Some((close_start, close_delim))`),
+/// validate the delimiter pairing and return the close location. When it ran to
+/// end of input unclosed (`p.close` is `None`), emit an
+/// [`UnterminatedDelimitedBlock`](crate::WarningKind::UnterminatedDelimitedBlock)
+/// warning anchored at the opening delimiter and return `None`, so the block is
+/// still produced — matching asciidoctor's recovery (it warns and closes the
+/// block at EOF).
+fn resolve_delimited_close<'input>(
+    state: &mut ParserState<'input>,
+    p: &DelimitedParams<'input>,
+) -> Result<Option<Location>, Error> {
+    if let Some((close_start, close_delim)) = p.close {
+        check_delimiters(
+            p.open_delim,
+            close_delim,
+            p.kind.name(),
+            state.create_error_source_location(
+                state.create_block_location(p.start, p.end, p.offset),
+            ),
+        )?;
+        Ok(Some(state.create_block_location(
+            close_start,
+            p.end,
+            p.offset,
+        )))
+    } else {
+        let open_delimiter_location = state.create_location(
+            p.open_start + p.offset,
+            p.open_start + p.offset + p.open_delim.len().saturating_sub(1),
+        );
+        state.add_warning(crate::Warning::new(
+            crate::WarningKind::UnterminatedDelimitedBlock {
+                kind: p.kind.name(),
+                delimiter: p.open_delim.to_string(),
+            },
+            Some(state.create_error_source_location(open_delimiter_location)),
+        ));
+        Ok(None)
+    }
+}
+
+/// Which delimited block an opening delimiter introduces. Drives
+/// [`build_delimited_block`]'s dispatch and the `kind` carried by an
+/// `UnterminatedDelimitedBlock` warning. The Markdown ```` ``` ```` fence maps to
+/// [`DelimitedKind::Listing`] (it differs only by carrying a language).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DelimitedKind {
+    Example,
+    Comment,
+    Listing,
+    Literal,
+    Open,
+    Sidebar,
+    Pass,
+    Quote,
+}
+
+impl DelimitedKind {
+    /// Block name used in the `unterminated <name> block` warning and the
+    /// mismatched-delimiter error.
+    fn name(self) -> &'static str {
+        match self {
+            DelimitedKind::Example => "example",
+            DelimitedKind::Comment => "comment",
+            DelimitedKind::Listing => "listing",
+            DelimitedKind::Literal => "literal",
+            DelimitedKind::Open => "open",
+            DelimitedKind::Sidebar => "sidebar",
+            DelimitedKind::Pass => "pass",
+            DelimitedKind::Quote => "quote",
+        }
+    }
+}
+
+/// Parse a delimited block's inner text as nested blocks. Empty content yields
+/// no blocks; a parse error is logged (with positions remapped to the original
+/// source) and recovered as an empty block list, matching the per-rule behaviour
+/// the delimited-block rules previously inlined.
+fn parse_block_content<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    content: &'input str,
+    content_start: usize,
+    offset: usize,
+    error_context: &str,
+) -> Result<Vec<Block<'input>>, Error> {
+    if content.trim().is_empty() {
+        Ok(Vec::new())
+    } else {
+        document_parser::blocks(
+            content,
+            state,
+            content_start + offset,
+            block_metadata.parent_section_level,
+        )
+        .unwrap_or_else(|e| {
+            adjust_and_log_parse_error(&e, content, content_start + offset, state, error_context);
+            Ok(Vec::new())
+        })
+    }
+}
+
+/// Whether a quote block's attribution/citetitle text looks like it contains
+/// inline markup worth re-parsing through the inline pipeline (#373).
+fn quote_needs_inline_processing(content: &str) -> bool {
+    content.contains("://")
+        || content.contains('[')
+        || content.contains('{')
+        || content.contains('*')
+        || content.contains('_')
+        || content.contains('`')
+        || content.contains("<<")
+        || content.contains("link:")
+        || content.contains("mailto:")
+}
+
+/// A matched delimited-block open/content/optional-close, ready for construction.
+/// Bundling these (rather than passing ~11 arguments) mirrors `TableParseParams`.
+/// `close` is `None` when the block ran to end of input unclosed.
+struct DelimitedParams<'input> {
+    kind: DelimitedKind,
+    /// The opening delimiter as it appeared in source (e.g. `"===="`).
+    open_delim: &'input str,
+    /// Language captured after a Markdown ```` ``` ```` fence, if any.
+    lang: Option<&'input str>,
+    content: &'input str,
+    open_start: usize,
+    start: usize,
+    content_start: usize,
+    content_end: usize,
+    /// End offset of the whole block (`span_end`).
+    end: usize,
+    offset: usize,
+    close: Option<(usize, &'input str)>,
+}
+
+/// Build a delimited block from a matched [`DelimitedParams`]. This is the single
+/// construction site for every non-table delimited block: the grammar's generic
+/// `delimited_block` rule matches the open/content/close skeleton once and
+/// delegates here, mirroring how table rules delegate to `parse_table_block_impl`.
+/// An absent `close` means the block ran to end of input; `resolve_delimited_close`
+/// emits the unterminated warning and the block is still produced (closed at EOF),
+/// matching asciidoctor. Per-kind construction lives in the `*_inner` helpers.
+fn build_delimited_block<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> Result<Block<'input>, Error> {
+    let close_delimiter_location = resolve_delimited_close(state, p)?;
+    let location = state.create_block_location(p.start, p.end, p.offset);
+    let open_delimiter_location = state.create_location(
+        p.open_start + p.offset,
+        p.open_start + p.offset + p.open_delim.len().saturating_sub(1),
+    );
+    let mut metadata = block_metadata.metadata.clone();
+
+    let inner = match p.kind {
+        // An example block can become an admonition (a different `Block` variant),
+        // so it constructs and returns the whole block itself.
+        DelimitedKind::Example => {
+            return build_example_block(
+                state,
+                block_metadata,
+                metadata,
+                p,
+                location,
+                open_delimiter_location,
+                close_delimiter_location,
+            );
+        }
+        DelimitedKind::Comment => comment_inner(state, &mut metadata, p),
+        DelimitedKind::Listing | DelimitedKind::Literal => {
+            verbatim_inner(state, block_metadata, &mut metadata, p)
+        }
+        DelimitedKind::Open => open_inner(state, block_metadata, &mut metadata, p)?,
+        DelimitedKind::Sidebar => sidebar_inner(state, block_metadata, &mut metadata, p)?,
+        DelimitedKind::Pass => pass_inner(state, &mut metadata, p),
+        DelimitedKind::Quote => quote_inner(state, block_metadata, &mut metadata, p)?,
+    };
+
+    Ok(assemble_delimited(
+        metadata,
+        p.open_delim,
+        inner,
+        block_metadata.title.clone(),
+        location,
+        open_delimiter_location,
+        close_delimiter_location,
+    ))
+}
+
+/// Assemble the common `Block::DelimitedBlock` shell shared by every kind.
+fn assemble_delimited<'input>(
+    metadata: BlockMetadata<'input>,
+    open_delim: &'input str,
+    inner: DelimitedBlockType<'input>,
+    title: Title<'input>,
+    location: Location,
+    open_delimiter_location: Location,
+    close_delimiter_location: Option<Location>,
+) -> Block<'input> {
+    Block::DelimitedBlock(DelimitedBlock {
+        metadata,
+        delimiter: open_delim,
+        inner,
+        title,
+        location,
+        open_delimiter_location: Some(open_delimiter_location),
+        close_delimiter_location,
+    })
+}
+
+/// `====` example block, or an admonition when carrying an admonition style.
+fn build_example_block<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    mut metadata: BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+    location: Location,
+    open_delimiter_location: Location,
+    close_delimiter_location: Option<Location>,
+) -> Result<Block<'input>, Error> {
+    metadata.move_positional_attributes_to_attributes();
+    let blocks = parse_block_content(
+        state,
+        block_metadata,
+        p.content,
+        p.content_start,
+        p.offset,
+        "Error parsing example content as blocks in example block",
+    )?;
+    // An admonition style (NOTE/TIP/…) turns the example block into an admonition.
+    if let Some(style) = block_metadata.metadata.style
+        && let Ok(variant) = style.parse::<AdmonitionVariant>()
+    {
+        metadata.style = None;
+        return Ok(Block::Admonition(
+            Admonition::new(variant, blocks, location)
+                .with_metadata(metadata)
+                .with_title(block_metadata.title.clone()),
+        ));
+    }
+    Ok(assemble_delimited(
+        metadata,
+        p.open_delim,
+        DelimitedBlockType::DelimitedExample(blocks),
+        block_metadata.title.clone(),
+        location,
+        open_delimiter_location,
+        close_delimiter_location,
+    ))
+}
+
+/// `////` comment block: the raw inner text, rendered nowhere.
+fn comment_inner<'input>(
+    state: &ParserState<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> DelimitedBlockType<'input> {
+    metadata.move_positional_attributes_to_attributes();
+    let content_location = state.create_block_location(p.content_start, p.content_end, p.offset);
+    DelimitedBlockType::DelimitedComment(vec![InlineNode::PlainText(Plain {
+        content: p.content,
+        location: content_location,
+        escaped: false,
+    })])
+}
+
+/// Verbatim block (`----` listing or `....` literal, including the Markdown fence):
+/// resolves callouts and records the verbatim state for a following callout list.
+fn verbatim_inner<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> DelimitedBlockType<'input> {
+    // A Markdown fence language becomes a positional `source` style so language
+    // detection works like `[source,lang]` (never set for `....`/`----`).
+    if let Some(language) = p.lang {
+        metadata.positional_attributes.insert(0, language);
+        metadata.style = Some("source");
+    }
+    metadata.move_positional_attributes_to_attributes();
+    let content_location = state.create_block_location(p.content_start, p.content_end, p.offset);
+    let (inlines, callouts) = resolve_verbatim_callouts(
+        state.arena,
+        p.content,
+        content_location,
+        block_metadata.subs_flags.contains(SubsFlags::CALLOUTS),
+    );
+    state.last_block_was_verbatim = true;
+    state.last_verbatim_callouts = callouts;
+    if p.kind == DelimitedKind::Literal {
+        DelimitedBlockType::DelimitedLiteral(inlines)
+    } else {
+        DelimitedBlockType::DelimitedListing(inlines)
+    }
+}
+
+/// `--` open block, or a non-rendering comment when carrying a `[comment]` style.
+fn open_inner<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> Result<DelimitedBlockType<'input>, Error> {
+    metadata.move_positional_attributes_to_attributes();
+    if block_metadata.metadata.style == Some("comment") {
+        metadata.style = None;
+        let content_location =
+            state.create_block_location(p.content_start, p.content_end, p.offset);
+        return Ok(DelimitedBlockType::DelimitedComment(vec![
+            InlineNode::PlainText(Plain {
+                content: p.content,
+                location: content_location,
+                escaped: false,
+            }),
+        ]));
+    }
+    let blocks = parse_block_content(
+        state,
+        block_metadata,
+        p.content,
+        p.content_start,
+        p.offset,
+        "Error parsing content as blocks in open block",
+    )?;
+    Ok(DelimitedBlockType::DelimitedOpen(blocks))
+}
+
+/// `****` sidebar block.
+fn sidebar_inner<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> Result<DelimitedBlockType<'input>, Error> {
+    metadata.move_positional_attributes_to_attributes();
+    let blocks = parse_block_content(
+        state,
+        block_metadata,
+        p.content,
+        p.content_start,
+        p.offset,
+        "Error parsing sidebar content as blocks",
+    )?;
+    Ok(DelimitedBlockType::DelimitedSidebar(blocks))
+}
+
+/// `++++` passthrough block, or a stem block when carrying a `[stem]` style.
+fn pass_inner<'input>(
+    state: &ParserState<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> DelimitedBlockType<'input> {
+    metadata.move_positional_attributes_to_attributes();
+    if metadata.style == Some("stem") {
+        let notation = match state.document_attributes.get("stem") {
+            Some(AttributeValue::String(s)) => {
+                s.parse::<StemNotation>().unwrap_or(StemNotation::Latexmath)
+            }
+            _ => StemNotation::Latexmath,
+        };
+        metadata.style = None;
+        DelimitedBlockType::DelimitedStem(StemContent {
+            content: p.content,
+            notation,
+        })
+    } else {
+        let content_location =
+            state.create_block_location(p.content_start, p.content_end, p.offset);
+        DelimitedBlockType::DelimitedPass(vec![InlineNode::RawText(Raw {
+            content: p.content,
+            location: content_location,
+            subs: vec![],
+        })])
+    }
+}
+
+/// `____` quote block (or `[verse]`): re-parses attribution/citetitle markup, then
+/// parses the body as nested blocks (verse keeps the raw text).
+fn quote_inner<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    p: &DelimitedParams<'input>,
+) -> Result<DelimitedBlockType<'input>, Error> {
+    metadata.move_positional_attributes_to_attributes();
+    reprocess_quote_attribution(state, block_metadata, metadata, p.offset);
+
+    if metadata.style == Some("verse") {
+        let content_location =
+            state.create_block_location(p.content_start, p.content_end, p.offset);
+        Ok(DelimitedBlockType::DelimitedVerse(vec![
+            InlineNode::PlainText(Plain {
+                content: p.content,
+                location: content_location,
+                escaped: false,
+            }),
+        ]))
+    } else if metadata.style.is_some() {
+        // A styled (non-verse) quote always parses its body, even when empty.
+        let blocks = document_parser::blocks(
+            p.content,
+            state,
+            p.content_start + p.offset,
+            block_metadata.parent_section_level,
+        )
+        .unwrap_or_else(|e| {
+            adjust_and_log_parse_error(
+                &e,
+                p.content,
+                p.content_start + p.offset,
+                state,
+                "Error parsing example content as blocks in quote block",
+            );
+            Ok(Vec::new())
+        })?;
+        Ok(DelimitedBlockType::DelimitedQuote(blocks))
+    } else {
+        let blocks = parse_block_content(
+            state,
+            block_metadata,
+            p.content,
+            p.content_start,
+            p.offset,
+            "Error parsing content as blocks in quote block",
+        )?;
+        Ok(DelimitedBlockType::DelimitedQuote(blocks))
+    }
+}
+
+/// Re-parse a quote block's attribution and citetitle through the inline pipeline
+/// so URLs, macros, and formatting resolve (#373). Each is collected before
+/// reassigning to release the borrow on `metadata`.
+fn reprocess_quote_attribution<'input>(
+    state: &mut ParserState<'input>,
+    block_metadata: &BlockParsingMetadata<'input>,
+    metadata: &mut BlockMetadata<'input>,
+    offset: usize,
+) {
+    let attribution = if let Some(ref attr) = metadata.attribution
+        && let Some(InlineNode::PlainText(plain)) = attr.first()
+        && quote_needs_inline_processing(plain.content)
+    {
+        Some((
+            plain.content,
+            plain.location.absolute_start.saturating_sub(offset),
+            plain.location.absolute_end.saturating_sub(offset),
+        ))
+    } else {
+        None
+    };
+    if let Some((content, start, end)) = attribution
+        && let Ok(inlines) = process_inlines(state, block_metadata, start, end, offset, content)
+        && !inlines.is_empty()
+    {
+        metadata.attribution = Some(Attribution::new(inlines));
+    }
+
+    let citetitle = if let Some(ref cite) = metadata.citetitle
+        && let Some(InlineNode::PlainText(plain)) = cite.first()
+        && quote_needs_inline_processing(plain.content)
+    {
+        Some((
+            plain.content,
+            plain.location.absolute_start.saturating_sub(offset),
+            plain.location.absolute_end.saturating_sub(offset),
+        ))
+    } else {
+        None
+    };
+    if let Some((content, start, end)) = citetitle
+        && let Ok(inlines) = process_inlines(state, block_metadata, start, end, offset, content)
+        && !inlines.is_empty()
+    {
+        metadata.citetitle = Some(CiteTitle::new(inlines));
+    }
+}
+
+/// Insert an anchor into the cross-reference catalog with optional reference text.
+fn insert_reference<'a>(
+    refs: &mut HashMap<&'a str, Reference<'a>>,
+    anchor: &Anchor<'a>,
+    title: Option<Title<'a>>,
+) {
+    refs.insert(
+        anchor.id,
+        Reference {
+            xreflabel: anchor.xreflabel,
+            title,
+            location: anchor.location.clone(),
+        },
+    );
+}
+
+/// Walk the final document tree to (1) populate the cross-reference catalog `refs` with
+/// every anchor (block ids and inline `[[id]]` anchors) and (2) collect every `<<id>>` /
+/// `xref:id[]` into `xrefs` (target, location) for unresolved-reference checking. A block
+/// with an id but no title is still registered (reference text `None`), so an `<<id>>` to
+/// it resolves to the literal `[id]` rather than being treated as unresolved. Section ids
+/// come from `toc_entries` (seeded separately); this only recurses into their content.
+fn collect_references<'a>(
+    blocks: &[Block<'a>],
+    refs: &mut HashMap<&'a str, Reference<'a>>,
+    xrefs: &mut Vec<(&'a str, Location)>,
+) {
+    for block in blocks {
+        if !matches!(block, Block::Section(_))
+            && let Some(anchor) = block.anchor()
+        {
+            insert_reference(refs, anchor, block.title().cloned());
+        }
+
+        match block {
+            Block::Section(s) => collect_references(&s.content, refs, xrefs),
+            Block::Paragraph(p) => collect_inline_references(&p.content, refs, xrefs),
+            Block::Admonition(a) => collect_references(&a.blocks, refs, xrefs),
+            Block::UnorderedList(l) => {
+                for item in &l.items {
+                    collect_inline_references(&item.principal, refs, xrefs);
+                    collect_references(&item.blocks, refs, xrefs);
+                }
+            }
+            Block::OrderedList(l) => {
+                for item in &l.items {
+                    collect_inline_references(&item.principal, refs, xrefs);
+                    collect_references(&item.blocks, refs, xrefs);
+                }
+            }
+            Block::CalloutList(l) => {
+                for item in &l.items {
+                    collect_inline_references(&item.principal, refs, xrefs);
+                    collect_references(&item.blocks, refs, xrefs);
+                }
+            }
+            Block::DescriptionList(l) => {
+                for item in &l.items {
+                    for anchor in &item.anchors {
+                        insert_reference(refs, anchor, None);
+                    }
+                    collect_inline_references(&item.term, refs, xrefs);
+                    collect_inline_references(&item.principal_text, refs, xrefs);
+                    collect_references(&item.description, refs, xrefs);
+                }
+            }
+            Block::DelimitedBlock(d) => collect_delimited_references(&d.inner, refs, xrefs),
+            Block::DiscreteHeader(_)
+            | Block::ThematicBreak(_)
+            | Block::PageBreak(_)
+            | Block::Image(_)
+            | Block::Audio(_)
+            | Block::Video(_)
+            | Block::TableOfContents(_)
+            | Block::DocumentAttribute(_)
+            | Block::Comment(_) => {}
+        }
+    }
+}
+
+/// Walk the content of a delimited block for anchors and cross-references.
+fn collect_delimited_references<'a>(
+    inner: &DelimitedBlockType<'a>,
+    refs: &mut HashMap<&'a str, Reference<'a>>,
+    xrefs: &mut Vec<(&'a str, Location)>,
+) {
+    match inner {
+        DelimitedBlockType::DelimitedExample(blocks)
+        | DelimitedBlockType::DelimitedOpen(blocks)
+        | DelimitedBlockType::DelimitedSidebar(blocks)
+        | DelimitedBlockType::DelimitedQuote(blocks) => collect_references(blocks, refs, xrefs),
+        DelimitedBlockType::DelimitedListing(inlines)
+        | DelimitedBlockType::DelimitedLiteral(inlines)
+        | DelimitedBlockType::DelimitedPass(inlines)
+        | DelimitedBlockType::DelimitedVerse(inlines)
+        | DelimitedBlockType::DelimitedComment(inlines) => {
+            collect_inline_references(inlines, refs, xrefs);
+        }
+        DelimitedBlockType::DelimitedTable(table) => {
+            for row in table
+                .header
+                .iter()
+                .chain(table.footer.iter())
+                .chain(table.rows.iter())
+            {
+                for column in &row.columns {
+                    collect_references(&column.content, refs, xrefs);
+                }
+            }
+        }
+        DelimitedBlockType::DelimitedStem(_) => {}
+    }
+}
+
+/// Walk inline content for inline `[[id]]` anchors and `<<id>>` cross-references,
+/// recursing into formatted spans.
+fn collect_inline_references<'a>(
+    inlines: &[InlineNode<'a>],
+    refs: &mut HashMap<&'a str, Reference<'a>>,
+    xrefs: &mut Vec<(&'a str, Location)>,
+) {
+    for inline in inlines {
+        match inline {
+            InlineNode::InlineAnchor(anchor) => insert_reference(refs, anchor, None),
+            InlineNode::Macro(InlineMacro::CrossReference(xref)) => {
+                xrefs.push((xref.target, xref.location.clone()));
+            }
+            InlineNode::BoldText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::ItalicText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::MonospaceText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::HighlightText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::SubscriptText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::SuperscriptText(t) => collect_inline_references(&t.content, refs, xrefs),
+            InlineNode::PlainText(_)
+            | InlineNode::RawText(_)
+            | InlineNode::VerbatimText(_)
+            | InlineNode::CurvedQuotationText(_)
+            | InlineNode::CurvedApostropheText(_)
+            | InlineNode::StandaloneCurvedApostrophe(_)
+            | InlineNode::LineBreak(_)
+            | InlineNode::Macro(_)
+            | InlineNode::CalloutRef(_) => {}
+        }
+    }
+}
+
+/// Whether a cross-reference target is an internal id (a bare anchor name) as opposed to
+/// an inter-document / external reference. Targets containing a fragment (`#`), path
+/// separator (`/`), file extension (`.`), or scheme (`:`) address another resource and
+/// are not validated against this document's catalog.
+fn is_internal_reference(target: &str) -> bool {
+    !target.is_empty() && !target.contains(['#', '.', '/', ':'])
 }
 
 fn get_literal_paragraph<'input>(
@@ -106,14 +743,13 @@ fn get_literal_paragraph<'input>(
     })
 }
 
-/// Assembles principal text from first line and continuation lines.
-/// Used by list item parsing rules to combine multi-line content.
-/// Produce the principal text for a list item, interned into the arena.
+/// Assembles principal text from first line and continuation lines. Used by list item
+/// parsing rules to combine multi-line content. Produce the principal text for a list
+/// item, interned into the arena.
 ///
-/// When there are no continuation lines (the common case), this just returns
-/// the borrowed `first_line` unchanged — zero allocation. Otherwise it writes
-/// `first_line` followed by each continuation line (separated by `\n`) into a
-/// fresh arena string.
+/// When there are no continuation lines (the common case), this just returns the borrowed
+/// `first_line` unchanged — zero allocation. Otherwise it writes `first_line` followed by
+/// each continuation line (separated by `\n`) into a fresh arena string.
 fn assemble_principal_text<'a>(
     state: &ParserState<'a>,
     first_line: &'a str,
@@ -190,6 +826,31 @@ fn apply_leveloffset(
             .unwrap_or(0)
     } else {
         base_level
+    }
+}
+
+/// Expected `parent_section_level` (one-based, i.e. own level + 1) for a
+/// section's nested content.
+///
+/// A level-0 `[appendix]` in a book is rendered at level 1, so its first
+/// subsection must be a level-2 (`===`) section: the expected child level is 2,
+/// not 1. A level-2 child is therefore in sequence (no "out of sequence"
+/// warning), while a level-1 (`==`) heading closes the appendix instead of
+/// nesting under it. Every other section expects children one level deeper than
+/// itself.
+///
+/// The asciidoctor "Appendix section syntax" docs
+/// (<https://docs.asciidoctor.org/asciidoc/latest/sections/appendix/>) state:
+/// "For books, the appendix must be defined as a level 1 section (`==`) if you
+/// want the appendix to be a adjacent to the chapters. In a multi-part book, if
+/// you want the appendix to be adjacent to other parts, the appendix must be
+/// defined as a level 0 section (`=`)." and "In either case, the first
+/// subsection of the appendix must be a level 2 section (`===`)."
+fn expected_child_level(level: SectionLevel, kind: SectionKind, is_book: bool) -> SectionLevel {
+    if level == 0 && kind == SectionKind::Appendix && is_book {
+        2
+    } else {
+        level + 1
     }
 }
 
@@ -307,12 +968,24 @@ fn parse_table_block_impl<'input>(
         .metadata
         .attributes
         .get("format")
-        .and_then(|v| if let AttributeValue::String(s) = v { Some(s.as_ref()) } else { None });
+        .and_then(|v| {
+            if let AttributeValue::String(s) = v {
+                Some(s.as_ref())
+            } else {
+                None
+            }
+        });
     let separator_attr = block_metadata
         .metadata
         .attributes
         .get("separator")
-        .and_then(|v| if let AttributeValue::String(s) = v { Some(s.as_ref()) } else { None });
+        .and_then(|v| {
+            if let AttributeValue::String(s) = v {
+                Some(s.as_ref())
+            } else {
+                None
+            }
+        });
     // Returns `(separator, is_psv, is_csv)` — `is_psv` and `is_csv` are
     // mutually exclusive intent bits. DSV/TSV are neither; they fall through
     // to the line-by-line row parser with their respective default delimiters.
@@ -337,7 +1010,9 @@ fn parse_table_block_impl<'input>(
         require_ascii_byte: bool,
         emit_warning: F,
     ) -> &'a str {
-        let Some(sep) = sep_attr else { return default_for_format; };
+        let Some(sep) = sep_attr else {
+            return default_for_format;
+        };
         if sep.is_empty() {
             emit_warning(&format!(
                 "{format_label} separator must be non-empty; falling back to default '{default_for_format}'"
@@ -348,7 +1023,11 @@ fn parse_table_block_impl<'input>(
             if sep.len() != 1 || !sep.is_ascii() {
                 emit_warning(&format!(
                     "CSV separator must be a single ASCII byte; '{sep}' is {} — falling back to default '{default_for_format}'",
-                    if sep.is_ascii() { "more than one byte" } else { "non-ASCII" }
+                    if sep.is_ascii() {
+                        "more than one byte"
+                    } else {
+                        "non-ASCII"
+                    }
                 ));
                 return default_for_format;
             }
@@ -374,8 +1053,14 @@ fn parse_table_block_impl<'input>(
             (sep.to_string(), false, false)
         }
         Some("tsv") => {
-            let sep = validate_separator(separator_attr, "\t", "TSV", false, &mut warn);
-            (sep.to_string(), false, false)
+            // TSV shares CSV's RFC-4180 quote-aware parsing (multi-line quoted
+            // cells) — asciidoctor treats both the same, differing only in the
+            // default delimiter. Route via the quote-aware (`is_csv`) path with
+            // a tab delimiter; `require_ascii_byte` holds (`\t` is one ASCII
+            // byte). Without this, TSV multi-line quoted values are split
+            // row-by-row and lose their embedded newlines.
+            let sep = validate_separator(separator_attr, "\t", "TSV", true, &mut warn);
+            (sep.to_string(), false, true)
         }
         Some("psv") => {
             let sep = validate_separator(separator_attr, "|", "PSV", false, &mut warn);
@@ -392,11 +1077,25 @@ fn parse_table_block_impl<'input>(
             // multi-byte separator slip through to `single_byte()` truncation.
             // Mirror the None arm's derivation so the "use default" promise in
             // the warning message is honored at the dispatch level too.
-            warn(&format!("unknown table format '{unknown_format}', using default separator"));
+            warn(&format!(
+                "unknown table format '{unknown_format}', using default separator"
+            ));
             let is_psv = is_psv_default(default_separator);
             let is_csv = !is_psv && default_separator == ",";
-            let format_label = if is_csv { "CSV" } else if is_psv { "PSV" } else { "DSV" };
-            let sep = validate_separator(separator_attr, default_separator, format_label, is_csv, &mut warn);
+            let format_label = if is_csv {
+                "CSV"
+            } else if is_psv {
+                "PSV"
+            } else {
+                "DSV"
+            };
+            let sep = validate_separator(
+                separator_attr,
+                default_separator,
+                format_label,
+                is_csv,
+                &mut warn,
+            );
             (sep.to_string(), is_psv, is_csv)
         }
         None => {
@@ -418,8 +1117,20 @@ fn parse_table_block_impl<'input>(
             // dispatch target.
             let is_psv = is_psv_default(default_separator);
             let is_csv = !is_psv && default_separator == ",";
-            let format_label = if is_csv { "CSV" } else if is_psv { "PSV" } else { "DSV" };
-            let sep = validate_separator(separator_attr, default_separator, format_label, is_csv, &mut warn);
+            let format_label = if is_csv {
+                "CSV"
+            } else if is_psv {
+                "PSV"
+            } else {
+                "DSV"
+            };
+            let sep = validate_separator(
+                separator_attr,
+                default_separator,
+                format_label,
+                is_csv,
+                &mut warn,
+            );
             (sep.to_string(), is_psv, is_csv)
         }
     };
@@ -556,6 +1267,11 @@ fn parse_table_block_impl<'input>(
     // vs multi-codepoint vs empty) so every downstream helper consumes the
     // pre-computed `kind` instead of independently deciding from `&str`.
     let separator_kind = crate::blocks::table::Separator::new(&separator);
+
+    // KEEP-OURS table model: incomplete rows are PADDED (NEVER CORRUPT USER
+    // DATA), not dropped — so there is no dropped-span to report here (upstream's
+    // drop-based `dropped_span` + `TableIncompleteRow` mechanism is not used; our
+    // pad-row path lives in the per-row loop below).
     let raw_rows = Table::parse_rows_with_positions(
         content,
         &separator_kind,
@@ -566,9 +1282,8 @@ fn parse_table_block_impl<'input>(
         ncols,
     );
 
-    // If the user forces a noheader, we should not have a header, so after we've
-    // tried to figure out if there are any headers, we should set it to false one
-    // last time.
+    // If the user forces a `noheader`, we should not have a header, so after we've tried
+    // to figure out if there are any headers, we should set it to false one last time.
     if block_metadata.metadata.options.contains(&"noheader") {
         has_header = false;
     }
@@ -649,35 +1364,38 @@ fn parse_table_block_impl<'input>(
             // Check if any cell's colspan exceeds the table width
             let has_overflow = columns.iter().any(|c| c.colspan > ncols);
             if has_overflow {
-                state.add_generic_warning_at(
-                    format!(
-                        "dropping cell because it exceeds specified number of columns: actual={logical_col_count}, expected={ncols}"
-                    ),
-                    row_location,
-                );
-                // Overflow case: drop the row (current behavior — the cell
-                // can't fit and the user's table grammar is broken in a way
-                // that wrapping into the next row would produce surprising
-                // layouts. Asciidoctor reference also drops.)
+                // Overflow case: drop the row (asciidoctor reference also
+                // drops — the cell can't fit and wrapping into the next row
+                // would produce surprising layouts).
+                state.add_warning(crate::Warning::new(
+                    crate::WarningKind::TableCellOverflow {
+                        actual: logical_col_count,
+                        expected: ncols,
+                    },
+                    Some(state.create_error_source_location(row_location)),
+                ));
                 continue;
             } else if logical_col_count < ncols {
-                // Under-count: PAD the row with empty cells to reach ncols.
-                // Without this, the row is dropped entirely — silently losing
-                // user data when source has a missing cell (the most common
-                // authoring mistake). Asciidoctor reference renders such
-                // rows with the missing cells as empty, NOT dropped.
-                // Still emit the warning so authoring tools surface the issue.
-                state.add_generic_warning_at(
-                    format!(
-                        "table row has incorrect column count: actual={logical_col_count}, expected={ncols}, occupied_from_rowspans={occupied_from_rowspans}"
-                    ),
-                    row_location,
-                );
+                // Under-count (incomplete row). asciidoctor DROPS the trailing
+                // incomplete cells; Glyph is an EDITOR and instead PADS the row
+                // with empty cells so the user's typed content is never lost
+                // (a conscious L2a divergence justified here per NEVER CORRUPT
+                // USER DATA — the most common authoring mistake). We still emit
+                // asciidoctor's `TableIncompleteRow` warning at the row so
+                // tooling/diagnostics surface the incomplete row identically.
+                state.add_warning(crate::Warning::new(
+                    crate::WarningKind::TableIncompleteRow,
+                    Some(state.create_error_source_location(row_location)),
+                ));
                 let pad_count = ncols - logical_col_count;
                 for _ in 0..pad_count {
                     columns.push(crate::TableColumn::with_format(
                         Vec::new(),
-                        1, 1, None, None, None,
+                        1,
+                        1,
+                        None,
+                        None,
+                        None,
                     ));
                 }
                 // Fall through — row now has the right column count.
@@ -685,12 +1403,14 @@ fn parse_table_block_impl<'input>(
                 // Over-count without overflow (e.g. extra cells beyond ncols
                 // via colspan combinations). Drop the row — accepting it
                 // would shift subsequent rows' column alignment.
-                state.add_generic_warning_at(
-                    format!(
-                        "table row has incorrect column count: actual={logical_col_count}, expected={ncols}, occupied_from_rowspans={occupied_from_rowspans}"
-                    ),
-                    row_location,
-                );
+                state.add_warning(crate::Warning::new(
+                    crate::WarningKind::TableColumnCount {
+                        actual: logical_col_count,
+                        expected: ncols,
+                        occupied_from_rowspans,
+                    },
+                    Some(state.create_error_source_location(row_location)),
+                ));
                 continue;
             }
         }
@@ -868,10 +1588,7 @@ peg::parser! {
             // Only for zero-byte input, not whitespace-only
             let (start_position, end_position) = if state.input.is_empty() || (absolute_start == 0 && absolute_end == 0) {
                 // Whitespace-only documents should use column 1
-                (
-                    crate::Position { line: 1, column: 0 },
-                    crate::Position { line: 1, column: 0 }
-                )
+                (crate::Position::new(1, 0), crate::Position::new(1, 0))
             } else {
                 (
                     start.position,
@@ -879,30 +1596,103 @@ peg::parser! {
                 )
             };
 
-            // Warn if the first section skips level 1 (e.g. document jumps
-            // straight from `= Doc Title` to `=== Heading`). Matches asciidoctor's
-            // "section title out of sequence" check; only fires when a doc title
-            // is present — titleless documents accept any first-section level.
-            if header.as_ref().is_some_and(|h| !h.title.is_empty())
-                && let Some(first_section) = blocks.iter().find_map(|b| {
-                    if let Block::Section(s) = b { Some(s) } else { None }
+            // Warn when a top-level section skips level 1 (e.g. a document that
+            // jumps straight to `=== Heading`). Matches asciidoctor's "section
+            // title out of sequence" check.
+            //
+            // The document root sits at level 0 — so every top-level section is
+            // expected at level 1 — once it is "anchored" by a document title or
+            // by preamble body content (a paragraph, list, ...) before the first
+            // section. When anchored, asciidoctor flags *each* top-level section
+            // deeper than level 1 (not just the first). A document that opens
+            // directly with a section (no title, no preamble) is not anchored:
+            // that first section sets the base level and neither it nor its
+            // same-or-shallower siblings are out of sequence. Comments are
+            // transparent and never anchor. Sections nested under another section
+            // are validated separately, in the `section` rule itself.
+            //
+            // `toc_entries` is populated while parsing and is empty exactly when
+            // the document has no sections — checking it first lets section-less
+            // documents skip the body scan entirely. Otherwise we walk only the
+            // top-level blocks (preamble + sibling sections, never nested content)
+            // and stop at the first section in the un-anchored case.
+            if !state.toc_entries.is_empty() {
+                let mut anchored = header.as_ref().is_some_and(|h| !h.title.is_empty());
+                let mut seen_section = false;
+                for block in &blocks {
+                    if let Block::Section(section) = block {
+                        if !anchored {
+                            // Un-anchored leading section: it establishes the base
+                            // level, so neither it nor its siblings can be out of
+                            // sequence. Nothing left to check.
+                            break;
+                        }
+                        if section.level > 1 {
+                            let location = state
+                                .create_error_source_location(section.location.clone());
+                            state.add_warning(crate::Warning::new(
+                                crate::WarningKind::SectionLevelOutOfSequence {
+                                    expected: 1,
+                                    got: section.level,
+                                },
+                                Some(location),
+                            ));
+                        }
+                        seen_section = true;
+                    } else if !seen_section && !matches!(block, Block::Comment(_)) {
+                        // Preamble content before the first section anchors the
+                        // document at level 0.
+                        anchored = true;
+                    }
+                }
+            }
+
+            // Build the id -> reference catalog for O(1) `<<id>>` resolution:
+            // sections (already collected as toc_entries) plus a single walk over
+            // the final tree for every other anchor (block ids and inline
+            // `[[id]]` anchors). The same walk collects every cross-reference so
+            // unresolved ones can be reported.
+            let mut references: HashMap<&str, Reference<'_>> = state
+                .toc_entries
+                .iter()
+                .map(|entry| {
+                    (
+                        entry.id,
+                        Reference {
+                            xreflabel: entry.xreflabel,
+                            title: Some(entry.title.clone()),
+                            location: entry.location.clone(),
+                        },
+                    )
                 })
-                && first_section.level > 1
-            {
-                let level = first_section.level;
-                let markers = "=".repeat(usize::from(level) + 1);
-                let location = state.create_error_source_location(first_section.location.clone());
-                state.add_warning(crate::Warning::new(
-                    crate::WarningKind::SectionLevelOutOfSequence {
-                        got: level,
-                        markers,
-                    },
-                    Some(location),
-                ));
+                .collect();
+            let mut xrefs: Vec<(&str, Location)> = Vec::new();
+            collect_references(&blocks, &mut references, &mut xrefs);
+
+            // An internal `<<id>>` whose target is absent from the catalog is an
+            // unresolved (broken) reference. Inter-document/external targets
+            // (those addressing another resource) are not validated here.
+            for (target, location) in xrefs {
+                if is_internal_reference(target) && !references.contains_key(target) {
+                    let source_location = state.create_error_source_location(location);
+                    state.add_warning(crate::Warning::new(
+                        crate::WarningKind::UnresolvedReference {
+                            target: target.to_string(),
+                        },
+                        Some(source_location),
+                    ));
+                }
             }
 
             Ok(Document {
                 header,
+                // Built in preprocessed coordinates with no `file` on either boundary;
+                // the post-parse remap then applies the per-boundary `file` model like
+                // any node — a boundary in primary content stays `file: None`, one whose
+                // content came from an `include::` gets that include chain. So a document
+                // whose last block is a nested include legitimately ends in that file
+                // (its start, in the primary, stays `None`). Matches the ASG's
+                // per-`locationBoundary` `file` semantics.
                 location: Location {
                     absolute_start,
                     absolute_end,
@@ -912,7 +1702,8 @@ peg::parser! {
                 attributes: DocumentAttributes::clone(&state.document_attributes),
                 blocks,
                 footnotes: state.footnote_tracker.borrow().footnotes.clone(),
-                toc_entries: state.toc_tracker.entries.clone(),
+                toc_entries: state.toc_entries.clone(),
+                references,
             })
         }
 
@@ -953,7 +1744,7 @@ peg::parser! {
                         Some(&header),
                         Rc::make_mut(&mut state.document_attributes),
                         state.options.strict,
-                        state.current_file.as_deref(),
+                        state.current_file.as_deref().map(std::path::PathBuf::as_path),
                     )?;
                 }
 
@@ -999,13 +1790,17 @@ peg::parser! {
             / { BlockMetadata::default() }
 
         pub(crate) rule title_authors() -> (Title<'input>, Option<Subtitle<'input>>, Vec<Author<'input>>)
-        = title_and_subtitle:document_title() eol() authors:authors_and_revision() &(eol()+ / ![_])
+        // Comment lines between the title and the author line are skipped (matching
+        // `asciidoctor`). The first non-comment line is the author line only when it is
+        // not an attribute entry (`:name:`). An attribute entry means there is no author
+        // and it belongs to the header body.
+        = title_and_subtitle:document_title() eol() (comment() eol())* !document_attribute_match() !comment() authors:authors_and_revision() &(eol()+ / ![_])
         {
             let (title, subtitle) = title_and_subtitle;
             tracing::debug!(?title, ?subtitle, ?authors, "Found title and authors in the document header.");
             (title, subtitle, authors)
         }
-        / title_and_subtitle:document_title() &eol() {
+        / title_and_subtitle:document_title() &(eol() / ![_]) {
             let (title, subtitle) = title_and_subtitle;
             tracing::debug!(?title, ?subtitle, "Found title in the document header without authors.");
             (title, subtitle, vec![])
@@ -1137,7 +1932,7 @@ peg::parser! {
 
         rule authors_and_revision() -> Vec<Author<'input>>
             // Capture the author line, substitute any attribute references, then parse
-            = author_line:$([^'\n']+) (eol() revision_pre_substitution())? {?
+            = start:position!() author_line:$([^'\n']+) end:position!() (eol() (comment() eol())* revision_pre_substitution())? {?
                 let substituted_cow = substitute(author_line.trim(), HEADER, &state.document_attributes);
                 // Intern any owned substitution result so the downstream
                 // `authors()` parse can yield `Author<'input>` that outlives
@@ -1151,12 +1946,21 @@ peg::parser! {
                 // Parse the substituted content as authors
                 let mut temp_state = ParserState::for_inline_parsing(substituted, state);
 
-                match document_parser::authors(substituted, &mut temp_state) {
-                    Ok(authors) => {
-                        tracing::debug!(?authors, "Parsed authors from line");
-                        Ok(authors)
-                    }
-                    Err(_) => Err("line did not parse as authors")
+                // `asciidoctor` always consumes the line after the title as the author
+                // line; when it doesn't parse as structured "firstname [middle] [last]
+                // [<email>]" authors (e.g. it contains parentheses, commas, or an
+                // "Author:" prefix), the whole line becomes a single author's full name.
+                if let Ok(authors) = document_parser::authors(substituted, &mut temp_state) {
+                    tracing::debug!(?authors, "Parsed authors from line");
+                    Ok(authors)
+                } else {
+                    tracing::debug!(?substituted, "Author line did not parse structurally; using whole line as a single author");
+                    let location = state.create_error_source_location(state.create_location(start, end));
+                    state.add_warning(crate::Warning::new(
+                        crate::WarningKind::NonStandardAuthorLine { line: substituted.to_string() },
+                        Some(location),
+                    ));
+                    Ok(vec![Author::new(state.arena, substituted, None, None)])
                 }
             }
 
@@ -1201,7 +2005,7 @@ peg::parser! {
             }
 
         pub(crate) rule revision() -> ()
-            = number:$("v"? digits() ++ ".") date:revision_date()? remark:revision_remark()? {
+            = "v"? number:$(digits() ++ ".") date:revision_date()? remark:revision_remark()? {
                 let revision_info = RevisionInfo {
                     number: Cow::Owned(number.to_string()),
                     date: date.map(|d| Cow::Owned(d.to_string())),
@@ -1319,15 +2123,17 @@ peg::parser! {
         block:(
             comment_line_block(offset) /
             document_attribute_block(offset) /
-            &"[discrete" dh:discrete_header(offset) { dh } /
+            // A discrete heading is introduced by an attribute line (`[discrete]`,
+            // `[#id,discrete]`, `[float]`, …) or an anchor preceding one, so only
+            // attempt it when the block starts with `[`. The rule itself backtracks
+            // to `section`/`block_generic` when the metadata isn't a discrete marker.
+            &"[" dh:discrete_header(offset) { dh } /
             section:section(offset, parent_section_level) { section } /
             // Try setext-style sections (only enabled with setext feature + runtime flag)
             section_setext:section_setext(offset, parent_section_level) { section_setext } /
             block_generic(offset, parent_section_level)
         )
-        {
-            block
-        }
+        { block }
 
         /// Single-line comment that becomes a block in the AST.
         /// Line comments begin with `//` (but not `///` or `////` which are block comment delimiters).
@@ -1337,6 +2143,21 @@ peg::parser! {
             // `end` is captured before consuming the trailing newline so the
             // comment's location doesn't include it.
             Ok(Block::Comment(Comment {
+                kind: CommentKind::Line,
+                content,
+                location: state.create_location(span_start + offset, end + offset),
+            }))
+        }
+
+        /// Like `comment_line_block` but leaves the trailing newline unconsumed
+        /// (lookahead instead of consume). Used in list continuations so that a
+        /// `+` continuation following the comment can still match, since
+        /// continuation markers expect a leading newline before the `+`.
+        rule comment_line_block_keep_eol(offset: usize) -> Result<Block<'input>, Error>
+        = "//" !("/") content:$([^'\n']*) end:position!() &(eol() / ![_])
+        {
+            Ok(Block::Comment(Comment {
+                kind: CommentKind::Line,
                 content,
                 location: state.create_location(span_start + offset, end + offset),
             }))
@@ -1419,10 +2240,17 @@ peg::parser! {
 
         rule discrete_header(offset: usize) -> Result<Block<'input>, Error>
         = block_metadata:(bm:block_metadata(offset, None) {?
-            bm.map_err(|e| {
+            let bm = bm.map_err(|e| {
                 tracing::error!(?e, "error parsing block metadata in discrete_header");
                 "block metadata parse error"
-            })
+            })?;
+            // Backtrack to the regular `section` rule unless the attribute line
+            // actually marks this as a discrete heading; a discrete heading is
+            // exempt from section-level sequencing, so it must not reach `section`.
+            if !bm.discrete {
+                return Err("not a discrete heading");
+            }
+            Ok(bm)
         })
         section_level:section_level(offset, None) whitespace()
         title_start:position!() title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_])
@@ -1434,6 +2262,19 @@ peg::parser! {
             // `span_end` lands at title_end here because the trailing `&(...)` is a
             // zero-width lookahead.
             let location = state.create_block_location(span_start, span_end, offset);
+
+            // `float` is a legacy alias for the `discrete` block style (older
+            // AsciiDoc called these "floating titles"). Surface its use so authors
+            // can migrate to `discrete`. Only the style form reaches this rule.
+            if block_metadata.metadata.style == Some("float") {
+                let warning_location = state.create_error_source_location(
+                    state.create_block_location(span_start, span_end, offset),
+                );
+                state.add_warning(crate::Warning::new(
+                    crate::WarningKind::LegacyFloatDiscreteHeading,
+                    Some(warning_location),
+                ));
+            }
 
             Ok(Block::DiscreteHeader(DiscreteHeader {
                 metadata: block_metadata.metadata,
@@ -1483,28 +2324,55 @@ peg::parser! {
             // This matches asciidoctor behavior: [[id,xreflabel]] provides custom cross-reference text
             let xreflabel = block_metadata.metadata.anchors.last().and_then(|a| a.xreflabel);
 
-            // Special section styles (bibliography, glossary, etc.) should not be numbered
-            let numbered = !block_metadata.metadata.style
-                .is_some_and(|s| UNNUMBERED_SECTION_STYLES.contains(&s));
+            // Classify the section by its style (preface, appendix, …).
+            let kind = SectionKind::from_style(block_metadata.metadata.style);
 
             // Register section for TOC immediately after title is parsed, before content
-            state.toc_tracker.register_section(title.clone(), section_level.1, section_id, xreflabel, numbered, block_metadata.metadata.style);
+            let location = state.create_block_location(section_level_start, title_end, offset);
+            state.toc_entries.push(TocEntry {
+                id: section_id,
+                title: title.clone(),
+                level: section_level.1,
+                xreflabel,
+                kind,
+                location,
+            });
 
             Ok::<(Title<'input>, &'input str), Error>((title, section_id))
         })
-        content:section_content(offset, Some(section_level.1+1))?
+        content:section_content(offset, Some(expected_child_level(
+            section_level.1,
+            SectionKind::from_style(block_metadata.metadata.style),
+            is_book_doctype(&state.document_attributes),
+        )))?
         {
             let (title, section_id) = section_header?;
             tracing::debug!(?offset, ?block_metadata, ?title, "parsing section block");
 
-            // Validate section level against parent section level if any is provided
-            if let Some(parent_level) = parent_section_level && (
-                section_level.1 < parent_level  || section_level.1+1 > parent_level+1 || section_level.1 > 5) {
+            // Validate section level against parent section level if any is provided.
+            if let Some(parent_level) = parent_section_level {
+                if section_level.1 < parent_level || section_level.1 > 5 {
                     return Err(Error::NestedSectionLevelMismatch(
                         Box::new(state.create_error_source_location(state.create_block_location(section_level_start, section_level_end, offset))),
                         section_level.1+1,
                         parent_level + 1,
                     ));
+                }
+                // A section that skips a level (deeper than one below its parent)
+                // is "out of sequence". asciidoctor warns but still renders it at
+                // its literal level rather than aborting, so we do the same.
+                if section_level.1 > parent_level {
+                    let location = state.create_error_source_location(
+                        state.create_block_location(section_level_start, section_level_end, offset),
+                    );
+                    state.add_warning(crate::Warning::new(
+                        crate::WarningKind::SectionLevelOutOfSequence {
+                            expected: parent_level,
+                            got: section_level.1,
+                        },
+                        Some(location),
+                    ));
+                }
             }
 
             let level = section_level.1;
@@ -1526,11 +2394,17 @@ peg::parser! {
                 }
             }
 
+            // Classify the section by its style (preface, appendix, …). The
+            // numbering implication of being special — including suppression of
+            // subsection numbering — is decided later, by the converters.
+            let kind = SectionKind::from_style(block_metadata.metadata.style);
+
             Ok(Block::Section(Section {
                 metadata: block_metadata.metadata,
                 title,
                 level,
                 content: content.unwrap_or(Ok(Vec::new()))?,
+                kind,
                 location
             }))
         }
@@ -1611,19 +2485,30 @@ peg::parser! {
                     // Extract xreflabel from the last anchor
                     let xreflabel = block_metadata.metadata.anchors.last().and_then(|a| a.xreflabel);
 
-                    // Special section styles (bibliography, glossary, etc.) should not be numbered
-                    let numbered = !block_metadata.metadata.style
-                        .is_some_and(|s| UNNUMBERED_SECTION_STYLES.contains(&s));
+                    // Classify the section by its style (preface, appendix, …).
+                    let kind = SectionKind::from_style(block_metadata.metadata.style);
 
                     // Register section for TOC
-                    state.toc_tracker.register_section(processed_title.clone(), setext_level, section_id, xreflabel, numbered, block_metadata.metadata.style);
+                    let location = state.create_block_location(title_start, title_end, offset);
+                    state.toc_entries.push(TocEntry {
+                        id: section_id,
+                        title: processed_title.clone(),
+                        level: setext_level,
+                        xreflabel,
+                        kind,
+                        location,
+                    });
 
                     Ok::<(Title<'input>, &'input str), Error>((processed_title, section_id))
                 }
                 Err(e) => Err(e),
             }
         })
-        content:section_content(offset, Some(setext_level + 1))?
+        content:section_content(offset, Some(expected_child_level(
+            setext_level,
+            SectionKind::from_style(block_metadata.metadata.style),
+            is_book_doctype(&state.document_attributes),
+        )))?
         {
             let (title, _section_id) = section_header?;
             let location = state.create_block_location(span_start, span_end, offset);
@@ -1641,11 +2526,15 @@ peg::parser! {
                 }
             }
 
+            // Classify the section by its style (see the ATX section rule).
+            let kind = SectionKind::from_style(block_metadata.metadata.style);
+
             Ok(Block::Section(Section {
                 metadata: block_metadata.metadata,
                 title,
                 level: setext_level,
                 content: content.unwrap_or(Ok(Vec::new()))?,
+                kind,
                 location,
             }))
         }
@@ -1732,6 +2621,7 @@ peg::parser! {
                 title,
                 parent_section_level,
                 subs_flags,
+                discrete,
             })
         }
 
@@ -1834,7 +2724,18 @@ peg::parser! {
             })
         })
         block:(
-            delimited_block:delimited_block(start, offset, &block_metadata) { delimited_block }
+            // A `//` line comment or `////` block comment in a continuation
+            // produces a comment node (which renders to nothing), matching
+            // asciidoctor. Absorb optional leading blank lines: a trailing `+`
+            // leaves a blank-line newline before the comment, while an immediate
+            // comment sits directly at the delimiter. Without this, the `+` would
+            // backtrack and leak a stray `+` paragraph. Must precede `paragraph`,
+            // which would otherwise gobble the `//` line.
+            comment:(eol()* comment_start:position!() c:(
+                comment_line_block_keep_eol(offset)
+                / comment_block(comment_start, offset, &block_metadata)
+            ) { c }) { comment }
+            / delimited_block:delimited_block(start, offset, &block_metadata) { delimited_block }
             / image:image(start, offset, &block_metadata) { image }
             / audio:audio(start, offset, &block_metadata) { audio }
             / video:video(start, offset, &block_metadata) { video }
@@ -1880,15 +2781,70 @@ peg::parser! {
             offset: usize,
             block_metadata: &BlockParsingMetadata<'input>,
         ) -> Result<Block<'input>, Error>
-        = comment_block(start, offset, block_metadata)
-        / example_block(start, offset, block_metadata)
-        / listing_block(start, offset, block_metadata)
-        / literal_block(start, offset, block_metadata)
-        / open_block(start, offset, block_metadata)
-        / sidebar_block(start, offset, block_metadata)
+        = generic_delimited_block(start, offset, block_metadata)
         / table_block(start, offset, block_metadata)
-        / pass_block(start, offset, block_metadata)
-        / quote_block(start, offset, block_metadata)
+
+        // Every non-table delimited block shares one open/content/optional-close
+        // skeleton. `block_open` recognises which kind a delimiter introduces and
+        // `build_delimited_block` constructs the right block — the same split tables
+        // use (`*_table_block` rules + `parse_table_block_impl`). The optional close
+        // and the `(eol() / ![_])` after the open delimiter let an opener that runs
+        // to end of input still produce a block, closed at EOF (asciidoctor's
+        // recovery; `build_delimited_block` emits the unterminated warning).
+        rule generic_delimited_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+            = open_start:position!() open:block_open() (eol() / ![_])
+              content_start:position!() content:until_block_close(open.1) content_end:position!()
+              close:(eol() close_start:position!() close_delim:block_close_delim(open.1) { (close_start, close_delim) })?
+        {
+            build_delimited_block(state, block_metadata, &DelimitedParams {
+                kind: open.0, open_delim: open.1, lang: open.2, content,
+                open_start, start, content_start, content_end, end: span_end, offset, close,
+            })
+        }
+
+        // Recognise a non-table delimited-block opening delimiter, returning its
+        // kind, the literal delimiter, and (for a Markdown ``` fence) an optional
+        // language. Listing (`-`×4+) is tried before open (`--`) so `----` is a
+        // listing, not a too-short open block.
+        rule block_open() -> (DelimitedKind, &'input str, Option<&'input str>)
+            = d:comment_delimiter()  { (DelimitedKind::Comment, d, None) }
+            / d:example_delimiter()  { (DelimitedKind::Example, d, None) }
+            / d:listing_delimiter()  { (DelimitedKind::Listing, d, None) }
+            / d:literal_delimiter()  { (DelimitedKind::Literal, d, None) }
+            / d:open_delimiter()     { (DelimitedKind::Open, d, None) }
+            / d:sidebar_delimiter()  { (DelimitedKind::Sidebar, d, None) }
+            / d:pass_delimiter()     { (DelimitedKind::Pass, d, None) }
+            / d:quote_delimiter()    { (DelimitedKind::Quote, d, None) }
+            / d:markdown_code_delimiter() lang:markdown_language()? { (DelimitedKind::Listing, d, lang) }
+
+        // Content up to (but not including) a closing delimiter line exactly equal
+        // to `expected`, or end of input. Generic over delimiter type; the exact
+        // comparison in `block_close_delim` keeps a different-length or
+        // different-character run from closing the block.
+        rule until_block_close(expected: &str) -> &'input str
+            = content:$((!(eol() block_close_delim(expected)) [_])*) { content }
+
+        // A maximal run of a single block-delimiter character equal to `expected`.
+        // Per-character alternatives (not a mixed character class) so a run stops
+        // at the first foreign character, exactly like the old per-type rules.
+        rule block_close_delim(expected: &str) -> &'input str
+            = delim:$("="+ / "/"+ / "-"+ / "."+ / "*"+ / "_"+ / "+"+ / "~"+ / "`"+)
+              {? if delim == expected { Ok(delim) } else { Err("delimiter mismatch") } }
+
+        // A `////` comment block specifically. The generic `delimited_block` covers
+        // this in normal flow, but a list/description-list continuation needs to
+        // match *only* a comment block (to absorb it after a `+`), so this gated
+        // entry point reuses the shared skeleton and builder.
+        rule comment_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+            = open_start:position!() open_delim:comment_delimiter() (eol() / ![_])
+              content_start:position!() content:until_block_close(open_delim) content_end:position!()
+              close:(eol() close_start:position!() close_delim:block_close_delim(open_delim) { (close_start, close_delim) })?
+        {
+            build_delimited_block(state, block_metadata, &DelimitedParams {
+                kind: DelimitedKind::Comment, open_delim, lang: None, content,
+                open_start, start, content_start, content_end, end: span_end, offset, close,
+            })
+        }
 
         // Delimiter recognition rules
         rule comment_delimiter() -> &'input str = delim:$("/"*<4,>) { delim }
@@ -1911,47 +2867,6 @@ peg::parser! {
         rule markdown_code_delimiter() -> &'input str = delim:$("`"*<3,>) { delim }
         rule quote_delimiter() -> &'input str = delim:$("_"*<4,>) { delim }
 
-        // Exact delimiter matching rules - these use conditional actions to ensure
-        // the matched delimiter is identical to the expected one. This prevents
-        // content lines that happen to contain delimiter-like characters (but of
-        // different length) from being incorrectly treated as closing delimiters.
-        rule exact_comment_delimiter(expected: &str) -> &'input str
-            = delim:comment_delimiter() {? if delim == expected { Ok(delim) } else { Err("comment delimiter mismatch") } }
-        rule exact_example_delimiter(expected: &str) -> &'input str
-            = delim:example_delimiter() {? if delim == expected { Ok(delim) } else { Err("example delimiter mismatch") } }
-        rule exact_listing_delimiter(expected: &str) -> &'input str
-            = delim:listing_delimiter() {? if delim == expected { Ok(delim) } else { Err("listing delimiter mismatch") } }
-        rule exact_literal_delimiter(expected: &str) -> &'input str
-            = delim:literal_delimiter() {? if delim == expected { Ok(delim) } else { Err("literal delimiter mismatch") } }
-        rule exact_open_delimiter(expected: &str) -> &'input str
-            = delim:open_delimiter() {? if delim == expected { Ok(delim) } else { Err("open delimiter mismatch") } }
-        rule exact_sidebar_delimiter(expected: &str) -> &'input str
-            = delim:sidebar_delimiter() {? if delim == expected { Ok(delim) } else { Err("sidebar delimiter mismatch") } }
-        rule exact_pass_delimiter(expected: &str) -> &'input str
-            = delim:pass_delimiter() {? if delim == expected { Ok(delim) } else { Err("pass delimiter mismatch") } }
-        rule exact_markdown_code_delimiter(expected: &str) -> &'input str
-            = delim:markdown_code_delimiter() {? if delim == expected { Ok(delim) } else { Err("markdown code delimiter mismatch") } }
-        rule exact_quote_delimiter(expected: &str) -> &'input str
-            = delim:quote_delimiter() {? if delim == expected { Ok(delim) } else { Err("quote delimiter mismatch") } }
-
-        rule until_comment_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_comment_delimiter(expected)) [_])*) { content }
-
-        rule until_example_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_example_delimiter(expected)) [_])*) { content }
-
-        rule until_listing_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_listing_delimiter(expected)) [_])*) { content }
-
-        rule until_literal_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_literal_delimiter(expected)) [_])*) { content }
-
-        rule until_open_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_open_delimiter(expected)) [_])*) { content }
-
-        rule until_sidebar_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_sidebar_delimiter(expected)) [_])*) { content }
-
         rule until_table_delimiter() -> &'input str
         = content:$((!(eol() table_delimiter()) [_])*) { content }
 
@@ -1970,293 +2885,8 @@ peg::parser! {
         rule until_colon_table_delimiter() -> &'input str
         = content:$((!(eol() colon_table_delimiter()) [_])*) { content }
 
-        rule until_pass_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_pass_delimiter(expected)) [_])*) { content }
-
-        rule until_quote_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_quote_delimiter(expected)) [_])*) { content }
-
-        rule until_markdown_code_delimiter(expected: &str) -> &'input str
-        = content:$((!(eol() exact_markdown_code_delimiter(expected)) [_])*) { content }
-
         rule markdown_language() -> &'input str
         = lang:$((['a'..='z'] / ['A'..='Z'] / ['0'..='9'] / "_" / "+" / "-")+) { lang }
-
-        rule example_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = open_start:position!() open_delim:example_delimiter() eol()
-        content_start:position!() content:until_example_delimiter(open_delim) content_end:position!()
-        eol() close_start:position!() close_delim:example_delimiter()
-        {
-            tracing::debug!(?start, ?offset, ?content_start, ?block_metadata, ?content, "Parsing example block");
-
-            check_delimiters(open_delim, close_delim, "example", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let blocks = if content.trim().is_empty() {
-                Vec::new()
-            } else {
-                document_parser::blocks(content, state, content_start+offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                    adjust_and_log_parse_error(&e, content, content_start+offset, state, "Error parsing example content as blocks in example block");
-                    Ok(Vec::new())
-                })?
-            };
-
-            // We want to detect if this is an admonition block. We do that by checking if
-            // we have a style that matches an admonition variant.
-            if let Some(style) = block_metadata.metadata.style &&
-            let Ok(admonition_variant) = AdmonitionVariant::from_str(style) {
-                tracing::debug!(?admonition_variant, "Detected admonition block with variant");
-                metadata.style = None; // Clear style to avoid confusion (reuse existing clone)
-                return Ok(Block::Admonition(Admonition::new(admonition_variant, blocks, location).with_metadata(metadata).with_title(block_metadata.title.clone())));
-            }
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata, // Use the existing clone instead of cloning again
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedExample(blocks),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule comment_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:comment_delimiter() eol()
-            content_start:position!() content:until_comment_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:comment_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "comment", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata,
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedComment(vec![InlineNode::PlainText(Plain {
-                    content,
-                    location: content_location,
-                    escaped: false,
-                })]),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule listing_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = traditional_listing_block(start, offset, block_metadata)
-            / markdown_listing_block(start, offset, block_metadata)
-
-        rule traditional_listing_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:listing_delimiter() eol()
-            content_start:position!() content:until_listing_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:listing_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "listing", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let (inlines, callouts) = resolve_verbatim_callouts(
-                state.arena,
-                content,
-                content_location,
-                block_metadata.subs_flags.contains(SubsFlags::CALLOUTS),
-            );
-            state.last_block_was_verbatim = true;
-            state.last_verbatim_callouts = callouts;
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedListing(inlines),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule markdown_listing_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:markdown_code_delimiter() lang:markdown_language()? eol()
-            content_start:position!() content:until_markdown_code_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:markdown_code_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "listing", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-
-            // If we captured a language, add it as a positional attribute and set style
-            // to "source". This matches the behavior of [source,lang] blocks so that
-            // detect_language() works.
-            if let Some(language) = lang {
-                metadata.positional_attributes.insert(0, language);
-                metadata.style = Some("source");
-            }
-
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let (inlines, callouts) = resolve_verbatim_callouts(
-                state.arena,
-                content,
-                content_location,
-                block_metadata.subs_flags.contains(SubsFlags::CALLOUTS),
-            );
-            state.last_block_was_verbatim = true;
-            state.last_verbatim_callouts = callouts;
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedListing(inlines),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        pub(crate) rule literal_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        =
-        open_start:position!()
-        open_delim:literal_delimiter()
-        eol()
-        content_start:position!() content:until_literal_delimiter(open_delim) content_end:position!()
-        eol()
-        close_start:position!()
-        close_delim:literal_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "literal", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let (inlines, callouts) = resolve_verbatim_callouts(
-                state.arena,
-                content,
-                content_location,
-                block_metadata.subs_flags.contains(SubsFlags::CALLOUTS),
-            );
-            state.last_block_was_verbatim = true;
-            state.last_verbatim_callouts = callouts;
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata,
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedLiteral(inlines),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule open_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:open_delimiter() eol()
-            content_start:position!() content:until_open_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:open_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "open", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let blocks = if content.trim().is_empty() {
-                Vec::new()
-            } else {
-                document_parser::blocks(content, state, content_start+offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                    adjust_and_log_parse_error(&e, content, content_start+offset, state, "Error parsing content as blocks in open block");
-                    Ok(Vec::new())
-                })?
-            };
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedOpen(blocks),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule sidebar_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:sidebar_delimiter() eol()
-            content_start:position!() content:until_sidebar_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:sidebar_delimiter()
-        {
-            tracing::debug!(?start, ?offset, ?content_start, ?block_metadata, ?content, "Parsing sidebar block");
-
-            check_delimiters(open_delim, close_delim, "sidebar", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            let blocks = if content.trim().is_empty() {
-                Vec::new()
-            } else {
-                document_parser::blocks(content, state, content_start+offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                    adjust_and_log_parse_error(&e, content, content_start+offset, state, "Error parsing sidebar content as blocks");
-                    Ok(Vec::new())
-                })?
-            };
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner: DelimitedBlockType::DelimitedSidebar(blocks),
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
 
         // Table block dispatcher - tries each delimiter-specific variant in order.
         // This enables nested tables: |=== outer can contain !=== inner because
@@ -2412,169 +3042,6 @@ peg::parser! {
                 state,
                 block_metadata,
             )
-        }
-
-        rule pass_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:pass_delimiter() eol()
-            content_start:position!() content:until_pass_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:pass_delimiter()
-        {
-            check_delimiters(open_delim, close_delim, "pass", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            // Check if this is a stem block
-            let inner = if let Some(style) = metadata.style {
-                if style == "stem" {
-                    // Get notation from :stem: document attribute
-                    let notation = match state.document_attributes.get("stem") {
-                        Some(AttributeValue::String(s)) => {
-                            StemNotation::from_str(s).unwrap_or(StemNotation::Latexmath)
-                        }
-                        Some(AttributeValue::Bool(true) | AttributeValue::None) => {
-                            StemNotation::Latexmath
-                        }
-                        _ => StemNotation::Latexmath,
-                    };
-                    metadata.style = None; // Clear style to avoid confusion
-                    DelimitedBlockType::DelimitedStem(StemContent {
-                        content,
-                        notation,
-                    })
-                } else {
-                    DelimitedBlockType::DelimitedPass(vec![InlineNode::RawText(Raw {
-                        content,
-                        location: content_location,
-                        subs: vec![],
-                    })])
-                }
-            } else {
-                DelimitedBlockType::DelimitedPass(vec![InlineNode::RawText(Raw {
-                    content,
-                    location: content_location,
-                    subs: vec![],
-                })])
-            };
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner,
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
-        }
-
-        rule quote_block(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = open_start:position!() open_delim:quote_delimiter() eol()
-            content_start:position!() content:until_quote_delimiter(open_delim) content_end:position!()
-            eol() close_start:position!() close_delim:quote_delimiter()
-        {
-            // Parse attribution/citetitle through the inline pipeline so that URLs,
-            // macros, and other inline markup are properly resolved (#373).
-            // Only re-parse if the content contains characters that suggest
-            // inline markup is present (URLs, macros, formatting, etc.).
-            fn needs_inline_processing(content: &str) -> bool {
-                content.contains("://") || content.contains('[') || content.contains('{')
-                    || content.contains('*') || content.contains('_') || content.contains('`')
-                    || content.contains("<<") || content.contains("link:") || content.contains("mailto:")
-            }
-
-            check_delimiters(open_delim, close_delim, "quote", state.create_error_source_location(state.create_block_location(start, span_end, offset)))?;
-            let mut metadata = block_metadata.metadata.clone();
-            metadata.move_positional_attributes_to_attributes();
-            let location = state.create_block_location(start, span_end, offset);
-            let content_location = state.create_block_location(content_start, content_end, offset);
-            let open_delimiter_location = state.create_location(
-                open_start + offset,
-                open_start + offset + open_delim.len().saturating_sub(1),
-            );
-            let close_delimiter_location = state.create_block_location(close_start, span_end, offset);
-
-            // Collect params first (releases the borrow on metadata.attribution
-            // before we reassign below).
-            let attribution_params = if let Some(ref attr) = metadata.attribution
-            && let Some(InlineNode::PlainText(plain)) = attr.first()
-            && needs_inline_processing(plain.content)
-            {
-                let attr_pos = PositionWithOffset {
-                    offset: plain.location.absolute_start.saturating_sub(offset),
-                    position: plain.location.start.clone(),
-                };
-                let attr_end = plain.location.absolute_end.saturating_sub(offset);
-                let content: &'input str = plain.content;
-                Some((content, attr_pos, attr_end))
-            } else { None };
-            if let Some((content, attr_pos, attr_end)) = attribution_params
-                && let Ok(inlines) = process_inlines(state, block_metadata, attr_pos.offset, attr_end, offset, content)
-                && !inlines.is_empty()
-            {
-                metadata.attribution = Some(Attribution::new(inlines));
-            }
-
-            let citetitle_params = if let Some(ref cite) = metadata.citetitle
-            && let Some(InlineNode::PlainText(plain)) = cite.first()
-            && needs_inline_processing(plain.content)
-            {
-                let cite_pos = PositionWithOffset {
-                    offset: plain.location.absolute_start.saturating_sub(offset),
-                    position: plain.location.start.clone(),
-                };
-                let cite_end = plain.location.absolute_end.saturating_sub(offset);
-                let content: &'input str = plain.content;
-                Some((content, cite_pos, cite_end))
-            } else { None };
-            if let Some((content, cite_pos, cite_end)) = citetitle_params
-                && let Ok(inlines) = process_inlines(state, block_metadata, cite_pos.offset, cite_end, offset, content)
-                && !inlines.is_empty()
-            {
-                metadata.citetitle = Some(CiteTitle::new(inlines));
-            }
-
-            let inner = if let Some(style) = metadata.style {
-                if style == "verse" {
-                    DelimitedBlockType::DelimitedVerse(vec![InlineNode::PlainText(Plain {
-                        content,
-                        location: content_location.clone(),
-                        escaped: false,
-                    })])
-                } else {
-                    let blocks = document_parser::blocks(content, state, content_start+offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                        adjust_and_log_parse_error(&e, content, content_start+offset, state, "Error parsing example content as blocks in quote block");
-                        Ok(Vec::new())
-                    })?;
-                    DelimitedBlockType::DelimitedQuote(blocks)
-                }
-            } else {
-                let blocks = if content.trim().is_empty() {
-                    Vec::new()
-                } else {
-                    document_parser::blocks(content, state, content_start+offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                        adjust_and_log_parse_error(&e, content, content_start+offset, state, "Error parsing content as blocks in quote block");
-                        Ok(Vec::new())
-                    })?
-                };
-                DelimitedBlockType::DelimitedQuote(blocks)
-            };
-
-            Ok(Block::DelimitedBlock(DelimitedBlock {
-                metadata: metadata.clone(),
-                delimiter: open_delim,
-                inner,
-                title: block_metadata.title.clone(),
-                location,
-                open_delimiter_location: Some(open_delimiter_location),
-                close_delimiter_location: Some(close_delimiter_location),
-            }))
         }
 
         rule toc(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
@@ -2975,6 +3442,7 @@ peg::parser! {
             list_explicit_continuation_immediate(offset, block_metadata)
             / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
+        list_dangling_continuation()?
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found unordered list item");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3076,6 +3544,7 @@ peg::parser! {
             list_explicit_continuation_immediate(offset, block_metadata)
             / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
+        list_dangling_continuation()?
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found unordered list item (after marker)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3258,6 +3727,7 @@ peg::parser! {
             list_explicit_continuation_immediate(offset, block_metadata)
             / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
+        list_dangling_continuation()?
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found ordered list item");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3357,6 +3827,7 @@ peg::parser! {
             list_explicit_continuation_immediate(offset, block_metadata)
             / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
+        list_dangling_continuation()?
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found ordered list item (after marker)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3897,6 +4368,23 @@ peg::parser! {
             block
         }
 
+        // Consume a "dangling" list continuation marker: a `+` on its own line with no
+        // attachable block after it (the following line is blank, or the input ends).
+        // asciidoctor silently drops such a marker; without this the leftover `+` is
+        // parsed as a standalone paragraph and prematurely terminates the list. Only
+        // tried after the immediate/ancestor continuation rules, so a `+` with real
+        // content still attaches.
+        //
+        // We consume up to and including the marker's own line terminator, then assert a
+        // blank line or end of input follows (`&(eol() / ![_])`) — that lookahead is what
+        // makes it "dangling": a `+` with real content on the next line is left alone. Any
+        // following blank line is left unconsumed so the list resumes with the next item.
+        rule list_dangling_continuation()
+        = eol()+ "+" whitespace()* eol()? &(eol() / ![_])
+        {
+            tracing::debug!("Dropped dangling list continuation marker");
+        }
+
         // Parse a quoted paragraph: "content" followed by `-- attribution[, citation]`
         //
         // This matches the AsciiDoc shorthand syntax for blockquotes:
@@ -4105,6 +4593,16 @@ peg::parser! {
             // Reset the verbatim flag since paragraph is not a verbatim block
             state.last_block_was_verbatim = false;
 
+            // A `[comment]`-styled paragraph is a comment that produces no
+            // output; keep its raw text on the `Comment` for tooling.
+            if block_metadata.metadata.style == Some("comment") {
+                return Ok(Block::Comment(Comment {
+                    kind: CommentKind::Paragraph,
+                    content,
+                    location: state.create_block_location(start, span_end, offset),
+                }));
+            }
+
             // Check if this is a literal paragraph BEFORE preprocessing
             //
             // Literal paragraphs start with a space and should not have inline
@@ -4203,13 +4701,16 @@ peg::parser! {
                 (id, None)
             } /
             // Single-bracket [#id] shorthand - exclude '.', '%' as they start role/option
-            // shorthands
+            // shorthands.
+            //
+            // Only the bare `[#id]` form is an anchor here; `[#id,...]` is NOT — the
+            // comma introduces further block attributes (e.g. `[#id,discrete]`), so it
+            // must fall through to the attribute-line parser where `#id` becomes the id
+            // and the rest are positional/named attributes. Unlike `[[id,reftext]]`, a
+            // single-bracket comma does not set a reftext (matching asciidoctor).
             //
             // Whitespace is excluded per AsciiDoc documentation at
             // https://docs.asciidoctor.org/asciidoc/latest/attributes/id/#valid-id-characters
-            open_square_bracket() "#" warn_anchor_id_with_whitespace()? id:$([^'\'' | ',' | ']' | '.' | '%' | ' ' | '\t' | '\n' | '\r']+) comma() reftext:$([^']']+) close_square_bracket() {
-                (id, Some(reftext))
-            } /
             open_square_bracket() "#" warn_anchor_id_with_whitespace()? id:$([^'\'' | ',' | ']' | '.' | '%' | ' ' | '\t' | '\n' | '\r']+) close_square_bracket() {
                 (id, None)
             }
@@ -4320,8 +4821,12 @@ peg::parser! {
                 // Process block style (shorthands like .role, #id, %option)
                 if let Some((maybe_style_name, id, roles, options)) = maybe_style {
                     if let Some(style_name) = maybe_style_name {
-                        if style_name == "discrete" {
+                        // `discrete`/`float` as the block style marks a discrete
+                        // heading; the style is kept so it renders as the heading's
+                        // class (matching asciidoctor's `class="discrete"`/`"float"`).
+                        if style_name == "discrete" || style_name == "float" {
                             discrete = true;
+                            metadata.style = Some(state.intern_cow(style_name));
                         } else if metadata.style.is_none() {
                             metadata.style = Some(state.intern_cow(style_name));
                         } else {
@@ -4412,6 +4917,11 @@ peg::parser! {
                         }
                     }
                 }
+
+                // Only the block *style* (`[discrete]`/`[float]`) makes a heading
+                // discrete. A bare `discrete`/`float` positional attribute (e.g.
+                // `[#id,discrete]`) is ignored by asciidoctor — the block stays an
+                // ordinary section — so it does not set the discrete flag here.
 
                 (discrete, metadata, title_position)
             }
@@ -4687,7 +5197,7 @@ peg::parser! {
             let warnings = inline_state.drain_warnings();
             drop(inline_state);
             for warning in warnings {
-                state.add_warning(warning);
+                state.add_inline_preprocessor_warning(warning);
             }
             Ok(result)
         }
@@ -4726,7 +5236,7 @@ peg::parser! {
             let warnings = inline_state.drain_warnings();
             drop(inline_state);
             for warning in warnings {
-                state.add_warning(warning);
+                state.add_inline_preprocessor_warning(warning);
             }
             Ok(result)
         }
@@ -4780,7 +5290,7 @@ peg::parser! {
             let warnings = inline_state.drain_warnings();
             drop(inline_state);
             for warning in warnings {
-                state.add_warning(warning);
+                state.add_inline_preprocessor_warning(warning);
             }
             Ok(result)
         }
@@ -5019,8 +5529,7 @@ fn resolve_verbatim_callouts<'a>(
             // unconditional — applies anywhere (mid-word too), as long
             // as the unescaped marker would itself be a valid callout
             // (chain_to_eol holds). Drops the backslash on output.
-            let is_escaped =
-                lt_idx > 0 && bytes.get(lt_idx.saturating_sub(1)) == Some(&b'\\');
+            let is_escaped = lt_idx > 0 && bytes.get(lt_idx.saturating_sub(1)) == Some(&b'\\');
             let Some((kind, marker_end)) = parse_callout_marker(line, lt_idx) else {
                 // Not a marker — emit '<' (and any preceding text up to it)
                 // as literal and advance past `<`.
@@ -5325,11 +5834,8 @@ v2.9, 01-09-2024: Fall incarnation
                 location: Location {
                     absolute_start: 34,
                     absolute_end: 47,
-                    start: crate::Position { line: 2, column: 3 },
-                    end: crate::Position {
-                        line: 2,
-                        column: 16,
-                    },
+                    start: crate::Position::new(2, 3),
+                    end: crate::Position::new(2, 16),
                 },
                 escaped: false,
             })
@@ -5347,7 +5853,7 @@ v2.9, 01-09-2024: Fall incarnation
         assert_eq!(header.authors[1].email, Some("nlopesml@gmail.com"));
         assert_eq!(
             state.document_attributes.get("revnumber"),
-            Some(&AttributeValue::String("v2.9".into()))
+            Some(&AttributeValue::String("2.9".into()))
         );
         assert_eq!(
             state.document_attributes.get("revdate"),
@@ -5485,7 +5991,7 @@ v2.9, 01-09-2024: Fall incarnation
         document_parser::revision(input, &mut state)?;
         assert_eq!(
             state.document_attributes.get("revnumber"),
-            Some(&AttributeValue::String("v2.9".into()))
+            Some(&AttributeValue::String("2.9".into()))
         );
         assert_eq!(
             state.document_attributes.get("revdate"),
@@ -5506,7 +6012,7 @@ v2.9, 01-09-2024: Fall incarnation
         document_parser::revision(input, &mut state)?;
         assert_eq!(
             state.document_attributes.get("revnumber"),
-            Some(&AttributeValue::String("v2.9".into()))
+            Some(&AttributeValue::String("2.9".into()))
         );
         assert_eq!(
             state.document_attributes.get("revdate"),
@@ -5524,7 +6030,7 @@ v2.9, 01-09-2024: Fall incarnation
         document_parser::revision(input, &mut state)?;
         assert_eq!(
             state.document_attributes.get("revnumber"),
-            Some(&AttributeValue::String("v2.9".into()))
+            Some(&AttributeValue::String("2.9".into()))
         );
         assert_eq!(state.document_attributes.get("revdate"), None);
         assert_eq!(
@@ -5542,10 +6048,53 @@ v2.9, 01-09-2024: Fall incarnation
         document_parser::revision(input, &mut state)?;
         assert_eq!(
             state.document_attributes.get("revnumber"),
-            Some(&AttributeValue::String("v2.9".into()))
+            Some(&AttributeValue::String("2.9".into()))
         );
         assert_eq!(state.document_attributes.get("revdate"), None);
         assert_eq!(state.document_attributes.get("revremark"), None);
+        Ok(())
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_comment_between_author_and_revision() -> Result<(), Error> {
+        // asciidoctor skips a line comment between the author line and the
+        // revision line and still reads the revision (and following attributes).
+        let input = "= T
+Roberto Avanzi
+// a comment
+v2.0, 2026-01-15: rel
+:foo: bar";
+        let mut state = ParserState::new_for_test(input);
+        let result = document_parser::document(input, &mut state)??;
+        let header = result.header.expect("document has a header");
+        assert_eq!(header.authors.len(), 1);
+        assert_eq!(header.authors[0].first_name, "Roberto");
+        assert_eq!(
+            state.document_attributes.get("revnumber"),
+            Some(&AttributeValue::String("2.0".into()))
+        );
+        assert_eq!(
+            state.document_attributes.get("revdate"),
+            Some(&AttributeValue::String("2026-01-15".into()))
+        );
+        assert_eq!(
+            state.document_attributes.get("foo"),
+            Some(&AttributeValue::String("bar".into()))
+        );
+        Ok(())
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_authorcount_defaults_to_zero_without_author() -> Result<(), Error> {
+        let input = "= T\n\nbody";
+        let mut state = ParserState::new_for_test(input);
+        document_parser::document(input, &mut state)??;
+        assert_eq!(
+            state.document_attributes.get("authorcount"),
+            Some(&AttributeValue::String("0".into()))
+        );
         Ok(())
     }
 
@@ -5563,11 +6112,8 @@ v2.9, 01-09-2024: Fall incarnation
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 15,
-                    start: crate::Position { line: 1, column: 3 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 16,
-                    },
+                    start: crate::Position::new(1, 3),
+                    end: crate::Position::new(1, 16),
                 },
                 escaped: false,
             })
@@ -5589,11 +6135,8 @@ v2.9, 01-09-2024: Fall incarnation
                     location: Location {
                         absolute_start: 2,
                         absolute_end: 15,
-                        start: crate::Position { line: 1, column: 3 },
-                        end: crate::Position {
-                            line: 1,
-                            column: 16,
-                        },
+                        start: crate::Position::new(1, 3),
+                        end: crate::Position::new(1, 16),
                     },
                     escaped: false,
                 })]),
@@ -5602,14 +6145,8 @@ v2.9, 01-09-2024: Fall incarnation
                     location: Location {
                         absolute_start: 18,
                         absolute_end: 31,
-                        start: crate::Position {
-                            line: 1,
-                            column: 19,
-                        },
-                        end: crate::Position {
-                            line: 1,
-                            column: 32,
-                        },
+                        start: crate::Position::new(1, 19),
+                        end: crate::Position::new(1, 32),
                     },
                     escaped: false,
                 })]))
@@ -5634,11 +6171,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 15,
-                    start: crate::Position { line: 1, column: 3 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 16,
-                    },
+                    start: crate::Position::new(1, 3),
+                    end: crate::Position::new(1, 16),
                 },
                 escaped: false,
             })
@@ -5654,6 +6188,41 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
         assert_eq!(result.authors[1].last_name, "Lopes");
         assert_eq!(result.authors[1].initials, "NML");
         assert_eq!(result.authors[1].email, Some("nlopesml@gmail.com"));
+        Ok(())
+    }
+
+    /// A document whose only content is a title (no body, no following blank
+    /// line) is recognised as the doctitle, not a level-0 section. The
+    /// preprocessor strips the trailing newline, so the title sits at EOF — the
+    /// `title_authors` rule must accept end-of-input, not only a following `\n`.
+    /// Matches asciidoctor, which treats a lone `= Title` as the doctitle.
+    #[test]
+    fn test_title_only_document_is_doctitle() -> Result<(), Error> {
+        // No trailing newline: mirrors the post-preprocessor buffer for a
+        // single-line `= Doc Title\n` source.
+        let input = "= Doc Title";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        let header = doc.header.expect("title-only doc should have a header");
+        assert_eq!(header.title.len(), 1);
+        assert_eq!(
+            header.title[0],
+            InlineNode::PlainText(Plain {
+                content: "Doc Title",
+                location: Location {
+                    absolute_start: 2,
+                    absolute_end: 10,
+                    start: crate::Position::new(1, 3),
+                    end: crate::Position::new(1, 11),
+                },
+                escaped: false,
+            })
+        );
+        assert!(
+            doc.blocks.is_empty(),
+            "title-only doc should have no body blocks, got: {:?}",
+            doc.blocks
+        );
         Ok(())
     }
 
@@ -5680,7 +6249,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
         let (discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
         assert!(discrete); // Should be discrete
         assert_eq!(metadata.id, None);
-        assert_eq!(metadata.style, None);
+        // The `discrete` style is retained so a discrete heading renders it as a class.
+        assert_eq!(metadata.style, Some("discrete"));
         assert!(metadata.roles.is_empty());
         assert!(metadata.options.is_empty());
         Ok(())
@@ -5702,11 +6272,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 4,
                     absolute_end: 9,
-                    start: crate::Position { line: 1, column: 5 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 10,
-                    }
+                    start: crate::Position::new(1, 5),
+                    end: crate::Position::new(1, 10),
                 }
             })
         );
@@ -5733,11 +6300,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 8,
                     absolute_end: 12,
-                    start: crate::Position { line: 1, column: 9 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 13,
-                    }
+                    start: crate::Position::new(1, 9),
+                    end: crate::Position::new(1, 13),
                 }
             })
         );
@@ -5764,11 +6328,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 8,
                     absolute_end: 12,
-                    start: crate::Position { line: 1, column: 9 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 13,
-                    }
+                    start: crate::Position::new(1, 9),
+                    end: crate::Position::new(1, 13),
                 }
             })
         );
@@ -5789,11 +6350,18 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
     fn test_shorthand_after_named_attribute() -> Result<(), Error> {
         let input = "[cols=\"1,2\",%header]";
         let mut state = ParserState::new_for_test(input);
-        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
-        assert!(metadata.options.contains(&"header"), "options should contain `header`");
+        let (_discrete, metadata, _title_position) =
+            document_parser::attributes(input, &mut state)?;
+        assert!(
+            metadata.options.contains(&"header"),
+            "options should contain `header`"
+        );
         // `cols` is a named attribute, lives in metadata.attributes
         assert!(
-            metadata.attributes.iter().any(|(name, _)| name.as_ref() == "cols"),
+            metadata
+                .attributes
+                .iter()
+                .any(|(name, _)| name.as_ref() == "cols"),
             "cols= must be preserved alongside the trailing shorthand"
         );
         Ok(())
@@ -5807,7 +6375,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
     fn test_multiple_shorthand_after_named() -> Result<(), Error> {
         let input = "[cols=2,%header,%footer,.bordered,#tbl-id]";
         let mut state = ParserState::new_for_test(input);
-        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        let (_discrete, metadata, _title_position) =
+            document_parser::attributes(input, &mut state)?;
         assert!(metadata.options.contains(&"header"));
         assert!(metadata.options.contains(&"footer"));
         assert!(metadata.roles.contains(&"bordered"));
@@ -5822,7 +6391,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
     fn test_explicit_role_and_shorthand_role_additive() -> Result<(), Error> {
         let input = "[role=foo,.role2]";
         let mut state = ParserState::new_for_test(input);
-        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        let (_discrete, metadata, _title_position) =
+            document_parser::attributes(input, &mut state)?;
         assert!(metadata.roles.contains(&"foo"));
         assert!(metadata.roles.contains(&"role2"));
         Ok(())
@@ -5836,10 +6406,14 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
     fn test_shorthand_before_named_still_works() -> Result<(), Error> {
         let input = "[%header,cols=\"1,2\"]";
         let mut state = ParserState::new_for_test(input);
-        let (_discrete, metadata, _title_position) = document_parser::attributes(input, &mut state)?;
+        let (_discrete, metadata, _title_position) =
+            document_parser::attributes(input, &mut state)?;
         assert!(metadata.options.contains(&"header"));
         assert!(
-            metadata.attributes.iter().any(|(name, _)| name.as_ref() == "cols"),
+            metadata
+                .attributes
+                .iter()
+                .any(|(name, _)| name.as_ref() == "cols"),
             "leading shorthand + trailing named must both be retained"
         );
         Ok(())
@@ -5862,11 +6436,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 12,
-                    start: crate::Position { line: 1, column: 3 },
-                    end: crate::Position {
-                        line: 1,
-                        column: 13,
-                    }
+                    start: crate::Position::new(1, 3),
+                    end: crate::Position::new(1, 13),
                 }
             })
         );
@@ -5892,8 +6463,8 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
                 location: Location {
                     absolute_start: 2,
                     absolute_end: 7,
-                    start: crate::Position { line: 1, column: 3 },
-                    end: crate::Position { line: 1, column: 8 }
+                    start: crate::Position::new(1, 3),
+                    end: crate::Position::new(1, 8),
                 }
             })
         );
@@ -5975,6 +6546,53 @@ Lorn_Kismet R. Lee <kismet@asciidoctor.org>; Norberto M. Lopes <nlopesml@gmail.c
         assert_eq!(result.toc_entries[0].id, "_section_a");
         assert_eq!(result.toc_entries[1].id, "_section_a_1");
         assert_eq!(result.toc_entries[2].id, "_section_b");
+        Ok(())
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_section_kind_classifies_special_sections() -> Result<(), Error> {
+        // The parser records each section's own kind from its style; it does not
+        // infer anything for a plain subsection (the numbering implication of
+        // being nested under a special section is decided by converters).
+        let input = "= Title\n\n[preface]\n== Introduction\n\nintro\n\n=== Features\n\nfeatures\n\n== Real Chapter\n\ntext";
+        let mut state = ParserState::new_for_test(input);
+        let result = document_parser::document(input, &mut state)??;
+
+        let mut sections = Vec::new();
+        fn collect<'a, 'b>(blocks: &'b [Block<'a>], out: &mut Vec<&'b Section<'a>>) {
+            for block in blocks {
+                if let Block::Section(s) = block {
+                    out.push(s);
+                    collect(&s.content, out);
+                }
+            }
+        }
+        collect(&result.blocks, &mut sections);
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].kind, SectionKind::Preface); // Introduction
+        assert_eq!(sections[1].kind, SectionKind::Normal); // Features (plain subsection)
+        assert_eq!(sections[2].kind, SectionKind::Normal); // Real Chapter
+
+        // The flat TOC list carries the same per-section kinds.
+        assert_eq!(result.toc_entries.len(), 3);
+        assert_eq!(result.toc_entries[0].kind, SectionKind::Preface);
+        assert_eq!(result.toc_entries[1].kind, SectionKind::Normal);
+        assert_eq!(result.toc_entries[2].kind, SectionKind::Normal);
+        Ok(())
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn test_section_kind_appendix() -> Result<(), Error> {
+        // `[appendix]` is classified as Appendix; its plain subsection is Normal.
+        let input = "= Title\n:doctype: book\n\n[appendix]\n== App\n\napp\n\n=== App Sub\n\nsub";
+        let mut state = ParserState::new_for_test(input);
+        let result = document_parser::document(input, &mut state)??;
+
+        assert_eq!(result.toc_entries.len(), 2);
+        assert_eq!(result.toc_entries[0].kind, SectionKind::Appendix);
+        assert_eq!(result.toc_entries[1].kind, SectionKind::Normal);
         Ok(())
     }
 
@@ -6578,12 +7196,15 @@ References.
         // "sponsor.adoc" (included), and the trailing content is at byte 45.
         let input = "a]b\n".repeat(20); // 80 bytes total (4 bytes per line)
         let mut state = ParserState::new_for_test(&input);
-        state.current_file = Some(PathBuf::from("/docs/main.adoc"));
+        state.current_file = Some(PathBuf::from("/docs/main.adoc").into());
         state.source_ranges = vec![SourceRange {
             start_offset: 28, // byte 28 starts the included region
             end_offset: 60,
-            file: PathBuf::from("/docs/sponsor.adoc"),
+            file: Some(PathBuf::from("/docs/sponsor.adoc")),
+            file_chain: vec!["sponsor.adoc".to_string()],
             start_line: 1,
+            source_start_offset: 0,
+            column_shift: 0,
         }];
 
         // Trigger warning at byte offset 40 (inside the included range)
@@ -6601,10 +7222,7 @@ References.
             "should reference the included file, got: {:?}",
             loc.file,
         );
-        let position_line = match &loc.positioning {
-            crate::Positioning::Location(l) => l.start.line,
-            crate::Positioning::Position(p) => p.line,
-        };
+        let position_line = loc.location.start.line;
         assert_eq!(
             position_line, 4,
             "should reference line 4 in included file, got line {position_line}",
@@ -6620,12 +7238,15 @@ References.
 
         let input = "image::x.png[alt]extra\nsecond line\n";
         let mut state = ParserState::new_for_test(input);
-        state.current_file = Some(PathBuf::from("/docs/main.adoc"));
+        state.current_file = Some(PathBuf::from("/docs/main.adoc").into());
         state.source_ranges = vec![SourceRange {
             start_offset: 100, // well beyond input - shouldn't match
             end_offset: 200,
-            file: PathBuf::from("/docs/other.adoc"),
+            file: Some(PathBuf::from("/docs/other.adoc")),
+            file_chain: vec!["other.adoc".to_string()],
             start_line: 1,
+            source_start_offset: 0,
+            column_shift: 0,
         }];
 
         state.warn_trailing_macro_content("image", "extra", 17, 0);
@@ -6665,10 +7286,399 @@ References.
         let loc = warning
             .source_location()
             .expect("warning should carry a location");
-        match &loc.positioning {
-            crate::Positioning::Location(l) => assert_eq!(l.start.line, 3),
-            crate::Positioning::Position(p) => assert_eq!(p.line, 3),
+        assert_eq!(loc.location.start.line, 3);
+        Ok(())
+    }
+
+    /// A level-0 `[appendix]` is rendered at level 1, so its first subsection
+    /// must be a level-2 (`===`) section — that is in sequence and must NOT warn,
+    /// matching asciidoctor.
+    #[test]
+    fn test_level0_appendix_level2_subsection_no_warning() -> Result<(), Error> {
+        let input = "= Book\n:doctype: book\n\n= Part One\n\n== Chapter\n\nbody\n\n[appendix]\n= App Part\n\nintro\n\n=== First Subsection\n\nbody\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::SectionLevelOutOfSequence { .. },
+            )),
+            "level-2 subsection of a level-0 appendix is in sequence, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// A level-0 `[appendix]`'s children are expected at level 2, so a level-3
+    /// (`====`) child that skips level 2 still warns — with `expected: 2`,
+    /// matching asciidoctor.
+    #[test]
+    fn test_level0_appendix_level3_child_still_warns() -> Result<(), Error> {
+        let input = "= Book\n:doctype: book\n\n= Part One\n\n== Chapter\n\nbody\n\n[appendix]\n= App Part\n\nintro\n\n==== Too Deep\n\nbody\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::SectionLevelOutOfSequence {
+                    expected: 2,
+                    got: 3
+                },
+            )),
+            "level-3 child skipping level 2 should warn, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// A titleless document whose first section skips level 1 still warns when
+    /// preamble body content (here a description list) precedes it — the
+    /// preamble anchors the document at level 0. Matches asciidoctor.
+    #[test]
+    fn test_titleless_preamble_then_deep_section_emits_warning() -> Result<(), Error> {
+        let input = "term:: desc\n\n===== Deep\n\ntext\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::SectionLevelOutOfSequence {
+                    expected: 1,
+                    got: 4
+                },
+            )),
+            "expected out-of-sequence warning, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// A titleless document whose very first block is a deeper-than-1 section
+    /// (no doctitle, no preamble) does not warn — matches asciidoctor.
+    #[test]
+    fn test_titleless_bare_deep_section_no_warning() -> Result<(), Error> {
+        let input = "===== Deep\n\ntext\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::SectionLevelOutOfSequence { .. },
+            )),
+            "expected no out-of-sequence warning, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// Once anchored (here by a doctitle), asciidoctor flags *every* top-level
+    /// section that skips level 1, not just the first. Two sibling `=====`
+    /// sections must each produce a warning.
+    #[test]
+    fn test_multiple_top_level_sections_each_warn() -> Result<(), Error> {
+        let input = "= Doc Title\n\n===== One\n\ntext\n\n===== Two\n\ntext\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        let count = warnings
+            .iter()
+            .filter(|w| {
+                matches!(
+                    &w.kind,
+                    crate::WarningKind::SectionLevelOutOfSequence {
+                        expected: 1,
+                        got: 4
+                    },
+                )
+            })
+            .count();
+        assert_eq!(
+            count, 2,
+            "expected one warning per sibling, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// An un-anchored document that opens with a deep section establishes that
+    /// section's level as the base, so same-level siblings are not flagged.
+    #[test]
+    fn test_bare_deep_section_siblings_no_warning() -> Result<(), Error> {
+        let input = "===== One\n\ntext\n\n===== Two\n\ntext\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::SectionLevelOutOfSequence { .. },
+            )),
+            "expected no out-of-sequence warning, got: {warnings:?}"
+        );
+        Ok(())
+    }
+
+    /// A `[comment]`-styled block produces no output. The `--` open block
+    /// becomes a `DelimitedComment` (kept distinct from a `////` block by its
+    /// `--` delimiter); the paragraph becomes a `Comment` of kind `Paragraph`.
+    /// The following blank-separated paragraph is kept.
+    #[test]
+    fn test_comment_style_block_dropped() -> Result<(), Error> {
+        let input = "[comment]\n--\nhidden\n\n== Hidden heading\n--\n\n[comment]\nhidden para.\n\nVisible.\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        assert_eq!(doc.blocks.len(), 3);
+
+        // The open block: a `--`-delimited DelimitedComment (no leftover
+        // `comment` style) retaining its raw inner text.
+        assert!(
+            matches!(
+                &doc.blocks[0],
+                Block::DelimitedBlock(delimited)
+                if matches!(&delimited.inner, DelimitedBlockType::DelimitedComment(nodes)
+                    if matches!(&nodes[0], InlineNode::PlainText(text)
+                        if text.content.contains("Hidden heading")))
+                        && delimited.delimiter == "--"
+                        && delimited.metadata.style.is_none()
+            ),
+            "the [comment] open block should be a `--` DelimitedComment"
+        );
+
+        // The paragraph: a `Comment` of kind `Paragraph`.
+        assert!(
+            matches!(&doc.blocks[1], Block::Comment(comment) if comment.kind == CommentKind::Paragraph),
+            "the [comment] paragraph should be a Comment of kind Paragraph"
+        );
+
+        // The trailing blank-separated paragraph is normal content.
+        assert!(
+            matches!(&doc.blocks[2], Block::Paragraph(para)
+                if matches!(&para.content[..], [InlineNode::PlainText(text)]
+                    if text.content == "Visible.")),
+            "the trailing paragraph should survive"
+        );
+        Ok(())
+    }
+
+    /// `[comment]` only suppresses open blocks and paragraphs. On any other
+    /// block (e.g. a listing) `asciidoctor` ignores the style and renders the
+    /// block, so it must stay a normal `DelimitedListing`, not become a comment.
+    #[test]
+    fn test_comment_style_on_listing_renders() -> Result<(), Error> {
+        let input = "[comment]\n----\nvisible\n----\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        assert_eq!(doc.blocks.len(), 1);
+        assert!(
+            matches!(
+                &doc.blocks[0],
+                Block::DelimitedBlock(delimited)
+                    if matches!(delimited.inner, DelimitedBlockType::DelimitedListing(_))
+            ),
+            "a [comment]-styled listing must still render as a listing"
+        );
+        Ok(())
+    }
+
+    /// An `<<id>>` whose target is defined nowhere is an unresolved reference
+    /// and warns, pointing at the cross-reference.
+    #[test]
+    fn test_unresolved_reference_warns() -> Result<(), Error> {
+        let input = "A paragraph.\n\nSee <<missing>>.\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::UnresolvedReference { target } if target == "missing"
+            )),
+            "expected an unresolved-reference warning for `missing`"
+        );
+        Ok(())
+    }
+
+    /// An `<<id>>` pointing at an inline `[[id]]` anchor resolves (the catalog
+    /// includes inline anchors), so it does not warn.
+    #[test]
+    fn test_inline_anchor_reference_resolves() -> Result<(), Error> {
+        let input = "Some text [[here]] in a paragraph.\n\nSee <<here>>.\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        assert!(doc.references.contains_key("here"));
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings
+                .iter()
+                .any(|w| matches!(&w.kind, crate::WarningKind::UnresolvedReference { .. })),
+            "a reference to an existing inline anchor must not warn"
+        );
+        Ok(())
+    }
+
+    /// An inline `[[id]]` anchor inside a callout-list item's text is catalogued
+    /// (callout lists are walked like other list containers), so a reference to
+    /// it resolves.
+    #[test]
+    fn test_callout_item_inline_anchor_resolves() -> Result<(), Error> {
+        let input = "----\ncode <1>\n----\n<1> Note with an [[cnote]] anchor.\n\nSee <<cnote>>.\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        assert!(doc.references.contains_key("cnote"));
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings
+                .iter()
+                .any(|w| matches!(&w.kind, crate::WarningKind::UnresolvedReference { .. })),
+            "a reference to an anchor inside a callout item must not warn"
+        );
+        Ok(())
+    }
+
+    /// A titled block with an id is collected into `references` so a `<<id>>`
+    /// reference can resolve to its title.
+    #[test]
+    fn test_titled_block_collected_in_references() -> Result<(), Error> {
+        let input = "[[data-table]]\n.Important Data\n[cols=\"1,1\"]\n|===\n| a | b\n|===\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        let entry = doc
+            .references
+            .get("data-table")
+            .expect("titled block should be a reference target");
+        let title = entry
+            .title
+            .as_ref()
+            .expect("titled block has reference text");
+        assert!(
+            matches!(&title[..], [InlineNode::PlainText(text)] if text.content == "Important Data")
+        );
+        // The location points at the anchor on line 1 (for LSP navigation).
+        assert_eq!(entry.location.start.line, 1);
+        Ok(())
+    }
+
+    /// A block with an id but no title is still a reference target — present in
+    /// the catalog with no reference text (`title: None`). This distinguishes a
+    /// resolvable-but-untitled id (renders `[id]`) from an absent/unresolved id.
+    #[test]
+    fn test_untitled_block_in_references_without_reftext() -> Result<(), Error> {
+        let input = "[[untitled]]\n[cols=\"1,1\"]\n|===\n| a | b\n|===\n";
+        let mut state = ParserState::new_for_test(input);
+        let doc = document_parser::document(input, &mut state)??;
+        let entry = doc
+            .references
+            .get("untitled")
+            .expect("untitled block with an id is still a reference target");
+        assert!(
+            entry.title.is_none(),
+            "untitled block has no reference text"
+        );
+        Ok(())
+    }
+
+    /// An author line that doesn't parse as structured authors is kept as a
+    /// single author, and the parser warns (acdc-only heads-up; asciidoctor is
+    /// silent). The warning points at the author line.
+    #[test]
+    fn test_non_standard_author_line_emits_warning() -> Result<(), Error> {
+        let input = "= Doc Title\nAuthor: Roberto Avanzi (Lead), Ruud Derwig\n:foo: bar\n\nBody.\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        let warning = warnings
+            .iter()
+            .find(|w| {
+                matches!(
+                    &w.kind,
+                    crate::WarningKind::NonStandardAuthorLine { line }
+                        if line == "Author: Roberto Avanzi (Lead), Ruud Derwig"
+                )
+            })
+            .expect("expected non-standard author line warning");
+        // The warning points at the author line (line 2 of the input).
+        let loc = warning
+            .source_location()
+            .expect("warning should carry a location");
+        assert_eq!(loc.location.start.line, 2);
+        Ok(())
+    }
+
+    /// A discrete heading marked with the legacy `float` block style warns so
+    /// authors can migrate to `discrete`.
+    #[test]
+    fn test_legacy_float_discrete_heading_warns() -> Result<(), Error> {
+        let input = "== Parent\n\n[float]\n==== Floating\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            warnings
+                .iter()
+                .any(|w| matches!(&w.kind, crate::WarningKind::LegacyFloatDiscreteHeading)),
+            "`[float]` discrete heading should warn"
+        );
+        Ok(())
+    }
+
+    /// `float` only marks a discrete heading as a block *style*. The preferred
+    /// `[discrete]`, a table's `float=` layout attribute, and a bare `float`
+    /// positional (which leaves the block an ordinary section) must NOT raise the
+    /// legacy-`float` warning.
+    #[test]
+    fn test_no_legacy_float_warning() -> Result<(), Error> {
+        for input in [
+            "== Parent\n\n[discrete]\n==== Disc\n",
+            "[float=\"center\",cols=\"1,1\"]\n|===\n| a | b\n|===\n",
+            "= Doc\n\n[#f,float]\n=== Ordinary Section\n",
+        ] {
+            let mut state = ParserState::new_for_test(input);
+            let _ = document_parser::document(input, &mut state)??;
+            let warnings = state.warnings.borrow();
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|w| matches!(&w.kind, crate::WarningKind::LegacyFloatDiscreteHeading)),
+                "input {input:?} should not raise the legacy-float warning"
+            );
         }
+        Ok(())
+    }
+
+    /// A plain `Firstname Lastname` author line parses structurally and must
+    /// NOT raise the non-standard-author warning.
+    #[test]
+    fn test_standard_author_line_no_warning() -> Result<(), Error> {
+        let input = "= Doc Title\nRoberto Avanzi\n:foo: bar\n\nBody.\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings
+                .iter()
+                .any(|w| matches!(&w.kind, crate::WarningKind::NonStandardAuthorLine { .. })),
+            "structured author line should not warn"
+        );
+        Ok(())
+    }
+
+    /// A trailing partial row that cannot fill a complete row is dropped, and
+    /// the parser warns at the location of the dropped cell — matching
+    /// asciidoctor's "dropping cells from incomplete row" message.
+    #[test]
+    fn test_incomplete_final_row_emits_dropping_warning() -> Result<(), Error> {
+        // The lone `|g` on line 5 cannot complete a 3-column row.
+        let input = "[cols=\"3*\"]\n|===\n|a |b |c\n|d |e |f\n|g\n|===\n";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        let warning = warnings
+            .iter()
+            .find(|w| matches!(&w.kind, crate::WarningKind::TableIncompleteRow))
+            .expect("expected dropping-cells warning");
+        let loc = warning
+            .source_location()
+            .expect("warning should carry a location");
+        assert_eq!(loc.location.start.line, 5);
         Ok(())
     }
 
@@ -6730,10 +7740,7 @@ References.
             .source_location()
             .expect("warning should carry a location");
         // Warning should point to the opening `|===` on line 1.
-        match &loc.positioning {
-            crate::Positioning::Location(l) => assert_eq!(l.start.line, 1),
-            crate::Positioning::Position(p) => assert_eq!(p.line, 1),
-        }
+        assert_eq!(loc.location.start.line, 1);
 
         // The document should still contain a table block.
         let has_table = doc.blocks.iter().any(|b| {
@@ -6798,10 +7805,7 @@ References.
         let loc = warning
             .source_location()
             .expect("warning should carry a location");
-        let line = match &loc.positioning {
-            crate::Positioning::Location(l) => l.start.line,
-            crate::Positioning::Position(p) => p.line,
-        };
+        let line = loc.location.start.line;
         assert_eq!(
             line, 4,
             "warning should point at line 4 (the `!===`), not the `a|` line; got {line}",
@@ -6862,6 +7866,92 @@ References.
         assert!(
             has_warning,
             "expected unterminated table warning through parse(), got: {:?}",
+            res.warnings(),
+        );
+    }
+
+    /// Every delimited block whose opening delimiter runs to end of input
+    /// without a close is still produced (closed at EOF) and emits an
+    /// `UnterminatedDelimitedBlock` warning carrying the block kind and the
+    /// literal opening delimiter — matching asciidoctor's recovery.
+    #[test]
+    fn test_unterminated_delimited_blocks_emit_warning() -> Result<(), Error> {
+        // (delimiter line + content, expected kind, expected opening delimiter).
+        // A leading `para\n\n` keeps the delimiter in the document body — a
+        // `////` at the very start would otherwise be eaten by the header's
+        // leading-comment scan.
+        let cases = [
+            ("====\ntext", "example", "===="),
+            ("----\ntext", "listing", "----"),
+            ("....\ntext", "literal", "...."),
+            ("****\ntext", "sidebar", "****"),
+            ("____\ntext", "quote", "____"),
+            ("--\ntext", "open", "--"),
+            ("////\ntext", "comment", "////"),
+            ("++++\ntext", "pass", "++++"),
+            ("```\ntext", "listing", "```"),
+        ];
+        for (block, want_kind, want_delim) in cases {
+            let input = &format!("para\n\n{block}");
+            let mut state = ParserState::new_for_test(input);
+            let doc = document_parser::document(input, &mut state)??;
+            let warnings = state.warnings.borrow();
+            assert!(
+                warnings.iter().any(|w| matches!(
+                    &w.kind,
+                    crate::WarningKind::UnterminatedDelimitedBlock { kind, delimiter }
+                        if *kind == want_kind && delimiter == want_delim,
+                )),
+                "expected unterminated {want_kind} warning for input {input:?}, got: {warnings:?}",
+            );
+            // The block is still produced and recorded as unterminated (no
+            // closing delimiter location).
+            assert!(
+                doc.blocks.iter().any(|b| matches!(
+                    b,
+                    Block::DelimitedBlock(d) if d.close_delimiter_location.is_none(),
+                )),
+                "expected an unterminated delimited block for input {input:?}, got: {:?}",
+                doc.blocks,
+            );
+        }
+        Ok(())
+    }
+
+    /// A properly closed delimited block must not emit the unterminated warning.
+    #[test]
+    fn test_terminated_delimited_block_no_warning() -> Result<(), Error> {
+        let input = "====\ntext\n====";
+        let mut state = ParserState::new_for_test(input);
+        let _ = document_parser::document(input, &mut state)??;
+        let warnings = state.warnings.borrow();
+        assert!(
+            !warnings.iter().any(|w| matches!(
+                &w.kind,
+                crate::WarningKind::UnterminatedDelimitedBlock { .. },
+            )),
+            "a closed example block should not warn, got: {warnings:?}",
+        );
+        Ok(())
+    }
+
+    /// Exercised through the public `parse` entry point (which runs the
+    /// preprocessor, stripping the trailing newline) so a lone `====\n`
+    /// source still reaches the grammar as an unterminated block.
+    #[test]
+    fn test_unterminated_example_through_parse_entry() {
+        let opts = crate::Options::default();
+        let res = crate::parse("====\ntext\n", &opts).expect("parse should succeed");
+        let has_warning = res.warnings().iter().any(|w| {
+            matches!(
+                &w.kind,
+                crate::WarningKind::UnterminatedDelimitedBlock { kind, delimiter }
+                    if *kind == "example" && delimiter == "====",
+            )
+        });
+        assert!(
+            has_warning,
+            "expected unterminated example warning through parse(), got: {:?}",
             res.warnings(),
         );
     }

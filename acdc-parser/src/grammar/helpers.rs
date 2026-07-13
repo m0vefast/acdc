@@ -36,6 +36,10 @@ pub(crate) struct BlockParsingMetadata<'input> {
     pub(crate) title: Title<'input>,
     pub(crate) parent_section_level: Option<SectionLevel>,
     pub(crate) subs_flags: SubsFlags,
+    /// Set when the attribute line marks the block as a discrete heading,
+    /// either via the `discrete`/`float` block style (`[discrete]`) or as a
+    /// bare positional attribute (`[#id,discrete]`).
+    pub(crate) discrete: bool,
 }
 
 /// Attribute shorthand syntax: .role, #id, %option
@@ -86,22 +90,17 @@ pub(crate) struct AttributeProcessingMode {
     /// If true, first positional attribute becomes `style` (used by macro attributes)
     /// If false, positional attributes are added to `positional_attributes` list
     pub(crate) first_positional_is_style: bool,
-    /// If true, process `subs=` attribute (block attributes only)
-    #[allow(dead_code)]
-    pub(crate) process_subs: bool,
 }
 
 impl AttributeProcessingMode {
     /// Configuration for block-level attributes
     pub(crate) const BLOCK: Self = Self {
         first_positional_is_style: false,
-        process_subs: true,
     };
 
     /// Configuration for macro attributes (image, audio, video, icon)
     pub(crate) const MACRO: Self = Self {
         first_positional_is_style: true,
-        process_subs: false,
     };
 }
 

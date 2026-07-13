@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `inline_text::InlineTextTransform` and `inlines_to_string()` provide shared
+  plain-text extraction from inline nodes for converters and tooling, including
+  configurable hard-line-break rendering.
+- **`#` callout guards in shell-session and PowerShell blocks** — `[source,console]`,
+  `[source,terminal]`, and `[source,powershell]`/`[source,ps1]` source blocks use `#`
+  as their line-comment prefix, so a guarding `# <1>` is stripped from the rendered
+  line just like it is for `bash`/`sh`/`zsh`/`fish`.
+- `list::OrderedListNumbering` — resolves an ordered list's explicit `[style]`
+  attribute (`arabic`, `decimal`, `loweralpha`, `upperalpha`, `lowerroman`,
+  `upperroman`, `lowergreek`) and formats a 1-based item position into its marker
+  text, shared by the terminal and manpage backends.
+- `section::SpecialSectionTracker` — shared, reusable tracker that decides which
+  sections take part in `:sectnums:` numbering. Fed each section (by `SectionKind`)
+  in document order, it returns `false` for special sections and their
+  subsections, with `[appendix]` excepted (it begins its own numbered sequence).
+  Used by the HTML body, HTML TOC, and terminal renderers so the rule lives in one
+  place.
 - `substitutions::effective_subs(spec, is_verbatim)` — shared resolver for
   per-block `[subs="…"]` lists against the `NORMAL` / `VERBATIM` baselines.
   Previously lived in the HTML converter; promoted so terminal, manpage, and
@@ -32,7 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by converters that need format-specific em-dash output (e.g. HTML entities).
 - **Section numbering utilities** — new `section` module with `SectionNumberTracker`,
   `PartNumberTracker`, `AppendixTracker`, and `to_upper_roman` moved from `acdc-converters-html`
-  so they can be shared across converters.
+  so they can be shared across converters. Inside an appendix, `SectionNumberTracker`
+  numbers subsections with the appendix letter as the top component (`A.1`, `A.1.1`),
+  and `AppendixTracker::enter_appendix` returns the heading prefix (`Appendix A: `, or the
+  bare `A. ` when the caption is disabled) — both driven by the same letter.
 - `#[non_exhaustive]` attribute on `Options`, `GeneratorMetadata`, `toc::Config`,
   `Doctype`, and `IconMode` for semver-safe future additions
 - Comprehensive module-level documentation

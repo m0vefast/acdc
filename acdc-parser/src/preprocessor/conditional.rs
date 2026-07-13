@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     DocumentAttributes,
-    error::{Error, Positioning, SourceLocation},
+    error::{Error, SourceLocation},
     model::{HEADER, Position, substitute},
 };
 
@@ -235,18 +235,16 @@ impl Ifeval {
             | (EvalValue::Boolean(_), EvalValue::Boolean(_))
             | (EvalValue::String(_), EvalValue::String(_)) => {}
             _ => {
-                // Asciidoctor reference behavior: warn and treat the directive
+                // G2 (Asciidoctor lenient compat): warn and treat the directive
                 // as false rather than abort the whole document. Strict
                 // implementations may upgrade this to an error later; for now
                 // we mirror the lenient mainline behavior so real-world docs
                 // that gate on built-in attributes (e.g. `{safe-mode-level}`)
-                // keep rendering instead of bailing.
+                // keep rendering instead of bailing. (location uses upstream's
+                // post-0ad5c19 single-Location model.)
                 let location = SourceLocation {
                     file: file_parent.map(Path::to_path_buf),
-                    positioning: Positioning::Position(Position {
-                        line: line_number,
-                        column: 1,
-                    }),
+                    location: crate::Location::point(Position::from_line_col(line_number, 1)),
                 };
                 tracing::warn!(
                     ?location,
@@ -363,10 +361,7 @@ pub(crate) fn parse_line(
         tracing::error!(?error, "failed to parse conditional directive");
         Error::InvalidConditionalDirective(Box::new(SourceLocation {
             file: file_parent.map(Path::to_path_buf),
-            positioning: Positioning::Position(Position {
-                line: line_number,
-                column: 1,
-            }),
+            location: crate::Location::point(Position::from_line_col(line_number, 1)),
         }))
     })
 }
@@ -382,10 +377,7 @@ pub(crate) fn parse_endif(
         tracing::error!(?error, "failed to parse endif directive");
         Error::InvalidConditionalDirective(Box::new(SourceLocation {
             file: file_parent.map(Path::to_path_buf),
-            positioning: Positioning::Position(Position {
-                line: line_number,
-                column: 1,
-            }),
+            location: crate::Location::point(Position::from_line_col(line_number, 1)),
         }))
     })
 }

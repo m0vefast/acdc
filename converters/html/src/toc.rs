@@ -1,9 +1,11 @@
 use std::io::Write;
 
 use acdc_converters_core::{toc::Config as TocConfig, visitor::WritableVisitor};
-use acdc_parser::{AttributeValue, MAX_SECTION_LEVELS, MAX_TOC_LEVELS, TableOfContents, TocEntry};
+use acdc_parser::{
+    AttributeValue, MAX_SECTION_LEVELS, MAX_TOC_LEVELS, SectionKind, TableOfContents, TocEntry,
+};
 
-use acdc_converters_core::section::{DEFAULT_SECTION_LEVEL, to_upper_roman};
+use acdc_converters_core::section::{DEFAULT_SECTION_LEVEL, SpecialSectionTracker, to_upper_roman};
 
 use crate::{Error, HtmlVariant, HtmlVisitor};
 
@@ -19,12 +21,22 @@ struct TocRenderConfig<'a> {
     max_level: u8,
     section_numbers: &'a [Option<String>],
     semantic: bool,
+    /// Whether the document has real parts (level-0 non-appendix sections).
+    /// Controls where a level-0 appendix is placed; see [`effective_toc_level`].
+    has_real_parts: bool,
 }
 
 /// Returns the effective TOC level for an entry.
-/// Appendix level-0 entries are demoted to level 1.
-fn effective_toc_level(entry: &TocEntry) -> u8 {
-    if entry.level == 0 && entry.style.as_ref().is_some_and(|s| *s == "appendix") {
+///
+/// A level-0 `[appendix]` sits at the document's top section tier: alongside
+/// parts (`sectlevel0`) in a multi-part book, or alongside chapters
+/// (`sectlevel1`) in a part-less book where there is no part tier. This matches
+/// `asciidoctor`, where a level-0 appendix is "adjacent to other parts".
+fn effective_toc_level(entry: &TocEntry, has_real_parts: bool) -> u8 {
+    if entry.level == 0 && entry.kind == SectionKind::Appendix && !has_real_parts {
+        // Part-less book: there is no part tier, so the level-0 appendix is
+        // demoted to the chapter tier (sectlevel1). When real parts exist it
+        // stays at the part tier (sectlevel0) — handled by the `else` branch.
         1
     } else {
         entry.level
@@ -37,33 +49,52 @@ fn compute_toc_section_numbers(
     entries: &[TocEntry],
     config: &SectionNumberConfig,
 ) -> Vec<Option<String>> {
-    if !config.sectnums_enabled && !config.partnums_enabled && config.appendix_caption.is_none() {
+    // Appendices always carry a letter prefix (`Appendix A: ` or bare `A. `),
+    // independent of :sectnums:/:partnums:, so their presence alone is enough to
+    // require per-entry numbering work.
+    let has_appendix = entries.iter().any(|e| e.kind == SectionKind::Appendix);
+    if !config.sectnums_enabled && !config.partnums_enabled && !has_appendix {
         return vec![None; entries.len()];
     }
 
     let mut counters = [0u8; MAX_TOC_LEVELS as usize + 1];
     let mut part_counter: usize = 0;
     let mut appendix_counter: usize = 0;
+    // When inside an appendix subtree, its letter numeral (`A`, `B`, …). Used as
+    // the top component of subsection numbers (`A.1`); cleared by the next
+    // non-appendix level-1 entry.
+    let mut appendix_letter: Option<char> = None;
     let mut numbers = Vec::with_capacity(entries.len());
+
+    // Decides which entries are excluded from numbering as special sections (or
+    // subsections of one). Fed every entry in order, mirroring the body walk.
+    let special = SpecialSectionTracker::new();
 
     for entry in entries {
         let level = entry.level;
-        let is_appendix = entry.style.as_ref().is_some_and(|s| *s == "appendix");
+        let numbered = special.enter(entry.level, entry.kind);
+        let is_appendix = entry.kind == SectionKind::Appendix;
 
         // Appendix sections: use letter numbering (A, B, C) instead of regular numbering.
-        // Check before the `!numbered` skip since appendix is in UNNUMBERED_SECTION_STYLES.
+        // Checked before the special-section skip so appendix gets its own label.
+        // The letter prefix shows regardless of :sectnums:; the subtree letter is
+        // recorded so subsections number as `A.1`.
         if is_appendix {
             counters.fill(0);
-            if let Some(caption) = config.appendix_caption {
-                let letter =
-                    char::from(b'A' + u8::try_from(appendix_counter).unwrap_or(25).min(25));
-                appendix_counter += 1;
-                numbers.push(Some(format!("{caption} {letter}: ")));
-            } else {
-                appendix_counter += 1;
-                numbers.push(None);
-            }
+            let letter = char::from(b'A' + u8::try_from(appendix_counter).unwrap_or(25).min(25));
+            appendix_counter += 1;
+            appendix_letter = Some(letter);
+            let prefix = match config.appendix_caption {
+                Some(caption) => format!("{caption} {letter}: "),
+                None => format!("{letter}. "),
+            };
+            numbers.push(Some(prefix));
             continue;
+        }
+
+        // A normal top-level section ends any appendix region.
+        if level == 1 {
+            appendix_letter = None;
         }
 
         // Level 0 (parts): number with Roman numerals if :partnums: is set
@@ -85,10 +116,10 @@ fn compute_toc_section_numbers(
             continue;
         }
 
-        // Skip numbering for special sections (bibliography, glossary, etc.)
-        // Don't increment counters — subsequent sections continue the sequence.
+        // Skip numbering for special sections (and their subsections). Don't
+        // increment counters — subsequent sections continue the sequence.
         // Checked after appendix/part handling so those get their own labels.
-        if !entry.numbered {
+        if !numbered {
             numbers.push(None);
             continue;
         }
@@ -120,15 +151,27 @@ fn compute_toc_section_numbers(
 
         // Only show number if within sectnumlevels
         if level <= config.sectnumlevels {
-            if let Some(slice) = counters.get(..=level_idx) {
-                let number: String = slice
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(".");
-                numbers.push(Some(format!("{number}. ")));
+            // Inside an appendix subtree the top component is the appendix
+            // letter (`A.1`), deeper levels stay numeric.
+            let number = if let Some(letter) = appendix_letter {
+                counters.get(1..=level_idx).map(|slice| {
+                    std::iter::once(letter.to_string())
+                        .chain(slice.iter().map(ToString::to_string))
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
             } else {
-                numbers.push(None);
+                counters.get(..=level_idx).map(|slice| {
+                    slice
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            };
+            match number {
+                Some(number) => numbers.push(Some(format!("{number}. "))),
+                None => numbers.push(None),
             }
         } else {
             numbers.push(None);
@@ -161,11 +204,11 @@ fn render_entries<W: Write>(
     // level-1 entries. Only include level-1 entries that appear before the
     // first level-0 entry (pre-part sections); level-1 entries after a part
     // are children of that part.
-    // Note: appendix level-0 entries are treated as level 1 via effective_toc_level.
+    // Only true parts count here — a level-0 appendix is not a part.
     let first_real_part_idx = if parts_at_current_level {
         entries
             .iter()
-            .position(|e| e.level == 0 && effective_toc_level(e) == 0)
+            .position(|e| e.level == 0 && e.kind != SectionKind::Appendix)
     } else {
         None
     };
@@ -174,7 +217,7 @@ fn render_entries<W: Write>(
         .iter()
         .enumerate()
         .filter(|(idx, entry)| {
-            let eff_level = effective_toc_level(entry);
+            let eff_level = effective_toc_level(entry, config.has_real_parts);
             if eff_level == current_level {
                 // When merging, only include level-1 entries before the first part
                 if let Some(first_l0) = first_real_part_idx {
@@ -233,9 +276,15 @@ fn render_entries<W: Write>(
 
         // Detect direct children using the entry's effective level:
         // - For level-0 entries (parts): children are at level 1
-        // - For appendix entries (demoted to 1): children are at level 2
+        // - For a level-0 appendix: its first subsection is a level-2 (`===`)
+        //   section, skipping the absent chapter tier — so children are at level 2
+        //   regardless of whether it sits at sectlevel0 (multi-part) or sectlevel1.
         // - For level-N entries: children are at level N+1
-        let child_level = effective_toc_level(entry) + 1;
+        let child_level = if entry.level == 0 && entry.kind == SectionKind::Appendix {
+            2
+        } else {
+            effective_toc_level(entry, config.has_real_parts) + 1
+        };
 
         if let Some(direct_children) = entries.get(start_search..end_search) {
             let has_children = direct_children.iter().any(|e| e.level == child_level);
@@ -356,19 +405,20 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             }
 
             // Determine starting level: use the first entry's effective level.
-            // Appendix level-0 entries are demoted to level 1, so they don't count as parts.
+            // Only true parts (level-0 non-appendix sections) count as parts; a
+            // level-0 appendix sits at the part tier but does not establish one.
             // When pre-part sections (level 1) appear before the first part (level 0),
             // the outer list starts at sectlevel1 and parts are merged into that tier.
-            let first_level = self
-                .processor
-                .toc_entries
-                .first()
-                .map_or(1, effective_toc_level);
             let has_real_parts = self
                 .processor
                 .toc_entries
                 .iter()
-                .any(|e| e.level == 0 && effective_toc_level(e) == 0);
+                .any(|e| e.level == 0 && e.kind != SectionKind::Appendix);
+            let first_level = self
+                .processor
+                .toc_entries
+                .first()
+                .map_or(1, |e| effective_toc_level(e, has_real_parts));
             let parts_at_current_level = first_level > 0 && has_real_parts;
             let start_level = if parts_at_current_level {
                 1
@@ -380,6 +430,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 max_level: config.levels(),
                 section_numbers: &section_numbers,
                 semantic,
+                has_real_parts,
             };
             render_entries(
                 &processor.toc_entries,

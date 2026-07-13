@@ -3,13 +3,21 @@
 use libghostty_vt::{
     RenderState, Terminal, TerminalOptions,
     render::{CellIterator, RowIterator},
-    style::{RgbColor, Underline},
+    style::{RgbColor, StyleColor, Underline},
 };
 
 /// Error type returned while capturing ANSI bytes into a [`CellGrid`].
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// The requested terminal dimensions are invalid.
+    #[error("terminal dimensions must be greater than zero: {cols} columns by {rows} rows")]
+    InvalidTerminalSize {
+        /// Requested column count.
+        cols: usize,
+        /// Requested row count.
+        rows: usize,
+    },
     /// The requested terminal dimensions cannot be represented by Ghostty.
     #[error("terminal dimensions exceed u16 limits: {cols} columns by {rows} rows")]
     TerminalSizeTooLarge {
@@ -39,7 +47,13 @@ impl TerminalSize {
         Self { cols, rows }
     }
 
-    fn as_u16(self) -> Result<(u16, u16), Error> {
+    pub(crate) fn as_u16(self) -> Result<(u16, u16), Error> {
+        if self.cols == 0 || self.rows == 0 {
+            return Err(Error::InvalidTerminalSize {
+                cols: self.cols,
+                rows: self.rows,
+            });
+        }
         let cols = u16::try_from(self.cols).map_err(|_| Error::TerminalSizeTooLarge {
             cols: self.cols,
             rows: self.rows,
@@ -117,10 +131,17 @@ impl CellDecorations {
 pub struct Cell {
     /// Grapheme cluster rendered in this cell.
     pub text: String,
-    /// Explicit foreground color, if any.
+    /// Explicit foreground color (resolved to RGB), if any.
     pub fg: Option<Rgb>,
-    /// Explicit background color, if any.
+    /// Explicit background color (resolved to RGB), if any.
     pub bg: Option<Rgb>,
+    /// Foreground palette index (0–15), when the colour came from the terminal
+    /// palette rather than a direct RGB value. Lets a renderer emit a themeable
+    /// palette class instead of a fixed colour; `fg` holds the resolved RGB
+    /// regardless.
+    pub fg_index: Option<u8>,
+    /// Background palette index (0–15); see [`Cell::fg_index`].
+    pub bg_index: Option<u8>,
     /// Text decorations for this cell.
     pub decorations: CellDecorations,
 }
@@ -207,49 +228,88 @@ impl CellGrid {
     }
 }
 
+/// The 0-15 palette index of a cell colour, when it is one of the 16 base
+/// palette colours. Direct RGB, the 256-colour cube (16-255), and the default
+/// colour all return `None`; those are not themeable through the 16-colour
+/// palette, so a renderer falls back to the resolved RGB for them.
+fn palette_index(color: StyleColor) -> Option<u8> {
+    match color {
+        StyleColor::Palette(index) if index.0 < 16 => Some(index.0),
+        StyleColor::Palette(_) | StyleColor::Rgb(_) | StyleColor::None => None,
+    }
+}
+
+pub(crate) fn new_terminal(size: TerminalSize) -> Result<Terminal<'static, 'static>, Error> {
+    let (cols, rows) = size.as_u16()?;
+    Ok(Terminal::new(TerminalOptions {
+        cols,
+        rows,
+        max_scrollback: 0,
+    })?)
+}
+
+pub(crate) struct GridCapture<'alloc> {
+    render_state: RenderState<'alloc>,
+    row_iterator: RowIterator<'alloc>,
+    cell_iterator: CellIterator<'alloc>,
+}
+
+impl GridCapture<'static> {
+    pub(crate) fn new() -> Result<Self, Error> {
+        Ok(Self {
+            render_state: RenderState::new()?,
+            row_iterator: RowIterator::new()?,
+            cell_iterator: CellIterator::new()?,
+        })
+    }
+}
+
+impl<'alloc> GridCapture<'alloc> {
+    pub(crate) fn capture(
+        &mut self,
+        terminal: &Terminal<'alloc, '_>,
+        size: TerminalSize,
+    ) -> Result<CellGrid, Error> {
+        let snapshot = self.render_state.update(terminal)?;
+        let mut row_iteration = self.row_iterator.update(&snapshot)?;
+        let mut rendered_cells = Vec::with_capacity(size.cols * size.rows);
+
+        while let Some(row) = row_iteration.next() {
+            let mut cell_iteration = self.cell_iterator.update(row)?;
+            let row_start = rendered_cells.len();
+            while let Some(cell) = cell_iteration.next() {
+                let style = cell.style()?;
+                rendered_cells.push(Cell {
+                    text: cell.graphemes()?.iter().collect(),
+                    fg: cell.fg_color()?.map(Rgb::from),
+                    bg: cell.bg_color()?.map(Rgb::from),
+                    fg_index: palette_index(style.fg_color),
+                    bg_index: palette_index(style.bg_color),
+                    decorations: CellDecorations {
+                        bold: style.bold,
+                        italic: style.italic,
+                        underline: style.underline != Underline::None,
+                        dim: style.faint,
+                        inverse: style.inverse,
+                        strikethrough: style.strikethrough,
+                    },
+                });
+            }
+            debug_assert_eq!(rendered_cells.len() - row_start, size.cols);
+        }
+        debug_assert_eq!(rendered_cells.len(), size.cols * size.rows);
+
+        Ok(CellGrid::new(rendered_cells, size))
+    }
+}
+
 /// Capture ANSI terminal bytes into a stable acdc-owned cell grid.
 ///
 /// # Errors
 ///
 /// Returns an error if Ghostty cannot create or query the render state.
 pub fn capture_ansi(ansi: &[u8], size: TerminalSize) -> Result<CellGrid, Error> {
-    let (cols, rows) = size.as_u16()?;
-    let mut terminal = Terminal::new(TerminalOptions {
-        cols,
-        rows,
-        max_scrollback: 0,
-    })?;
+    let mut terminal = new_terminal(size)?;
     terminal.vt_write(ansi);
-
-    let mut render_state = RenderState::new()?;
-    let snapshot = render_state.update(&terminal)?;
-    let mut row_iterator = RowIterator::new()?;
-    let mut cell_iterator = CellIterator::new()?;
-    let mut row_iteration = row_iterator.update(&snapshot)?;
-    let mut rendered_cells = Vec::with_capacity(size.cols * size.rows);
-
-    while let Some(row) = row_iteration.next() {
-        let mut cell_iteration = cell_iterator.update(row)?;
-        let row_start = rendered_cells.len();
-        while let Some(cell) = cell_iteration.next() {
-            let style = cell.style()?;
-            rendered_cells.push(Cell {
-                text: cell.graphemes()?.iter().collect(),
-                fg: cell.fg_color()?.map(Rgb::from),
-                bg: cell.bg_color()?.map(Rgb::from),
-                decorations: CellDecorations {
-                    bold: style.bold,
-                    italic: style.italic,
-                    underline: style.underline != Underline::None,
-                    dim: style.faint,
-                    inverse: style.inverse,
-                    strikethrough: style.strikethrough,
-                },
-            });
-        }
-        debug_assert_eq!(rendered_cells.len() - row_start, size.cols);
-    }
-    debug_assert_eq!(rendered_cells.len(), size.cols * size.rows);
-
-    Ok(CellGrid::new(rendered_cells, size))
+    GridCapture::new()?.capture(&terminal, size)
 }

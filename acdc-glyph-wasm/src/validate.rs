@@ -4,9 +4,9 @@
 //! this binding crate (not the published parser) so the parser's fixture
 //! suite and other consumers (CLI / converters / LSP) are untouched:
 //!
-//!  - `UnresolvedCrossReference` — a same-document `<<id>>` / `xref:id[]`
-//!    whose target is a simple anchor id that no anchor defines.
 //!  - `DuplicateAnchorId` — the same anchor id is defined more than once.
+//!    (Unresolved cross-references are reported by acdc-parser directly via
+//!    `WarningKind::UnresolvedReference`, so they are NOT duplicated here.)
 //!
 //! Pure AST analysis over acdc's PUBLIC types — mirrors the walk the
 //! `acdc-lsp` definition module uses, but routes results into Glyph's
@@ -15,7 +15,6 @@
 //! warnings; Glyph's `asciidoc.ts` translates them back to main-source lines.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 use acdc_parser::{
     Block, BlockMetadata, DelimitedBlockType, Document, InlineMacro, InlineNode, Location, Section,
@@ -42,23 +41,11 @@ pub(crate) fn collect_reference_warnings(doc: &Document) -> Vec<RefWarning> {
         collect_block_anchors(block, &mut anchors, &mut warnings);
     }
 
-    // Pass 2: collect xrefs, warn on any verifiable same-document target with
-    // no matching anchor.
-    let mut xrefs: Vec<(String, Location)> = Vec::new();
-    for block in &doc.blocks {
-        collect_block_xrefs(block, &mut xrefs);
-    }
-    for (target, loc) in &xrefs {
-        if is_verifiable_local_id(target) && !anchors.contains_key(target) {
-            warnings.push(RefWarning {
-                kind: "UnresolvedCrossReference",
-                message: format!("unresolved cross-reference: no anchor with id '{target}'"),
-                line: Some(loc.start.line),
-                column: Some(loc.start.column),
-            });
-        }
-    }
-
+    // Unresolved cross-references are now reported by acdc-parser itself
+    // (`WarningKind::UnresolvedReference`, from its cross-reference catalog),
+    // so this crate no longer duplicates that check — it emits ONLY the
+    // glyph-specific `DuplicateAnchorId` (Pass 1), which upstream has no
+    // equivalent for.
     warnings
 }
 
@@ -72,46 +59,20 @@ fn insert_anchor(
     warnings: &mut Vec<RefWarning>,
 ) {
     if let Some(existing) = anchors.get(&id) {
-        if existing.absolute_start == loc.absolute_start && existing.absolute_end == loc.absolute_end
+        if existing.absolute_start == loc.absolute_start
+            && existing.absolute_end == loc.absolute_end
         {
             return;
         }
         warnings.push(RefWarning {
             kind: "DuplicateAnchorId",
             message: format!("duplicate anchor id: '{id}' is already defined"),
-            line: Some(loc.start.line),
-            column: Some(loc.start.column),
+            line: Some(loc.start.line as usize),
+            column: Some(loc.start.column as usize),
         });
         return;
     }
     anchors.insert(id, loc.clone());
-}
-
-/// True when `target` is a simple same-document anchor id we can verify.
-/// Cross-file (path / `.adoc` / `#fragment`), macro/URL-ish (`:`), and
-/// natural-language (whitespace — Asciidoctor resolves these by section
-/// title, which we don't index) targets are skipped to avoid false positives.
-/// (Note: acdc does not recognise `:` in `<<>>` / `xref:` targets at all, so
-/// the `:` clause is defensive — verified 2026-05-29 it never suppresses a
-/// real diagnostic.)
-fn is_verifiable_local_id(target: &str) -> bool {
-    if target.is_empty() {
-        return false;
-    }
-    if target.contains('#')
-        || target.contains('/')
-        || target.contains('\\')
-        || target.contains(':')
-        || target.chars().any(char::is_whitespace)
-    {
-        return false;
-    }
-    if let Some(ext) = Path::new(target).extension() {
-        if ext.eq_ignore_ascii_case("adoc") || ext.eq_ignore_ascii_case("asciidoc") {
-            return false;
-        }
-    }
-    true
 }
 
 /// Section heading-line span (start → end of title), narrower than the full
@@ -305,7 +266,12 @@ fn collect_metadata_anchors(
         insert_anchor(anchor.id.to_string(), &anchor.location, anchors, warnings);
     }
     if let Some(id_anchor) = &metadata.id {
-        insert_anchor(id_anchor.id.to_string(), &id_anchor.location, anchors, warnings);
+        insert_anchor(
+            id_anchor.id.to_string(),
+            &id_anchor.location,
+            anchors,
+            warnings,
+        );
     }
 }
 
@@ -438,141 +404,9 @@ fn collect_inline_anchors(
                     collect_metadata_anchors(&img.metadata, &img.location, anchors, warnings);
                     collect_inline_anchors(&img.title, anchors, warnings);
                 }
-                InlineMacro::CrossReference(xref) => collect_inline_anchors(&xref.text, anchors, warnings),
-                _ => {}
-            },
-            _ => {}
-        }
-    }
-}
-
-#[allow(clippy::wildcard_enum_match_arm)] // Block is #[non_exhaustive]
-fn collect_block_xrefs(block: &Block, xrefs: &mut Vec<(String, Location)>) {
-    match block {
-        Block::Section(section) => {
-            // Headings can contain xrefs (`== See <<intro>>`).
-            collect_inline_xrefs(&section.title, xrefs);
-            for child in &section.content {
-                collect_block_xrefs(child, xrefs);
-            }
-        }
-        Block::Paragraph(para) => {
-            collect_inline_xrefs(&para.title, xrefs);
-            collect_inline_xrefs(&para.content, xrefs);
-        }
-        Block::DelimitedBlock(delimited) => {
-            collect_inline_xrefs(&delimited.title, xrefs);
-            collect_delimited_block_xrefs(&delimited.inner, xrefs);
-        }
-        Block::UnorderedList(list) => {
-            collect_inline_xrefs(&list.title, xrefs);
-            for item in &list.items {
-                collect_inline_xrefs(&item.principal, xrefs);
-                for b in &item.blocks {
-                    collect_block_xrefs(b, xrefs);
-                }
-            }
-        }
-        Block::OrderedList(list) => {
-            collect_inline_xrefs(&list.title, xrefs);
-            for item in &list.items {
-                collect_inline_xrefs(&item.principal, xrefs);
-                for b in &item.blocks {
-                    collect_block_xrefs(b, xrefs);
-                }
-            }
-        }
-        Block::DescriptionList(list) => {
-            collect_inline_xrefs(&list.title, xrefs);
-            for item in &list.items {
-                collect_inline_xrefs(&item.term, xrefs);
-                collect_inline_xrefs(&item.principal_text, xrefs);
-                for b in &item.description {
-                    collect_block_xrefs(b, xrefs);
-                }
-            }
-        }
-        Block::Admonition(adm) => {
-            collect_inline_xrefs(&adm.title, xrefs);
-            for b in &adm.blocks {
-                collect_block_xrefs(b, xrefs);
-            }
-        }
-        // Media / structural blocks — titles can contain xrefs (`.See <<sec>>`
-        // before an image / video / page break / discrete header / callout list /
-        // thematic break).
-        Block::Image(img) => collect_inline_xrefs(&img.title, xrefs),
-        Block::Audio(a) => collect_inline_xrefs(&a.title, xrefs),
-        Block::Video(v) => collect_inline_xrefs(&v.title, xrefs),
-        Block::PageBreak(pb) => collect_inline_xrefs(&pb.title, xrefs),
-        Block::DiscreteHeader(h) => collect_inline_xrefs(&h.title, xrefs),
-        Block::CalloutList(cl) => {
-            collect_inline_xrefs(&cl.title, xrefs);
-            for item in &cl.items {
-                collect_inline_xrefs(&item.principal, xrefs);
-            }
-        }
-        Block::ThematicBreak(tb) => collect_inline_xrefs(&tb.title, xrefs),
-        _ => {}
-    }
-}
-
-#[allow(clippy::wildcard_enum_match_arm)] // DelimitedBlockType is #[non_exhaustive]
-fn collect_delimited_block_xrefs(inner: &DelimitedBlockType, xrefs: &mut Vec<(String, Location)>) {
-    match inner {
-        DelimitedBlockType::DelimitedExample(blocks)
-        | DelimitedBlockType::DelimitedOpen(blocks)
-        | DelimitedBlockType::DelimitedSidebar(blocks)
-        | DelimitedBlockType::DelimitedQuote(blocks) => {
-            for block in blocks {
-                collect_block_xrefs(block, xrefs);
-            }
-        }
-        DelimitedBlockType::DelimitedListing(inlines)
-        | DelimitedBlockType::DelimitedLiteral(inlines)
-        | DelimitedBlockType::DelimitedPass(inlines)
-        | DelimitedBlockType::DelimitedVerse(inlines)
-        | DelimitedBlockType::DelimitedComment(inlines) => {
-            collect_inline_xrefs(inlines, xrefs);
-        }
-        // Mirror the anchor-pass table walk: cell content can hold `<<id>>`.
-        DelimitedBlockType::DelimitedTable(t) => {
-            for row in t.header.iter().chain(t.rows.iter()).chain(t.footer.iter()) {
-                for col in &row.columns {
-                    for b in &col.content {
-                        collect_block_xrefs(b, xrefs);
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-#[allow(clippy::wildcard_enum_match_arm)] // InlineNode + InlineMacro are #[non_exhaustive]
-fn collect_inline_xrefs(inlines: &[InlineNode], xrefs: &mut Vec<(String, Location)>) {
-    for inline in inlines {
-        match inline {
-            InlineNode::BoldText(b) => collect_inline_xrefs(&b.content, xrefs),
-            InlineNode::ItalicText(i) => collect_inline_xrefs(&i.content, xrefs),
-            InlineNode::MonospaceText(m) => collect_inline_xrefs(&m.content, xrefs),
-            InlineNode::HighlightText(h) => collect_inline_xrefs(&h.content, xrefs),
-            InlineNode::SubscriptText(s) => collect_inline_xrefs(&s.content, xrefs),
-            InlineNode::SuperscriptText(s) => collect_inline_xrefs(&s.content, xrefs),
-            InlineNode::CurvedQuotationText(q) => collect_inline_xrefs(&q.content, xrefs),
-            InlineNode::CurvedApostropheText(a) => collect_inline_xrefs(&a.content, xrefs),
-            InlineNode::Macro(m) => match m {
                 InlineMacro::CrossReference(xref) => {
-                    xrefs.push((xref.target.to_string(), xref.location.clone()));
-                    // The display text of a `<<id,...nested xref...>>` can itself
-                    // hold an xref — recurse.
-                    collect_inline_xrefs(&xref.text, xrefs);
+                    collect_inline_anchors(&xref.text, anchors, warnings)
                 }
-                InlineMacro::Footnote(f) => collect_inline_xrefs(&f.content, xrefs),
-                InlineMacro::Link(l) => collect_inline_xrefs(&l.text, xrefs),
-                InlineMacro::Url(u) => collect_inline_xrefs(&u.text, xrefs),
-                InlineMacro::Mailto(ma) => collect_inline_xrefs(&ma.text, xrefs),
-                InlineMacro::Image(img) => collect_inline_xrefs(&img.title, xrefs),
                 _ => {}
             },
             _ => {}
@@ -595,49 +429,9 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn resolved_xref_no_warning() {
-        let src = "= Doc\n\nSee xref:section-two[Two].\n\n[[section-two]]\n== Section Two\n\nBody.\n";
-        let kinds = warn_kinds(src);
-        assert!(kinds.is_empty(), "expected no warnings, got: {kinds:?}");
-    }
-
-    #[test]
-    fn unresolved_xref_warns() {
-        let src = "= Doc\n\nSee xref:missing-id[X].\n\n== Real Section\n\nBody.\n";
-        let kinds = warn_kinds(src);
-        let xref: Vec<_> = kinds
-            .iter()
-            .filter(|(k, _)| k == "UnresolvedCrossReference")
-            .collect();
-        assert_eq!(xref.len(), 1, "expected 1 unresolved-xref, got: {kinds:?}");
-        assert!(
-            xref.first().is_some_and(|(_, m)| m.contains("missing-id")),
-            "message should name the target: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn auto_section_id_resolves_xref() {
-        // `<<_section_two>>` targets the auto-generated section id — must resolve.
-        let src = "= Doc\n\nSee xref:_section_two[].\n\n== Section Two\n\nBody.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "auto section id should resolve, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn cross_file_xref_skipped() {
-        // Cross-file targets can't be verified within one document → no warning.
-        let src = "= Doc\n\nSee xref:other.adoc#thing[] and <<chapter.adoc#x>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "cross-file xrefs must be skipped, got: {kinds:?}"
-        );
-    }
+    // Unresolved-cross-reference validation moved to acdc-parser
+    // (`WarningKind::UnresolvedReference`), covered by the parser's own tests;
+    // this crate only owns the glyph-specific `DuplicateAnchorId` check below.
 
     #[test]
     fn duplicate_explicit_anchor_warns() {
@@ -679,53 +473,6 @@ mod tests {
     }
 
     #[test]
-    fn inline_formatted_span_id_resolves_xref() {
-        // `[#sid]*bold*` puts an id on the BoldText struct itself (not a separate
-        // InlineAnchor). Must register so `<<sid>>` resolves. Verified 2026-05-29
-        // that acdc populates BoldText.id from this attribute prefix.
-        let src = "= Doc\n\nPara with [#sid]*bold text*.\n\nSee <<sid>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "inline span id must register, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn footnote_id_resolves_xref() {
-        // `footnote:my-fn[…]` declares an inline anchor with id `my-fn`.
-        let src = "= Doc\n\nPara with footnote:my-fn[content].\n\nSee <<my-fn>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "footnote id must register, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn anchor_on_list_block_resolves_xref() {
-        // `[[list-id]]\n* item` puts `list-id` on UnorderedList.metadata.anchors
-        // (NOT inside the list items). The walk must include the list's own
-        // metadata, else `<<list-id>>` falsely flags unresolved.
-        let src = "= Doc\n\n[[list-id]]\n* item 1\n* item 2\n\nSee <<list-id>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "list-block anchor must register, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn anchor_on_admonition_resolves_xref() {
-        let src = "= Doc\n\n[[note-id]]\nNOTE: This is a note.\n\nSee <<note-id>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "admonition block anchor must register, got: {kinds:?}"
-        );
-    }
-
-    #[test]
     fn section_synonym_anchor_pair_does_not_false_duplicate() {
         // Section parallel to `synonym_anchor_pair_does_not_false_duplicate`:
         // section metadata.anchors can carry `[[a]]\n[[a]]` synonyms (verified
@@ -753,32 +500,6 @@ mod tests {
         assert!(
             kinds.iter().all(|(k, _)| k != "DuplicateAnchorId"),
             "footnote reference form must not false-flag DuplicateAnchorId, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn anchor_on_table_of_contents_resolves_xref() {
-        // `[[toc-id]]\ntoc::[]` puts `toc-id` on TableOfContents.metadata.anchors.
-        // Without explicit handling, the walk falls through `_ => {}` and the
-        // anchor is dropped → `<<toc-id>>` false-flags as UnresolvedCrossReference.
-        let src = "= Doc\n\n[[toc-id]]\ntoc::[]\n\nSee <<toc-id>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "TOC block anchor must register, got: {kinds:?}"
-        );
-    }
-
-    #[test]
-    fn anchor_inside_table_cell_is_collected() {
-        // Asciidoc-style cell (`a|`) is parsed as full AsciiDoc — `[[in-cell]]`
-        // becomes a paragraph anchor inside the cell. The walk must recurse
-        // into table cells so an xref outside the table can resolve it.
-        let src = "= Doc\n\n|===\na|[[in-cell]]\nCell body.\n|===\n\nSee <<in-cell>>.\n";
-        let kinds = warn_kinds(src);
-        assert!(
-            kinds.iter().all(|(k, _)| k != "UnresolvedCrossReference"),
-            "anchor inside table cell must register and resolve the xref, got: {kinds:?}"
         );
     }
 }

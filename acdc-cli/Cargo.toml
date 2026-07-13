@@ -18,6 +18,7 @@ doc = false
 [dependencies]
 acdc-converters-core.workspace = true
 acdc-converters-html = { workspace = true, optional = true }
+acdc-lint = { workspace = true, optional = true }
 acdc-parser.workspace = true
 acdc-converters-terminal = { workspace = true, optional = true }
 acdc-converters-manpage = { workspace = true, optional = true }
@@ -36,7 +37,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 [features]
 # Default features - HTML converter is always included as the primary output format
-default = ["html", "pre-spec-subs"]
+default = ["html", "lint", "pre-spec-subs"]
 
 # Asciidoctor-compatible subs= attribute. Experimental - may be removed when AsciiDoc spec finalizes.
 # Forwarded to every converter dependency that honours subs=.
@@ -46,6 +47,7 @@ pre-spec-subs = [
     "acdc-converters-html?/pre-spec-subs",
     "acdc-converters-manpage?/pre-spec-subs",
     "acdc-converters-terminal?/pre-spec-subs",
+    "acdc-lint?/pre-spec-subs",
 ]
 
 # Output converters
@@ -54,17 +56,28 @@ manpage = ["dep:acdc-converters-manpage"]      # Manpage (roff/troff) converter 
 markdown = ["dep:acdc-converters-markdown"]    # Markdown converter (CommonMark and GitHub Flavored Markdown)
 terminal = ["dep:acdc-converters-terminal"]    # Terminal converter with ANSI color support
 
+# Document tools
+lint = ["dep:acdc-lint"]                       # AsciiDoc lint command
+
 # Syntax highlighting for source blocks (requires html feature)
 highlighting = ["acdc-converters-html?/highlighting"]
-# Enable optional terminal previews in the HTML converter.
-terminal-preview = ["html", "acdc-converters-html/terminal-preview"]
+# Enable terminal-styled rendering in the HTML converter.
+html-terminal = ["html", "acdc-converters-html/terminal"]
+# Render `[terminal]` session blocks through libghostty-vt for the terminal
+# backend. Requires a Zig toolchain to build the bundled libghostty-vt, which is
+# statically linked into the binary.
+terminal-emulator = [
+    "terminal",
+    "acdc-converters-terminal/emulator",
+]
 
 # Development tools
 inspect = []  # AST inspection tool for debugging parser output
 tck = []      # Technology Compatibility Kit for spec compliance testing
 
 # Compatibility features
-setext = ["acdc-parser/setext"]  # Enable Setext-style (underlined) header parsing
+setext = ["acdc-parser/setext", "acdc-lint?/setext"]  # Enable Setext-style (underlined) header parsing
+network = ["acdc-parser/network", "acdc-lint?/network"]  # Enable remote include parsing
 
 # Feature groups for convenience
 all-backends = ["html", "manpage", "markdown", "terminal"]  # Enable all output converters

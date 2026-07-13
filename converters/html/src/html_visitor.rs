@@ -3,7 +3,7 @@
 use std::{io::Write, rc::Rc, string::ToString};
 
 use acdc_converters_core::{
-    Diagnostics,
+    Diagnostics, inlines_to_string,
     visitor::{Visitor, WritableVisitor},
 };
 
@@ -98,47 +98,32 @@ fn resolve_custom_css(
     }
 }
 
+/// The `MathJax` loader script URL acdc references when `:stem:` is set. Exposed
+/// so an embedded-mode consumer (no `<head>` is generated) can load the same
+/// `MathJax` build on their own page.
+pub const MATHJAX_LOADER_URL: &str = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js";
+
+/// The inline `MathJax` configuration `<script>` acdc emits when `:stem:` is set,
+/// wrapping the JavaScript in `static/mathjax-config.js` (embedded at compile
+/// time). Exposed for embedded-mode consumers to reproduce the same
+/// configuration; its CSP `script-src` hash is [`MATHJAX_CONFIG_CSP_HASH`].
+pub const MATHJAX_CONFIG_SCRIPT: &str = concat!(
+    "<script>",
+    include_str!("../static/mathjax-config.js"),
+    "</script>"
+);
+
+/// CSP `script-src` source (sha256) for [`MATHJAX_CONFIG_SCRIPT`]'s inline code,
+/// so a host can allowlist it without `'unsafe-inline'`. Computed in `build.rs`
+/// as the sha256 of `static/mathjax-config.js`, so it always matches the embedded
+/// script.
+pub const MATHJAX_CONFIG_CSP_HASH: &str = env!("ACDC_MATHJAX_CONFIG_CSP_HASH");
+
 fn add_mathjax<W: Write>(writer: &mut W) -> Result<(), Error> {
+    writeln!(writer, "{MATHJAX_CONFIG_SCRIPT}")?;
     writeln!(
         writer,
-        r#"<script>
-MathJax = {{
-      loader: {{load: ['input/asciimath']}},
-      tex: {{
-        processEscapes: false,
-        inlineMath: [['\\(', '\\)']],
-        displayMath: [['\\[', '\\]']]
-      }},
-      asciimath: {{
-        delimiters: {{'[+]': [['\\$','\\$']]}},
-        displaystyle: false
-      }},
-      options: {{
-        ignoreHtmlClass: 'tex2jax_ignore|nostem|nolatexmath|noasciimath',
-        processHtmlClass: 'tex2jax_process'
-      }},
-      startup: {{
-        ready() {{
-          MathJax.startup.defaultReady();
-          MathJax.startup.promise.then(() => {{
-            const asciimath = MathJax._.input.asciimath.AsciiMath;
-            if (asciimath) {{
-              const originalCompile = asciimath.compile;
-              asciimath.compile = function(math, display) {{
-                const node = math.math;
-                if (node && node.parentElement && node.parentElement.parentElement &&
-                  node.parentElement.parentElement.classList.contains('stemblock')) {{
-                  display = true;
-                }}
-                return originalCompile.call(this, math, display);
-              }};
-            }}
-          }});
-        }}
-      }}
-}};
-</script>
-<script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>"#
+        r#"<script defer src="{MATHJAX_LOADER_URL}"></script>"#
     )?;
     Ok(())
 }
@@ -156,6 +141,9 @@ pub struct HtmlVisitor<'a, 'd, W: Write> {
     /// Current section style (e.g., "bibliography", "glossary").
     /// Set when entering a section, used by child blocks for style inheritance.
     pub(crate) section_style: Option<String>,
+    /// Plain-text title of the section currently being rendered, used as the
+    /// label for index back-links. `None` outside any section (e.g. preamble).
+    pub(crate) current_section_title: Option<String>,
     /// Resolved docinfo content for injection at head, header, and footer positions.
     docinfo: DocInfo,
 }
@@ -185,6 +173,7 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
             diagnostics,
             current_subs: NORMAL.to_vec(),
             section_style: None,
+            current_section_title: None,
             docinfo,
         }
     }
@@ -394,6 +383,31 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
         Ok(())
     }
 
+    /// Whether the `:csp:` attribute opts this document into a `<meta>` Content
+    /// Security Policy (standalone output only).
+    fn is_csp_enabled(&self) -> bool {
+        self.processor
+            .document_attributes
+            .get("csp")
+            .is_some_and(|v| !matches!(v, AttributeValue::Bool(false) | AttributeValue::None))
+    }
+
+    /// The acdc features this document uses, for building its CSP. Mirrors the
+    /// gating the head uses to decide which scripts, fonts, and CDNs it emits.
+    fn csp_features(&self) -> crate::CspFeatures {
+        let attrs = &self.processor.document_attributes;
+        let stylesheet_disabled = attrs
+            .get("stylesheet")
+            .is_some_and(|v| matches!(v, AttributeValue::Bool(false)));
+        crate::CspFeatures {
+            stem: attrs.get("stem").is_some(),
+            webfonts: !stylesheet_disabled
+                && !matches!(attrs.get("webfonts"), Some(AttributeValue::Bool(false))),
+            icons_font: attrs.get("icons").is_some_and(|v| v.to_string() == "font"),
+            replay: cfg!(feature = "terminal"),
+        }
+    }
+
     fn render_head(&mut self, document: &Document) -> Result<(), Error> {
         let dark_mode = self.is_dark_mode();
 
@@ -409,6 +423,17 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
 
         if dark_mode {
             writeln!(self.writer, r#"<meta name="color-scheme" content="dark">"#)?;
+        }
+
+        // Content Security Policy (opt-in via `:csp:`). A `<meta>` CSP governs
+        // everything after it, so emit it before the stylesheet, fonts, and
+        // scripts below.
+        if self.is_csp_enabled() {
+            writeln!(
+                self.writer,
+                r#"<meta http-equiv="Content-Security-Policy" content="{}">"#,
+                self.csp_features().content_security_policy()
+            )?;
         }
 
         if let Some(header) = &document.header {
@@ -451,6 +476,7 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
         if self.processor.variant() == HtmlVariant::Semantic {
             writeln!(self.writer, "<footer id=\"footer\">")?;
             writeln!(self.writer, "<div id=\"footer-text\">")?;
+            self.render_footer_version()?;
             if let Some(last_updated) = self.render_options.last_updated {
                 writeln!(
                     self.writer,
@@ -463,6 +489,7 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
         } else {
             writeln!(self.writer, "<div id=\"footer\">")?;
             writeln!(self.writer, "<div id=\"footer-text\">")?;
+            self.render_footer_version()?;
             if let Some(last_updated) = self.render_options.last_updated {
                 writeln!(
                     self.writer,
@@ -472,6 +499,24 @@ impl<'a, 'd, W: Write> HtmlVisitor<'a, 'd, W> {
             }
             writeln!(self.writer, "</div>")?;
             writeln!(self.writer, "</div>")?;
+        }
+        Ok(())
+    }
+
+    /// Emit the footer's `{version-label} {revnumber}<br>` line when the
+    /// document carries a revision number, matching asciidoctor. The `v` of a
+    /// `vX.Y` revision line is already dropped by the parser; an explicit
+    /// `:revnumber:` keeps whatever it was given.
+    fn render_footer_version(&mut self) -> Result<(), Error> {
+        if let Some(AttributeValue::String(revnumber)) =
+            self.processor.document_attributes.get("revnumber")
+        {
+            let label = self
+                .processor
+                .document_attributes
+                .get_string("version-label");
+            let label = label.as_deref().unwrap_or("Version");
+            writeln!(self.writer, "{label} {revnumber}<br>")?;
         }
         Ok(())
     }
@@ -724,29 +769,42 @@ impl<W: Write> Visitor for HtmlVisitor<'_, '_, W> {
                     write!(self.writer, "{}", author.last_name)?;
                     writeln!(self.writer, "</span><br>")?;
                     if let Some(email) = &author.email {
+                        // Emit on a single line, like asciidoctor: a newline
+                        // inside the span renders as a leading space that shifts
+                        // the email right of the `–` separator.
+                        let suffix = if i > 0 {
+                            format!("{}", i + 1)
+                        } else {
+                            String::new()
+                        };
                         writeln!(
                             self.writer,
-                            "<span id=\"email{}\" class=\"email\">",
-                            if i > 0 {
-                                format!("{}", i + 1)
-                            } else {
-                                String::new()
-                            }
+                            "<span id=\"email{suffix}\" class=\"email\"><a href=\"mailto:{email}\">{email}</a></span><br>"
                         )?;
-                        writeln!(self.writer, "<a href=\"mailto:{email}\">{email}</a>")?;
-                        writeln!(self.writer, "</span>")?;
-                        writeln!(self.writer, "<br>")?;
                     }
                 }
-                // Render revision info spans
+                // Render revision info spans. The version word is the
+                // `version-label` attribute lowercased; the `v` of a `vX.Y`
+                // revision line is already dropped by the parser, while an
+                // explicit `:revnumber:` keeps whatever it was given. The
+                // trailing comma is emitted only when a revdate follows.
+                let has_revdate = matches!(
+                    self.processor.document_attributes.get("revdate"),
+                    Some(AttributeValue::String(_))
+                );
                 if let Some(AttributeValue::String(revnumber)) =
                     self.processor.document_attributes.get("revnumber")
                 {
-                    // Strip leading "v" if present (asciidoctor behavior)
-                    let version = revnumber.strip_prefix('v').unwrap_or(revnumber);
+                    let label = self
+                        .processor
+                        .document_attributes
+                        .get_string("version-label");
+                    let label = label.as_deref().unwrap_or("Version");
                     writeln!(
                         self.writer,
-                        "<span id=\"revnumber\">version {version},</span>"
+                        "<span id=\"revnumber\">{} {revnumber}{}</span>",
+                        label.to_lowercase(),
+                        if has_revdate { "," } else { "" }
                     )?;
                 }
                 if let Some(AttributeValue::String(revdate)) =
@@ -833,7 +891,13 @@ impl<W: Write> Visitor for HtmlVisitor<'_, '_, W> {
             .style
             .as_ref()
             .map(std::string::ToString::to_string);
+        // Set before rendering the header so index terms in the section's own
+        // title attribute to this section; restore the parent (or None) on exit
+        // so nested sections pop back correctly.
+        let previous_section_title = self.current_section_title.take();
+        self.current_section_title = Some(inlines_to_string(&section.title));
         let result = self.render_section(section);
+        self.current_section_title = previous_section_title;
         self.section_style = previous_style;
         result
     }

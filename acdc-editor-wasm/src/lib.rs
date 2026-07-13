@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use acdc_converters_core::{Diagnostics, Options, WarningSource};
 use acdc_converters_html::{HtmlVariant, Processor, RenderOptions};
-use acdc_parser::{AttributeValue, DocumentAttributes, Positioning};
+use acdc_parser::{AttributeValue, DocumentAttributes};
 
 /// Result of a single parse operation: highlighted source + rendered preview.
 pub struct ParseResult {
@@ -26,8 +26,8 @@ pub struct ParseResult {
 pub struct EditorWarning {
     pub message: String,
     pub advice: Option<String>,
-    pub line: Option<usize>,
-    pub column: Option<usize>,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
 }
 
 /// Initialize panic hook and set up the editor DOM orchestration.
@@ -118,12 +118,12 @@ pub fn parse_and_render(input: &str) -> Result<ParseResult, String> {
     })
 }
 
-fn location_line_col(loc: Option<&acdc_parser::SourceLocation>) -> (Option<usize>, Option<usize>) {
+fn location_line_col(loc: Option<&acdc_parser::SourceLocation>) -> (Option<u32>, Option<u32>) {
     let Some(loc) = loc else {
         return (None, None);
     };
-    match &loc.positioning {
-        Positioning::Location(l) => (Some(l.start.line), Some(l.start.column)),
-        Positioning::Position(p) => (Some(p.line), Some(p.column)),
-    }
+    (
+        Some(loc.location.start.line),
+        Some(loc.location.start.column),
+    )
 }

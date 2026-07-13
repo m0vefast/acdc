@@ -80,19 +80,6 @@ self_cell::self_cell! {
 pub struct ParseResult {
     cell: ParsedDocumentCell,
     warnings: Vec<Warning>,
-    /// One entry per ROOT-level `include::` directive that the preprocessor
-    /// processed (depth==0). Embedders that surface include-expanded content
-    /// to a UI keyed off the user's original source (e.g. cursor/scroll
-    /// follow against an editor buffer) need this to translate post-
-    /// expansion block positions back to original source lines.
-    include_expansions: Vec<crate::IncludeExpansion>,
-    /// 1-based source line numbers consumed by conditional preprocessor
-    /// directives (`ifdef`/`ifndef`/`ifeval`/`endif`) that produced no
-    /// corresponding output line. Same purpose as `include_expansions`: a
-    /// post-expansion line that lands at one of these positions in the
-    /// source-line-space gap needs translator compensation. Only populated
-    /// for depth==0.
-    conditional_drops: Vec<usize>,
 }
 
 impl ParseResult {
@@ -103,35 +90,13 @@ impl ParseResult {
     pub(crate) fn try_new<E>(
         owner: OwnedInput,
         warnings_handle: Rc<RefCell<Vec<Warning>>>,
-        include_expansions: Vec<crate::IncludeExpansion>,
-        conditional_drops: Vec<usize>,
         builder: impl for<'a> FnOnce(&'a OwnedInput) -> Result<Document<'a>, E>,
     ) -> Result<Self, E> {
         let cell = ParsedDocumentCell::try_new(owner, builder)?;
         Ok(Self {
             cell,
             warnings: recover_warnings(warnings_handle),
-            include_expansions,
-            conditional_drops,
         })
-    }
-
-    /// Per-include expansion metadata gathered during preprocessing.
-    /// See [`crate::IncludeExpansion`] for the per-entry shape and
-    /// `PreprocessorResult::include_expansions` for the production rules.
-    #[must_use]
-    pub fn include_expansions(&self) -> &[crate::IncludeExpansion] {
-        &self.include_expansions
-    }
-
-    /// 1-based source line numbers consumed by conditional preprocessor
-    /// directives that produced no output. Distinct from
-    /// `include_expansions` (which always corresponds to an `include::`
-    /// directive) but used by embedders the same way — translate post-
-    /// expansion positions back to original source lines.
-    #[must_use]
-    pub fn conditional_drops(&self) -> &[usize] {
-        &self.conditional_drops
     }
 
     /// Borrow the document AST.

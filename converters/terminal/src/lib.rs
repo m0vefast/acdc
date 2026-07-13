@@ -9,10 +9,13 @@ use std::{
 use acdc_converters_core::substitutions::SubsFlags;
 use acdc_converters_core::{
     Converter, Diagnostics, Options, decode_numeric_char_refs,
-    section::{AppendixTracker, PartNumberTracker, SectionNumberTracker, last_section_has_style},
+    section::{
+        AppendixTracker, PartNumberTracker, SectionNumberTracker, SpecialSectionTracker,
+        last_section_has_style,
+    },
     visitor::Visitor,
 };
-#[cfg(feature = "render-state")]
+#[cfg(feature = "emulator")]
 use acdc_parser::BlockMetadata;
 use acdc_parser::{Document, DocumentAttributes, IndexTermKind, InlineMacro, InlineNode, TocEntry};
 
@@ -46,6 +49,8 @@ pub struct Processor<'a> {
     pub(crate) part_number_tracker: PartNumberTracker,
     /// Appendix tracker for `[appendix]` style on level-0 sections.
     pub(crate) appendix_tracker: AppendixTracker,
+    /// Tracks special sections so their subsections skip `:sectnums:` numbering.
+    pub(crate) special_section_tracker: SpecialSectionTracker,
     /// Terminal width (read once at start, capped at `MAX_TERMINAL_WIDTH`).
     pub(crate) terminal_width: usize,
     /// Collected index term kinds for rendering in the index catalog.
@@ -109,6 +114,7 @@ impl<'a> Converter<'a> for Processor<'a> {
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: SpecialSectionTracker::new(),
             terminal_width,
             index_entries: Rc::new(RefCell::new(Vec::new())),
             has_valid_index_section: false,
@@ -159,6 +165,7 @@ impl<'a> Converter<'a> for Processor<'a> {
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: SpecialSectionTracker::new(),
             terminal_width: self.terminal_width,
             index_entries: Rc::new(RefCell::new(Vec::new())),
             has_valid_index_section: last_section_has_style(&doc.blocks, "index"),
@@ -263,7 +270,7 @@ pub fn render_document_to_ansi(
 /// # Errors
 ///
 /// Returns an error if syntax highlighting or writing fails.
-#[cfg(feature = "render-state")]
+#[cfg(feature = "emulator")]
 pub fn render_listing_to_ansi(
     options: Options,
     document_attributes: DocumentAttributes<'_>,
@@ -293,7 +300,7 @@ pub fn render_listing_to_ansi(
     Ok(output)
 }
 
-#[cfg(feature = "render-state")]
+#[cfg(feature = "emulator")]
 fn preview_highlight_language(language: &str) -> &str {
     match language {
         "console" | "terminal" | "shell" => "bash",
@@ -410,8 +417,10 @@ pub(crate) fn extract_macro_text(m: &InlineMacro, line_break: &str) -> String {
 
 mod admonition;
 mod appearance;
+#[cfg(feature = "emulator")]
+pub mod asciicast;
 mod audio;
-#[cfg(feature = "render-state")]
+#[cfg(feature = "emulator")]
 pub mod cell_grid;
 mod delimited;
 mod document;
@@ -421,6 +430,8 @@ mod index;
 mod inlines;
 mod list;
 mod paragraph;
+#[cfg(feature = "emulator")]
+pub mod replay;
 mod section;
 mod syntax;
 mod table;

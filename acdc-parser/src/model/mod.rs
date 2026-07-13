@@ -1,5 +1,5 @@
 //! The data models for the `AsciiDoc` document.
-use std::{fmt::Display, str::FromStr, string::ToString};
+use std::{collections::HashMap, fmt::Display, str::FromStr, string::ToString};
 
 use bumpalo::Bump;
 use serde::{
@@ -22,7 +22,7 @@ mod tables;
 mod title;
 
 pub use admonition::{Admonition, AdmonitionVariant};
-pub use anchor::{Anchor, AnchorKind, TocEntry, UNNUMBERED_SECTION_STYLES};
+pub use anchor::{Anchor, AnchorKind, Reference, TocEntry, UNNUMBERED_SECTION_STYLES};
 pub use attributes::{
     AttributeName, AttributeValue, DocumentAttributes, ElementAttributes, MAX_SECTION_LEVELS,
     MAX_TOC_LEVELS, strip_quotes,
@@ -53,6 +53,12 @@ pub struct Document<'a> {
     pub blocks: Vec<Block<'a>>,
     pub footnotes: Vec<Footnote<'a>>,
     pub toc_entries: Vec<TocEntry<'a>>,
+    /// Cross-reference targets keyed by id, for O(1) `<<id>>` resolution.
+    /// Covers both sections and titled blocks (tables, listings, …); collected
+    /// during parsing. `toc_entries` remains the ordered list used to render the
+    /// table of contents. Like `toc_entries` and `footnotes`, this is not
+    /// serialized.
+    pub references: HashMap<&'a str, Reference<'a>>,
     pub location: Location,
 }
 
@@ -212,13 +218,30 @@ impl<'a> Author<'a> {
     }
 }
 
-/// A single-line comment in a document.
+/// The syntactic form a [`Comment`] originated from.
 ///
-/// Line comments begin with `//` and continue to end of line.
-/// They act as block boundaries but produce no output.
+/// A `[comment]`-styled `--` block is represented as a
+/// [`DelimitedBlockType::DelimitedComment`] (distinguished from a `////` block
+/// by its retained `comment` style), so it is not covered here.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum CommentKind {
+    /// A `//` single-line comment.
+    #[default]
+    Line,
+    /// A `[comment]`-styled paragraph.
+    Paragraph,
+}
+
+/// A comment in a document that produces no output.
+///
+/// Either a `//` single-line comment or a `[comment]`-styled paragraph; the
+/// [`kind`](Comment::kind) distinguishes them.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Comment<'a> {
+    pub kind: CommentKind,
     pub content: &'a str,
     pub location: Location,
 }
@@ -226,6 +249,10 @@ pub struct Comment<'a> {
 /// A `Block` represents a block in a document.
 ///
 /// A block is a structural element in a document that can contain other blocks.
+// The variant sizes differ widely by design — `DelimitedBlock`/`Image` are large
+// value types while `PageBreak`/`Comment` are tiny. Boxing the large variants is a
+// separate refactor; the disparity is structural, not a per-node-allocation concern.
+#[allow(clippy::large_enum_variant)]
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -263,6 +290,54 @@ impl<'a> Block<'a> {
     pub fn location(&self) -> &Location {
         <Self as Locateable>::location(self)
     }
+
+    /// The anchor defining this block's id (its cross-reference target), if any:
+    /// the explicit `[#id]` or the first `[[id]]` anchor.
+    pub(crate) fn anchor(&self) -> Option<&Anchor<'a>> {
+        match self {
+            Block::Section(b) => b.metadata.id_anchor(),
+            Block::DelimitedBlock(b) => b.metadata.id_anchor(),
+            Block::Admonition(b) => b.metadata.id_anchor(),
+            Block::DiscreteHeader(b) => b.metadata.id_anchor(),
+            Block::PageBreak(b) => b.metadata.id_anchor(),
+            Block::Paragraph(b) => b.metadata.id_anchor(),
+            Block::Image(b) => b.metadata.id_anchor(),
+            Block::Audio(b) => b.metadata.id_anchor(),
+            Block::Video(b) => b.metadata.id_anchor(),
+            Block::UnorderedList(b) => b.metadata.id_anchor(),
+            Block::OrderedList(b) => b.metadata.id_anchor(),
+            Block::CalloutList(b) => b.metadata.id_anchor(),
+            Block::DescriptionList(b) => b.metadata.id_anchor(),
+            Block::TableOfContents(b) => b.metadata.id_anchor(),
+            Block::ThematicBreak(b) => b.anchors.first(),
+            Block::DocumentAttribute(_) | Block::Comment(_) => None,
+        }
+    }
+
+    /// This block's title, if it has a non-empty one (used as the cross-reference
+    /// text when an `<<id>>` to this block has no explicit label).
+    pub(crate) fn title(&self) -> Option<&Title<'a>> {
+        let title = match self {
+            Block::Section(b) => &b.title,
+            Block::DelimitedBlock(b) => &b.title,
+            Block::Admonition(b) => &b.title,
+            Block::DiscreteHeader(b) => &b.title,
+            Block::PageBreak(b) => &b.title,
+            Block::Paragraph(b) => &b.title,
+            Block::Image(b) => &b.title,
+            Block::Audio(b) => &b.title,
+            Block::Video(b) => &b.title,
+            Block::UnorderedList(b) => &b.title,
+            Block::OrderedList(b) => &b.title,
+            Block::CalloutList(b) => &b.title,
+            Block::DescriptionList(b) => &b.title,
+            Block::ThematicBreak(b) => &b.title,
+            Block::TableOfContents(_) | Block::DocumentAttribute(_) | Block::Comment(_) => {
+                return None;
+            }
+        };
+        (!title.is_empty()).then_some(title)
+    }
 }
 
 impl Locateable for Block<'_> {
@@ -285,6 +360,32 @@ impl Locateable for Block<'_> {
             Block::Audio(a) => &a.location,
             Block::Video(v) => &v.location,
             Block::Comment(c) => &c.location,
+        }
+    }
+}
+
+impl Block<'_> {
+    /// Mutable access to this block's own location (the post-parse source remap
+    /// pass rewrites it). Counterpart to [`Locateable::location`].
+    pub(crate) fn location_mut(&mut self) -> &mut Location {
+        match self {
+            Block::Section(s) => &mut s.location,
+            Block::Paragraph(p) => &mut p.location,
+            Block::UnorderedList(l) => &mut l.location,
+            Block::OrderedList(l) => &mut l.location,
+            Block::DescriptionList(l) => &mut l.location,
+            Block::CalloutList(l) => &mut l.location,
+            Block::DelimitedBlock(d) => &mut d.location,
+            Block::Admonition(a) => &mut a.location,
+            Block::TableOfContents(t) => &mut t.location,
+            Block::DiscreteHeader(h) => &mut h.location,
+            Block::DocumentAttribute(a) => &mut a.location,
+            Block::ThematicBreak(tb) => &mut tb.location,
+            Block::PageBreak(pb) => &mut pb.location,
+            Block::Image(i) => &mut i.location,
+            Block::Audio(a) => &mut a.location,
+            Block::Video(v) => &mut v.location,
+            Block::Comment(c) => &mut c.location,
         }
     }
 }
@@ -394,6 +495,10 @@ impl Serialize for Comment<'_> {
         let mut state = serializer.serialize_map(None)?;
         state.serialize_entry("name", "comment")?;
         state.serialize_entry("type", "block")?;
+        // Omit the default `Line` kind so plain `//` comments serialize unchanged.
+        if self.kind != CommentKind::Line {
+            state.serialize_entry("variant", &self.kind)?;
+        }
         if !self.content.is_empty() {
             state.serialize_entry("content", &self.content)?;
         }

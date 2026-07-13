@@ -1,55 +1,11 @@
-use std::io::Write;
-
 use acdc_converters_core::table::calculate_column_widths;
-use acdc_converters_core::visitor::{Visitor, WritableVisitor};
+use acdc_converters_core::visitor::WritableVisitor;
 use acdc_parser::{
     Block, BlockMetadata, ColumnFormat, ColumnStyle, HorizontalAlignment, InlineNode, Table,
-    TableColumn, TableRow, VerticalAlignment,
+    TableColumn, VerticalAlignment,
 };
 
-use crate::{Error, HtmlVariant, HtmlVisitor, Processor, RenderOptions};
-
-/// Derive a `(start, end)` byte-offset pair covering a table cell's content
-/// blocks. Cells have no own `Location` field (the parser doesn't track cell
-/// boundaries on the AST), so the rendered span covers `[first_block.start,
-/// last_block.end]`. Empty cells return `None` — no data-src is emitted.
-fn cell_location_range(cell: &TableColumn) -> Option<(usize, usize)> {
-    let first = cell.content.first()?;
-    let last = cell.content.last()?;
-    Some((
-        first.location().absolute_start,
-        last.location().absolute_end,
-    ))
-}
-
-/// Build the ` data-src-start="N" data-src-end="M"` fragment for a table
-/// cell, derived from its content blocks. Returns an empty string when
-/// source-position emission is off, the cell is empty, or the host visitor
-/// is in a re-parse scope.
-fn cell_src_attrs<W: Write>(cell: &TableColumn, visitor: &HtmlVisitor<'_, '_, W>) -> String {
-    let Some((start, end)) = cell_location_range(cell) else {
-        return String::new();
-    };
-    visitor.format_data_src_attrs(start, end)
-}
-
-/// Build the ` data-src-start="N" data-src-end="M"` fragment for a table row,
-/// spanning all cells. Returns an empty string when the row has no cells or
-/// emission is suppressed.
-fn row_src_attrs<W: Write>(row: &TableRow, visitor: &HtmlVisitor<'_, '_, W>) -> String {
-    let mut start: Option<usize> = None;
-    let mut end: Option<usize> = None;
-    for cell in &row.columns {
-        if let Some((s, e)) = cell_location_range(cell) {
-            start = Some(start.map_or(s, |x| x.min(s)));
-            end = Some(end.map_or(e, |x| x.max(e)));
-        }
-    }
-    match (start, end) {
-        (Some(s), Some(e)) => visitor.format_data_src_attrs(s, e),
-        _ => String::new(),
-    }
-}
+use crate::{Error, HtmlVariant, Processor, RenderOptions};
 
 /// Convert horizontal alignment to CSS class name
 fn halign_class(halign: HorizontalAlignment) -> &'static str {
@@ -127,6 +83,20 @@ fn format_span_attrs(cell: &TableColumn) -> String {
     attrs
 }
 
+/// Whether inline content is effectively empty (no nodes, or only whitespace
+/// plain text). asciidoctor renders such a body cell as an empty `<td>` with no
+/// `<p class="tableblock">` wrapper — e.g. a blank cell or one containing only
+/// `{empty}`.
+fn inline_nodes_blank(content: &[InlineNode]) -> bool {
+    content.iter().all(|node| {
+        if let InlineNode::PlainText(plain) = node {
+            plain.content.trim().is_empty()
+        } else {
+            false
+        }
+    })
+}
+
 /// Render cell content with support for nested blocks and cell styles.
 ///
 /// # Arguments
@@ -134,14 +104,17 @@ fn format_span_attrs(cell: &TableColumn) -> String {
 /// * `visitor` - The HTML visitor
 /// * `wrap_paragraph` - Whether paragraphs get `<p class="tableblock">` wrappers
 /// * `style` - Optional cell style (Strong, Emphasis, Monospace, Literal, Header, `AsciiDoc`)
-fn render_cell_content<W: Write>(
+fn render_cell_content<V>(
     blocks: &[Block],
-    visitor: &mut HtmlVisitor<'_, '_, W>,
+    visitor: &mut V,
     _processor: &Processor<'_>,
     _options: &RenderOptions,
     wrap_paragraph: bool,
     style: Option<ColumnStyle>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    V: WritableVisitor<Error = Error>,
+{
     for block in blocks {
         // For paragraphs in table cells, use <p class="tableblock"> for body cells only
         if let Block::Paragraph(para) = block {
@@ -154,6 +127,11 @@ fn render_cell_content<W: Write>(
                 let writer = visitor.writer_mut();
                 write!(writer, "</pre></div>")?;
             } else if wrap_paragraph {
+                // A blank body cell (empty or only `{empty}`) renders as an
+                // empty <td> with no <p class="tableblock"> wrapper.
+                if inline_nodes_blank(&para.content) {
+                    continue;
+                }
                 let writer = visitor.writer_mut();
                 write!(writer, "<p class=\"tableblock\">")?;
                 let _ = writer;
@@ -176,11 +154,14 @@ fn render_cell_content<W: Write>(
 }
 
 /// Render inline content with optional style wrappers.
-fn render_styled_content<W: Write>(
-    visitor: &mut HtmlVisitor<'_, '_, W>,
+fn render_styled_content<V>(
+    visitor: &mut V,
     content: &[InlineNode],
     style: Option<ColumnStyle>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    V: WritableVisitor<Error = Error>,
+{
     match style {
         Some(ColumnStyle::Strong) => {
             let writer = visitor.writer_mut();
@@ -230,12 +211,15 @@ fn render_styled_content<W: Write>(
 /// Caption can be disabled with:
 /// - `:table-caption!:` at document level (disables for all tables)
 /// - `[caption=""]` at block level (disables for specific table)
-fn render_table_caption<W: Write>(
-    visitor: &mut HtmlVisitor<'_, '_, W>,
+fn render_table_caption<V>(
+    visitor: &mut V,
     title: &[InlineNode],
     processor: &Processor<'_>,
     metadata: &BlockMetadata,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    V: WritableVisitor<Error = Error>,
+{
     if !title.is_empty() {
         // Check for per-block caption override (does NOT increment counter)
         let prefix = if let Some(custom_caption) = metadata.attributes.get_string("caption") {
@@ -353,38 +337,42 @@ fn get_stripes_class(metadata: &BlockMetadata) -> Option<&'static str> {
         })
 }
 
-/// Get width style from metadata (returns empty string if not specified).
-fn get_width_style(metadata: &BlockMetadata) -> String {
-    metadata
-        .attributes
-        .get_string("width")
-        .map_or_else(String::new, |w| format!(" style=\"width: {w};\""))
-}
-
-/// Get sizing class based on %autowidth option.
-fn get_sizing_class(metadata: &BlockMetadata) -> &'static str {
-    if metadata.options.contains(&"autowidth") {
-        "fit-content"
+/// Compute the table sizing class and inline width style, matching asciidoctor:
+/// - explicit `width=100%` (or `100`) → `stretch` class, no inline style;
+/// - any other explicit `width` → inline `style="width: N;"`, no sizing class;
+/// - `%autowidth` with no `width` → `fit-content` class;
+/// - otherwise (default full width) → `stretch` class.
+fn table_sizing(metadata: &BlockMetadata) -> (Option<&'static str>, String) {
+    if let Some(width) = metadata.attributes.get_string("width") {
+        if width.trim_end_matches('%') == "100" {
+            (Some("stretch"), String::new())
+        } else {
+            (None, format!(" style=\"width: {width};\""))
+        }
+    } else if metadata.options.contains(&"autowidth") {
+        (Some("fit-content"), String::new())
     } else {
-        "stretch"
+        (Some("stretch"), String::new())
     }
 }
 
 /// Render a single body cell with appropriate tag and style.
-fn render_body_cell<W: Write>(
+fn render_body_cell<V>(
     cell: &TableColumn,
     col_index: usize,
     columns: &[ColumnFormat],
-    visitor: &mut HtmlVisitor<'_, '_, W>,
+    visitor: &mut V,
     processor: &Processor<'_>,
     options: &RenderOptions,
     semantic: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    V: WritableVisitor<Error = Error>,
+{
     let halign = halign_class(get_effective_halign(columns, col_index, cell));
     let valign = valign_class(get_effective_valign(columns, col_index, cell));
     let style = get_effective_style(columns, col_index, cell);
     let span_attrs = format_span_attrs(cell);
-    let src_attrs = cell_src_attrs(cell, visitor);
 
     // Header-styled cells in body use <th> instead of <td>
     let tag = if style == Some(ColumnStyle::Header) {
@@ -397,7 +385,7 @@ fn render_body_cell<W: Write>(
     let writer = visitor.writer_mut();
     write!(
         writer,
-        "<{tag} class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}{src_attrs}>"
+        "<{tag} class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}>"
     )?;
     let _ = writer;
     render_cell_content(&cell.content, visitor, processor, options, !semantic, style)?;
@@ -408,29 +396,32 @@ fn render_body_cell<W: Write>(
 
 /// Render table with support for nested blocks in cells
 #[allow(clippy::too_many_lines)]
-pub(crate) fn render_table<W: Write>(
+pub(crate) fn render_table<V>(
     table: &Table,
-    visitor: &mut HtmlVisitor<'_, '_, W>,
+    visitor: &mut V,
     processor: &Processor<'_>,
     options: &RenderOptions,
     metadata: &BlockMetadata,
     title: &[InlineNode],
-    src_attrs: &str,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    V: WritableVisitor<Error = Error>,
+{
     let semantic = processor.variant() == HtmlVariant::Semantic;
     let writer = visitor.writer_mut();
 
-    // Build table classes
+    // Build table classes. Order matches asciidoctor:
+    // frame, grid, stripes, sizing (stretch/fit-content), float, roles.
     let frame = get_frame_class(metadata);
     let grid = get_grid_class(metadata);
-    let sizing = get_sizing_class(metadata);
+    let (sizing, width_style) = table_sizing(metadata);
 
     // Semantic mode: wrap in <div class="table-block">, no "tableblock" prefix on table
     let mut class_parts = if semantic {
-        writeln!(writer, "<div class=\"table-block\"{src_attrs}>")?;
-        format!("{frame} {grid} {sizing}")
+        writeln!(writer, "<div class=\"table-block\">")?;
+        format!("{frame} {grid}")
     } else {
-        format!("tableblock {frame} {grid} {sizing}")
+        format!("tableblock {frame} {grid}")
     };
 
     // Add stripes class if specified
@@ -439,20 +430,27 @@ pub(crate) fn render_table<W: Write>(
         class_parts.push_str(stripes);
     }
 
+    // Add sizing class (absent when an explicit non-100% width is used)
+    if let Some(sizing) = sizing {
+        class_parts.push(' ');
+        class_parts.push_str(sizing);
+    }
+
+    // Add float class (e.g. `center`) if specified
+    if let Some(float) = metadata.attributes.get_string("float") {
+        class_parts.push(' ');
+        class_parts.push_str(&float);
+    }
+
     // Add custom roles/classes from metadata
     for role in &metadata.roles {
         class_parts.push(' ');
         class_parts.push_str(role);
     }
 
-    // Get width style
-    let width_style = get_width_style(metadata);
-
-    if semantic {
-        writeln!(writer, "<table class=\"{class_parts}\"{width_style}>")?;
-    } else {
-        writeln!(writer, "<table class=\"{class_parts}\"{width_style}{src_attrs}>")?;
-    }
+    write!(writer, "<table")?;
+    crate::write_id(writer, metadata)?;
+    writeln!(writer, " class=\"{class_parts}\"{width_style}>")?;
 
     // Render caption with table number if title exists
     let _ = writer;
@@ -466,21 +464,19 @@ pub(crate) fn render_table<W: Write>(
 
     // Render header
     if let Some(header) = &table.header {
-        let row_attrs = row_src_attrs(header, visitor);
         let writer = visitor.writer_mut();
         writeln!(writer, "<thead>")?;
-        writeln!(writer, "<tr{row_attrs}>")?;
+        writeln!(writer, "<tr>")?;
         let _ = writer;
         for (col_index, cell) in header.columns.iter().enumerate() {
             let halign = halign_class(get_effective_halign(&table.columns, col_index, cell));
             let valign = valign_class(get_effective_valign(&table.columns, col_index, cell));
             let style = get_effective_style(&table.columns, col_index, cell);
             let span_attrs = format_span_attrs(cell);
-            let cell_attrs = cell_src_attrs(cell, visitor);
             let writer = visitor.writer_mut();
             write!(
                 writer,
-                "<th class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}{cell_attrs}>"
+                "<th class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}>"
             )?;
             let _ = writer;
             render_cell_content(&cell.content, visitor, processor, options, false, style)?;
@@ -497,9 +493,8 @@ pub(crate) fn render_table<W: Write>(
     writeln!(writer, "<tbody>")?;
     let _ = writer;
     for row in &table.rows {
-        let row_attrs = row_src_attrs(row, visitor);
         let writer = visitor.writer_mut();
-        writeln!(writer, "<tr{row_attrs}>")?;
+        writeln!(writer, "<tr>")?;
         let _ = writer;
         for (col_index, cell) in row.columns.iter().enumerate() {
             render_body_cell(
@@ -520,21 +515,19 @@ pub(crate) fn render_table<W: Write>(
 
     // Render footer if present
     if let Some(footer) = &table.footer {
-        let row_attrs = row_src_attrs(footer, visitor);
         let writer = visitor.writer_mut();
         writeln!(writer, "<tfoot>")?;
-        writeln!(writer, "<tr{row_attrs}>")?;
+        writeln!(writer, "<tr>")?;
         let _ = writer;
         for (col_index, cell) in footer.columns.iter().enumerate() {
             let halign = halign_class(get_effective_halign(&table.columns, col_index, cell));
             let valign = valign_class(get_effective_valign(&table.columns, col_index, cell));
             let style = get_effective_style(&table.columns, col_index, cell);
             let span_attrs = format_span_attrs(cell);
-            let cell_attrs = cell_src_attrs(cell, visitor);
             let writer = visitor.writer_mut();
             write!(
                 writer,
-                "<td class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}{cell_attrs}>"
+                "<td class=\"{cell_class_prefix}{halign} {valign}\"{span_attrs}>"
             )?;
             let _ = writer;
             render_cell_content(&cell.content, visitor, processor, options, !semantic, style)?;

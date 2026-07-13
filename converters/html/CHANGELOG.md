@@ -14,22 +14,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A standalone document with a revision number now renders a
+  `{version-label} {revnumber}` line (e.g. `Version 2.0`) in the footer above the
+  "Last updated" line, matching `asciidoctor`.
+- Set the `:acdc-index:` attribute to generate an index in the document's
+  `[index]` section: an alphabetical listing where each term links to the
+  sections it appears in. Without it, `[index]` sections stay empty, matching
+  `asciidoctor`.
+- A section renders its roles as part of its wrapper class (e.g. `[.role]` on a
+  section gives `<div class="sect2 role">`, and a level-0 part gives
+  `<h1 class="sect0 role">`), matching `asciidoctor`.
+- A discrete heading renders its `discrete`/`float` block style (plus any roles)
+  as the heading's class.
+- Tables now render their `id`, and a `<<id>>` to a section or titled block (table, listing,
+  example, etc) resolves to the target's title (untitled -> literal `[id]`), matching
+  `asciidoctor`. The auto-generated link text preserves the title's inline formatting
+  (e.g. `` `code` ``, bold, italic) rather than flattening it to plain text; an explicit
+  `<<id,text>>` label or a reference text from `[[id,Custom Text]]` still wins.
+- Table sizing and alignment classes follow `asciidoctor`: a `width=100%` table (or the
+  default full-width table) uses the `stretch` class with no inline style, any other
+  explicit `width` emits an inline `style="width: N;"` with no `stretch` class,
+  `%autowidth` uses `fit-content`, and a `float` attribute (e.g. `center`) is emitted as a
+  class. A blank body cell, empty or containing only `{empty}`, renders as an empty `<td>`
+  rather than wrapping an empty `<p class="tableblock">`.
 - Fixture coverage for `[subs="-specialchars"]` and `[subs="-replacements"]`,
   pinning asciidoctor-parity behaviour (raw `<`, `>`, `&` preserved when
   specialchars are disabled; literal `--`, `(C)`, `->` preserved when
   replacements are disabled). The underlying gating was already in place.
-- Feature-gated `terminal-preview` support lets both standard and semantic HTML
-  conversions include selectable terminal-styled previews via `libghostty-vt`
-  when the document opts in with `:terminal-preview:`. Previews follow
-  `:dark-mode:`, preserve terminal-converter ANSI colors for source/listing
-  blocks, and auto-size to the rendered terminal text unless rows are explicitly
-  configured with `:terminal-preview-rows:` or `:terminal-rows:`. Preview width
-  can be configured with `:terminal-preview-cols:` or `:terminal-cols:`. The
-  terminal preview base styles live in the built-in HTML stylesheets, so they
-  follow the same embedded, linked, and copied stylesheet modes as the rest of
-  the converter output. This is an acdc-only HTML extension; Asciidoctor does
-  not provide a `:terminal-preview:` attribute or equivalent built-in terminal
-  preview feature.
+- Terminal previews (feature-gated `terminal`). Set `:acdc-terminal:` to
+  render terminal-like source blocks (`console`, `bash`, and similar) as
+  selectable, terminal-styled HTML with their ANSI colors intact. Previews
+  follow `:dark-mode:`, auto-size to their content, and take `:acdc-terminal-cols:` /
+  `:acdc-terminal-rows:`. acdc-only; asciidoctor has no equivalent.
+- `[terminal]` blocks (feature-gated `terminal`) render a listing or literal
+  block as a terminal-styled preview without the `:acdc-terminal:` opt-in,
+  with `cols=`/`rows=` for size and colors following `:dark-mode:`. acdc-only;
+  asciidoctor renders the raw text, escape sequences included.
+- `[terminal%replay]` blocks (feature-gated `terminal`) animate pre-recorded
+  terminal output as HTML. Replay raw ANSI (the default; needs `cols`/`rows`) or
+  an `asciicast` v2/v3 recording with `format=asciicast`, which plays back in the
+  recording's own colors and reproduces in-place redraws such as progress bars
+  and full-screen TUIs. `rows` is a scrolling window that rests on the last lines
+  of output; idle gaps are compressed (tune with `replay-idle-limit-ms`) and
+  `replay-duration-ms` sets total playback time. Readers without JavaScript, or
+  who prefer reduced motion, see the final frame. Recorded commands are never
+  run. acdc-only; asciidoctor renders the raw text.
+- Terminal rendering (previews, `[terminal]`, and `[terminal%replay]`) runs the
+  bundled terminal emulator only below `SafeMode::Server`. At `server`/`secure`
+  the block degrades to a plain listing and a warning is emitted, since the
+  emulator processes document-controlled input.
+- Set `:csp:` to emit a self-contained `<meta http-equiv="Content-Security-Policy">`
+  for standalone output: scripts are locked to acdc's inline scripts by hash (no
+  `'unsafe-inline'`) plus the MathJax CDN when `:stem:` is set, while images,
+  media, and embeds stay permissive so content keeps loading. For assembling your
+  own head/policy (e.g. embedded mode), the inline scripts, their hashes, and the
+  MathJax loader URL are public API.
 - User-facing converter warnings are now collected in `ConversionResult` for
   recoverable HTML conversion issues such as deprecated roles, docinfo option
   fallbacks, and stylesheet read/write failures.
@@ -91,10 +130,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`copycss` source path override** — when `:copycss:` has a non-empty string value, it is
   used as the source file path to read the stylesheet from, decoupling the source location
   from the output filename specified by `:stylesheet:`.
-- **Appendix support (`[appendix]` style on level-0 sections)** — in book doctype, level-0
-  sections with `[appendix]` style are demoted to level 1 and prefixed with "Appendix A: ",
-  "Appendix B: ", etc. in both section headings and TOC entries. The caption is configurable
-  via `:appendix-caption:` and can be disabled with `:!appendix-caption:`. ([#343])
+- **Appendix support (`[appendix]` style)** — appendices are prefixed with "Appendix A: ",
+  "Appendix B: ", etc. in both section headings and TOC entries. Section headings demote a
+  level-0 appendix to level 1; in the TOC a level-0 appendix sits at the part tier — alongside
+  parts (`sectlevel0`) in a multi-part book, or alongside chapters (`sectlevel1`) in a
+  part-less book — with its level-2 (`===`) subsections nested beneath it, matching
+  `asciidoctor`. With `:!appendix-caption:` the prefix is the bare letter numeral instead
+  ("A. "); the letter is shown regardless of `:sectnums:`. When `:sectnums:` is set, appendix
+  subsections are numbered with the appendix letter as the top component (`A.1`, `A.1.1`,
+  `A.2`, then `B.1` for the next appendix), in both headings and TOC. The caption word is
+  configurable via `:appendix-caption:`. ([#343])
 - **Part numbering (`:partnums:` / `:part-signifier:`)** — book doctype documents with
   `:partnums:` now render part headings and TOC entries with uppercase Roman numeral
   prefixes (e.g., "Part I. ", "Part II. "). The signifier text is configurable via
@@ -146,10 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   render with syntax highlighting using syntect. Outputs inline CSS styles. Falls back
   to plain text when the language isn't recognized. Requires `highlighting` feature flag.
 - **Section numbering** - Documents with `:sectnums:` attribute now render numbered
-  section headings (e.g., "1. Introduction", "1.1. Overview"). Respects `:secnumlevels:`
-  to control depth of numbering.
+  section headings (e.g., "1. Introduction", "1.1. Overview"). Respects `:sectnumlevels:`
+  to control depth of numbering. Special-style sections (`[preface]`, `[glossary]`, etc.)
+  and every subsection nested under them are left unnumbered, matching asciidoctor.
 - **ToC numbering** - Table of contents entries are now numbered when `:sectnums:` is
-  set, matching asciidoctor behavior.
+  set, matching asciidoctor behavior (special-style sections and their subsections stay
+  unnumbered).
 - Table colspan and rowspan rendering (`colspan="n"` and `rowspan="n"` attributes on `<th>`/`<td>`)
 - Table visual attribute support:
   - `frame` attribute - controls outer border (`all`, `ends`/`topbot`, `sides`, `none`)
@@ -170,6 +217,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An ordered list with an explicit numbering style (`[arabic]`, `[decimal]`,
+  `[loweralpha]`, `[upperalpha]`, `[lowerroman]`, `[upperroman]`, `[lowergreek]`)
+  now renders that style's `olist`/`<ol>` class and `<ol type>` instead of the
+  numbering derived from nesting depth, matching `asciidoctor`.
+- The header revision span (`<span id="revnumber">`) derives its version word
+  from the `version-label` attribute (lowercased, e.g. a custom
+  `:version-label: Rev:` gives `rev 2.0`) instead of a fixed `version`, only
+  appends the trailing comma when a revision date follows, and no longer strips a
+  leading `v` from an explicit `:revnumber:` value (so `:revnumber: v3.0` renders
+  `v3.0`, while a `vX.Y` revision line still renders without the `v`) — all
+  matching `asciidoctor`.
+- The author email in the document header is emitted as a single-line
+  `<span id="email" class="email"><a …>…</a></span>` rather than wrapping the
+  link across newlines; the newlines rendered as a leading space that shifted the
+  email right of the `–` separator. Now matches `asciidoctor`.
+- A description-list term (`<dt class="hdlist1">`) is emitted on the same line as
+  its opening tag (`<dt class="hdlist1">Term</dt>`) rather than after a newline,
+  matching `asciidoctor`.
 - `--no-default-features` builds no longer re-enable parser or converter
   default features through internal workspace dependencies.
 - **`link:` macro now emits `class="bare"` for empty display text** — `link:URL[]` now

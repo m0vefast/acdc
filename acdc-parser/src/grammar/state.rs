@@ -1,12 +1,17 @@
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
-use std::{collections::HashMap, path::PathBuf, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+};
 
 use bumpalo::Bump;
 
 use crate::{
-    CalloutRef, DocumentAttributes, Footnote, Location, Options, Positioning, SourceLocation,
-    Title, TocEntry, Warning, WarningKind,
+    CalloutRef, DocumentAttributes, Footnote, Location, Options, SourceLocation, TocEntry, Warning,
+    WarningKind,
     grammar::LineMap,
     model::{LeveloffsetRange, SourceRange, substitution::SubsFlags},
 };
@@ -41,40 +46,56 @@ pub(crate) struct ParserState<'a> {
     /// `process_inlines` calls, and the prior pattern produced O(N×M) work
     /// where N is footnote count and M is the number of nested parses.
     pub(crate) footnote_tracker: Rc<RefCell<FootnoteTracker<'a>>>,
-    pub(crate) toc_tracker: TocTracker<'a>,
+    /// TOC entries collected during parsing, in document order. A section pushes its
+    /// [`TocEntry`] here as soon as its title is parsed; `numbered` is `false` for
+    /// special styles (`[bibliography]`, `[glossary]`, ...) that are not auto-numbered
+    /// under `sectnums`.
+    pub(crate) toc_entries: Vec<TocEntry<'a>>,
     pub(crate) last_block_was_verbatim: bool,
-    /// Callout references found in the last verbatim block (for validation with callout lists)
+    /// Callout references found in the last verbatim block (for validation with callout
+    /// lists)
     pub(crate) last_verbatim_callouts: Vec<CalloutRef>,
-    /// The current file being parsed (None for inline/string parsing)
-    pub(crate) current_file: Option<PathBuf>,
-    /// Byte ranges where specific leveloffset values apply.
-    /// Set by the preprocessor when processing includes with `leveloffset=` attributes.
-    /// Used by the parser to adjust section levels.
+    /// The current file being parsed (`None` for inline/string parsing). Used as the
+    /// fallback file for diagnostics (`create_error_source_location`) when an offset
+    /// isn't covered by a recorded source range.
+    ///
+    /// Held as `Arc` for the **hot** clone: `for_inline_parsing` inherits it once per
+    /// inline sub-parse (and macro-heavy docs spawn hundreds), where the refcount bump
+    /// beats a `PathBuf` copy. The diagnostic sites instead deep-copy it into the public
+    /// [`SourceLocation::file`](crate::SourceLocation) (`Option<PathBuf>`) API so it's
+    /// left as a copy rather than widening the published API to `Option<Arc<PathBuf>>`.
+    pub(crate) current_file: Option<Arc<PathBuf>>,
+    /// Byte ranges where specific leveloffset values apply. Set by the preprocessor when
+    /// processing includes with `leveloffset=` attributes. Used by the parser to adjust
+    /// section levels.
     pub(crate) leveloffset_ranges: Vec<LeveloffsetRange>,
-    /// Byte ranges mapping preprocessed output back to source files.
-    /// Set by the preprocessor when processing `include::` directives.
-    /// Used to produce accurate file/line info in warnings.
+    /// Byte ranges mapping preprocessed output back to source files. Set by the
+    /// preprocessor when processing `include::` directives. Used to produce accurate
+    /// file/line info in warnings.
     pub(crate) source_ranges: Vec<SourceRange>,
-    /// Warnings collected during PEG parsing. Shared across the top-level
-    /// state and any `for_inline_parsing` sub-states via `Rc`, so warnings
-    /// raised during nested inline parses (author lines, revision lines,
-    /// substituted inline content) reach the top-level `ParseResult`
-    /// alongside everything else. The outer `parse_input` / `parse_inline`
-    /// keeps a clone of this `Rc` and recovers the final `Vec<Warning>`
-    /// after the self-cell builder closure drops the `ParserState`.
-    /// Deduplicated on insertion because PEG backtracking can re-fire the
-    /// same warning multiple times.
+    /// Warnings collected during PEG parsing. Shared across the top-level state and any
+    /// `for_inline_parsing` sub-states via `Rc`, so warnings raised during nested inline
+    /// parses (author lines, revision lines, substituted inline content) reach the
+    /// top-level `ParseResult` alongside everything else. The outer `parse_input` /
+    /// `parse_inline` keeps a clone of this `Rc` and recovers the final `Vec<Warning>`
+    /// after the self-cell builder closure drops the `ParserState`. Deduplicated on
+    /// insertion because PEG backtracking can re-fire the same warning multiple times.
     pub(crate) warnings: Rc<RefCell<Vec<Warning>>>,
-    /// When true, inline parsing uses a reduced rule set that only matches
-    /// formatting markup (bold, italic, monospace, highlight, superscript,
-    /// subscript, curved quotes) and plain text. Used by `parse_text_for_quotes`
-    /// to apply "quotes" substitution without matching macros, xrefs, etc.
+    /// When true, inline parsing uses a reduced rule set that only matches formatting
+    /// markup (bold, italic, monospace, highlight, superscript, subscript, curved quotes)
+    /// and plain text. Used by `parse_text_for_quotes` to apply "quotes" substitution
+    /// without matching macros, xrefs, etc.
     pub(crate) quotes_only: bool,
     /// When parsing content extracted from a constrained formatting rule, holds
     /// the delimiter byte of the outer formatting (e.g., `b'_'` for italic).
     /// Used to correctly fail boundary checks when the outer delimiter is a
     /// word character (only `_` among the formatting delimiters).
     pub(crate) outer_constrained_delimiter: Option<u8>,
+    /// True when this state was created by `for_inline_parsing`, i.e. it parses
+    /// a nested span re-parsed from inside an inline rule rather than top-level
+    /// block content. Used to decide `InlineContext::block_level` for the inline
+    /// sub-parse it spawns.
+    pub(crate) is_inline_subparse: bool,
     /// Context set before entering the PEG inline parser. These fields are
     /// constant within a single `inlines()` call, allowing rules to be
     /// argument-free and thus cacheable by the PEG packrat memoizer.
@@ -103,6 +124,12 @@ pub(crate) struct InlineContext {
     /// Independent of `subs_flags`: this is suppressed inside link/url/xref
     /// macro contents to avoid nested-autolink mis-parses.
     pub(crate) allow_autolinks: bool,
+    /// Whether this is the outermost (block-content) inline parse, as opposed
+    /// to a nested span re-parse made from inside an inline rule (monospace,
+    /// bold, link, footnote, …). Only the block-content parse may treat a
+    /// trailing ` +` at end-of-input as a hard line break; a nested span ending
+    /// in ` +` stays literal, matching asciidoctor.
+    pub(crate) block_level: bool,
 }
 
 impl Default for InlineContext {
@@ -111,6 +138,7 @@ impl Default for InlineContext {
             offset: 0,
             subs_flags: SubsFlags::default(),
             allow_autolinks: true,
+            block_level: false,
         }
     }
 }
@@ -126,6 +154,11 @@ pub(crate) struct FootnoteTracker<'a> {
     /// This helps ensure that named footnotes are only assigned a number once and reused.
     /// If it's an anonymous footnote (no ID), it always gets a new number.
     named_footnote_numbers: HashMap<&'a str, u32>,
+    /// Footnote numbers whose stored entry has already had its location/content
+    /// finalized to document-absolute coordinates (see [`Self::finalize`]). The first
+    /// occurrence of a number wins, so a later bare reference of a named footnote does
+    /// not overwrite the defining occurrence.
+    location_finalized: HashSet<u32>,
 }
 
 impl<'a> FootnoteTracker<'a> {
@@ -134,6 +167,24 @@ impl<'a> FootnoteTracker<'a> {
             footnotes: Vec::new(),
             last_footnote_position: 1,
             named_footnote_numbers: HashMap::new(),
+            location_finalized: HashSet::new(),
+        }
+    }
+
+    /// Replace the stored entry's location and content with `footnote`'s, which the
+    /// caller has just mapped to document-absolute coordinates. Footnotes are recorded
+    /// during inline parsing in preprocessed-*local* coordinates (offset 0), so the
+    /// stored copy is otherwise mislocated; `map_inline_locations` calls this once the
+    /// in-tree copy has been mapped. Entries are kept in number order, so `number - 1`
+    /// indexes the stored entry. First occurrence wins: a later bare reference of a
+    /// named footnote leaves the defining occurrence's content and location intact.
+    pub(crate) fn finalize(&mut self, footnote: &Footnote<'a>) {
+        if self.location_finalized.insert(footnote.number)
+            && let Some(index) = footnote.number.checked_sub(1)
+            && let Some(entry) = self.footnotes.get_mut(index as usize)
+        {
+            entry.location = footnote.location.clone();
+            entry.content.clone_from(&footnote.content);
         }
     }
 
@@ -156,38 +207,6 @@ impl<'a> FootnoteTracker<'a> {
         }
         self.footnotes.push(footnote.clone());
         self.last_footnote_position += 1;
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub(crate) struct TocTracker<'a> {
-    /// All TOC entries collected during parsing, in document order
-    pub(crate) entries: Vec<TocEntry<'a>>,
-}
-
-impl<'a> TocTracker<'a> {
-    /// Register a section for inclusion in the TOC.
-    ///
-    /// The `numbered` parameter indicates whether this section should receive
-    /// automatic section numbering when `sectnums` is enabled. This should be
-    /// `false` for special section styles like `[bibliography]`, `[glossary]`, etc.
-    pub(crate) fn register_section(
-        &mut self,
-        title: Title<'a>,
-        level: u8,
-        id: &'a str,
-        xreflabel: Option<&'a str>,
-        numbered: bool,
-        style: Option<&'a str>,
-    ) {
-        self.entries.push(TocEntry {
-            id,
-            title,
-            level,
-            xreflabel,
-            numbered,
-            style,
-        });
     }
 }
 
@@ -265,7 +284,7 @@ impl<'a> ParserState<'a> {
             input,
             arena,
             footnote_tracker: Rc::new(RefCell::new(FootnoteTracker::new())),
-            toc_tracker: TocTracker::default(),
+            toc_entries: Vec::new(),
             last_block_was_verbatim: false,
             last_verbatim_callouts: Vec::new(),
             current_file: None,
@@ -274,6 +293,7 @@ impl<'a> ParserState<'a> {
             warnings: Rc::new(RefCell::new(Vec::new())),
             quotes_only: false,
             outer_constrained_delimiter: None,
+            is_inline_subparse: false,
             inline_ctx: InlineContext::default(),
             next_at_sign_cache: Cell::new(None),
         }
@@ -301,7 +321,7 @@ impl<'a> ParserState<'a> {
             input,
             arena,
             footnote_tracker: Rc::new(RefCell::new(FootnoteTracker::new())),
-            toc_tracker: TocTracker::default(),
+            toc_entries: Vec::new(),
             last_block_was_verbatim: false,
             last_verbatim_callouts: Vec::new(),
             current_file: None,
@@ -310,6 +330,7 @@ impl<'a> ParserState<'a> {
             warnings: Rc::new(RefCell::new(Vec::new())),
             quotes_only: true,
             outer_constrained_delimiter: None,
+            is_inline_subparse: false,
             inline_ctx: InlineContext::default(),
             next_at_sign_cache: Cell::new(None),
         }
@@ -325,10 +346,12 @@ impl<'a> ParserState<'a> {
             input,
             arena: parent.arena,
             footnote_tracker: Rc::clone(&parent.footnote_tracker),
-            toc_tracker: TocTracker::default(),
+            toc_entries: Vec::new(),
             last_block_was_verbatim: false,
             last_verbatim_callouts: Vec::new(),
-            current_file: None,
+            // Inherit the file so inline sub-parse nodes are stamped with the correct
+            // origin file by `create_location` (cheap `Arc` clone).
+            current_file: parent.current_file.clone(),
             leveloffset_ranges: Vec::new(),
             source_ranges: Vec::new(),
             // Share the parent's warnings vec so anything raised during a
@@ -337,6 +360,7 @@ impl<'a> ParserState<'a> {
             warnings: Rc::clone(&parent.warnings),
             quotes_only: parent.quotes_only,
             outer_constrained_delimiter: parent.outer_constrained_delimiter,
+            is_inline_subparse: true,
             inline_ctx: parent.inline_ctx,
             next_at_sign_cache: Cell::new(None),
         }
@@ -389,6 +413,19 @@ impl<'a> ParserState<'a> {
         }
     }
 
+    /// Collect a warning raised by the inline preprocessor, first resolving its
+    /// preprocessed location to the originating file + source line (the same
+    /// mapping the error path uses). The inline preprocessor builds locations with
+    /// `file: None` and post-splice line numbers; this brings warnings from
+    /// `include::`d content and after preprocessor edits in line with the resolved
+    /// AST node locations and the PEG-error path.
+    pub(crate) fn add_inline_preprocessor_warning(&self, mut warning: Warning) {
+        if let Some(source_location) = warning.location.take() {
+            warning.location = Some(self.create_error_source_location(source_location.location));
+        }
+        self.add_warning(warning);
+    }
+
     /// Emit all collected warnings via tracing. Call after parsing
     /// completes. Acts as a belt-and-suspenders fallback for callers that
     /// ignore the warnings slice on `ParseResult`.
@@ -401,42 +438,35 @@ impl<'a> ParserState<'a> {
     /// Create a `SourceLocation` for an error/warning, resolving the correct
     /// file and adjusting line numbers for included content.
     pub(crate) fn create_error_source_location(&self, location: Location) -> SourceLocation {
-        if let Some(range) = self
-            .source_ranges
-            .iter()
-            .rev()
-            .find(|r| r.contains(location.absolute_start))
+        if let Some(range) =
+            SourceRange::find_containing(&self.source_ranges, location.absolute_start)
         {
-            let file = Some(range.file.clone());
-            let start_newlines = self
-                .input
-                .get(range.start_offset..location.absolute_start)
-                .map_or(0, |s| s.matches('\n').count());
-            let end_newlines = self
-                .input
-                .get(range.start_offset..location.absolute_end.min(self.input.len()))
-                .map_or(0, |s| s.matches('\n').count());
-            let adjusted_start_line = range.start_line + start_newlines;
-            let adjusted_end_line = range.start_line + end_newlines;
+            let file = range.file.clone();
+            let adjusted_start_line =
+                self.line_map
+                    .source_line(range, self.input, location.absolute_start);
+            let adjusted_end_line = self.line_map.source_line(
+                range,
+                self.input,
+                location.absolute_end.min(self.input.len()),
+            );
             SourceLocation {
                 file,
-                positioning: Positioning::Location(Location {
+                location: Location {
                     absolute_start: location.absolute_start,
                     absolute_end: location.absolute_end,
-                    start: crate::Position {
-                        line: adjusted_start_line,
-                        column: location.start.column,
-                    },
-                    end: crate::Position {
-                        line: adjusted_end_line,
-                        column: location.end.column,
-                    },
-                }),
+                    // The authoritative file for a diagnostic lives on the enclosing
+                    // `SourceLocation`; these positions don't carry it.
+                    start: crate::Position::new(adjusted_start_line, location.start.column),
+                    end: crate::Position::new(adjusted_end_line, location.end.column),
+                },
             }
         } else {
             SourceLocation {
-                file: self.current_file.clone(),
-                positioning: Positioning::Location(location),
+                // Cold path: deep-copy the `Arc<PathBuf>` into the public `Option<PathBuf>`
+                // (one clone per diagnostic). See `current_file` for why the API isn't widened.
+                file: self.current_file.as_deref().cloned(),
+                location,
             }
         }
     }
@@ -468,6 +498,11 @@ impl<'a> ParserState<'a> {
         let start_pos = self.line_map.offset_to_position(safe_start, self.input);
         let end_pos = self.line_map.offset_to_position(safe_end, self.input);
 
+        // Positions carry no `file` at construction (the ASG omits the primary file).
+        // The post-parse remap pass stamps the originating file on `include::`d nodes;
+        // it only runs when the preprocessor recorded source ranges, which never happens
+        // without an include/edit, so leaving `file` `None` is correct for the common
+        // single-file document.
         Location {
             absolute_start: safe_start,
             absolute_end: safe_end,
@@ -591,12 +626,15 @@ mod tests {
         // Simulate: main file "line1\n", included file "inc_line1\ninc_line2\n"
         let input = "line1\ninc_line1\ninc_line2\n";
         let mut state = ParserState::new_for_test(input);
-        state.current_file = Some(PathBuf::from("main.adoc"));
+        state.current_file = Some(PathBuf::from("main.adoc").into());
         state.source_ranges.push(SourceRange {
             start_offset: 6, // "inc_line1\n..." starts at byte 6
             end_offset: 25,
-            file: PathBuf::from("/tmp/included.adoc"),
+            file: Some(PathBuf::from("/tmp/included.adoc")),
+            file_chain: vec!["included.adoc".to_string()],
             start_line: 1,
+            source_start_offset: 0,
+            column_shift: 0,
         });
 
         // Location inside the included range (second line of include: "inc_line2")
@@ -604,33 +642,23 @@ mod tests {
         let src_loc = state.create_error_source_location(loc);
 
         assert_eq!(src_loc.file, Some(PathBuf::from("/tmp/included.adoc")));
-        match &src_loc.positioning {
-            Positioning::Location(l) => {
-                // From start_offset=6 to absolute_start=16, there's 1 newline ("inc_line1\n")
-                // So start_line = 1 + 1 = 2
-                assert_eq!(l.start.line, 2);
-            }
-            Positioning::Position(_) => panic!("expected Positioning::Location"),
-        }
+        // From start_offset=6 to absolute_start=16, there's 1 newline ("inc_line1\n")
+        // So start_line = 1 + 1 = 2
+        assert_eq!(src_loc.location.start.line, 2);
     }
 
     #[test]
     fn create_error_source_location_falls_back_to_current_file() {
         let input = "main content\n";
         let mut state = ParserState::new_for_test(input);
-        state.current_file = Some(PathBuf::from("main.adoc"));
+        state.current_file = Some(PathBuf::from("main.adoc").into());
         // No source ranges
 
         let loc = state.create_location(0, 11);
         let src_loc = state.create_error_source_location(loc.clone());
 
         assert_eq!(src_loc.file, Some(PathBuf::from("main.adoc")));
-        match &src_loc.positioning {
-            Positioning::Location(l) => {
-                assert_eq!(l.start.line, loc.start.line);
-                assert_eq!(l.end.line, loc.end.line);
-            }
-            Positioning::Position(_) => panic!("expected Positioning::Location"),
-        }
+        assert_eq!(src_loc.location.start.line, loc.start.line);
+        assert_eq!(src_loc.location.end.line, loc.end.line);
     }
 }

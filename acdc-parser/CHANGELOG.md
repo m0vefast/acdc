@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Every AST node's `Location` now maps back to the **original source**: its
+  `start`/`end` line numbers and `absolute_start`/`absolute_end` byte offsets are
+  original-source coordinates, and each boundary (`Position`) carries a new `file`
+  field naming the `include::` chain the content came through. This holds across
+  `include::` directives and preprocessor edits (dropped adjacent comments, stripped
+  `ifdef`/`ifndef`/`ifeval` blocks, collapsed multi-line attribute continuations) —
+  content after such an edit no longer reports a shifted line. `file` is set only for
+  content from an `include::`d file; content from the primary input carries `None`,
+  matching the ASG convention of omitting the primary file. Because the file lives on
+  each boundary, a span that starts in an included file and ends after it reports each
+  endpoint's own chain. Partial includes (`include::file.adoc[lines=…]` or `[tag=…]`)
+  map to the selected lines' true positions in the included file — a `lines=3..4`
+  include reports line 3, not line 1 — and a non-contiguous selection locates each
+  run independently. Columns are origin-relative too: an `include::file.adoc[indent=N]`
+  re-indent reports each node's column in the included file (the inserted indent is
+  stripped back off). For such re-indented content the line and column are exact while
+  the `absolute_start`/`absolute_end` byte offsets stay in preprocessed coordinates
+  (these offsets are not part of the ASG output, which carries line/column only). The
+  same original-source mapping also applies to the `Document.references`,
+  `Document.toc_entries`, and `Document.footnotes` locations (not serialized to the
+  ASG, but consumed e.g. by LSP go-to-definition), so a cross-reference, TOC entry, or
+  footnote pointing at a target in an `include::`d file resolves to that file at its
+  true line.
+- `Position` now serializes in the ASG `locationBoundary` format: `{ line, col }`
+  plus an optional `file` — the `include::` chain as an array of the include targets
+  *as written*, outermost first and the file directly containing the content last
+  (e.g. `["outer.adoc", "inner.adoc"]`) — emitted only for `include::`d content, so
+  the JSON shape is unchanged for single-file documents.
+- `Location::byte_len()` returns the location's inclusive byte length, or `None` when its
+  start and end fall in different files (where the byte offsets are in different coordinate
+  spaces and can't be subtracted). Prefer it over `absolute_end - absolute_start`.
+- `Position::from_line_col(line, column)` builds a `Position` from `usize` line/column,
+  saturating at `u32::MAX`. Use it when constructing from `usize` indices; prefer
+  `Position::new` when the values are already `u32`.
+- `SectionKind` enum and a `kind` field on `Section` (and `TocEntry`) classifying
+  a section as an `AsciiDoc` *special section* (`Preface`, `Glossary`, `Appendix`,
+  …) or `Normal`, derived from its style. This is a structural classification only
+  — converters use it, e.g. to exclude special sections and their subsections from
+  `:sectnums:` numbering, matching asciidoctor. `#[non_exhaustive]`, so more kinds
+  can be added later.
+- A section title that skips a level (e.g. `====` under `==`) is rendered at its
+  literal level with a `WarningKind::SectionLevelOutOfSequence` instead of being a
+  fatal error. A level-0 `[appendix]` is treated as level 1 for this check, so its
+  first subsection being a level-2 (`===`) section is in sequence (not flagged),
+  matching asciidoctor.
+- The `discrete`/`float` block style marks a discrete heading and renders as its
+  class; the legacy `float` spelling raises `WarningKind::LegacyFloatDiscreteHeading`.
+- `[#id,…]` sets the id and treats the rest as block attributes (only
+  `[[id,reftext]]` sets a reference text).
+- Constrained formatting (`*`, `_`, `` ` ``, `#`) is now recognized after a
+  non-ASCII punctuation boundary such as a curly quote or guillemet (e.g.
+  `“*bold*”`); Unicode letters/digits still aren't boundaries.
+- `Document.references`: an `id → Reference` catalog covering every cross-reference
+  target, including sections, blocks, and inline `[[id]]` anchors, with each target's
+  reference text and source `location`, so `<<id>>` can be resolved and navigated to.
+- An `<<id>>`/`xref:id[]` whose target is defined nowhere now reports a
+  `WarningKind::UnresolvedReference`, matching `asciidoctor` (external/inter-document
+  references aren't flagged as the parser only deals with one file at a time).
 - `[subs="-post_replacements"]` now suppresses trailing-`+` hard line breaks.
 - `[subs="-quotes"]` now leaves `*bold*`, `_italic_`, `` `mono` ``,
   `#highlight#`, `^super^`, `~sub~`, and curved quotes/apostrophes as literal
@@ -17,103 +75,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   markers as literal text.
 
   All three require the default-on `pre-spec-subs` feature.
-- **`FileResolver` trait + `DynFileResolver` newtype + `DefaultFileResolver`** —
-  pluggable file-content provider for the include preprocessor. Lets WASM /
-  sandboxed embedders inject a custom reader (e.g. backed by a JS vault
-  cache) so `include::` directives work without `std::fs`. `DefaultFileResolver`
-  is `cfg`-gated to non-wasm targets and wired as the implicit default.
-- **`FileResolverError`** non-fatal error type, `#[non_exhaustive]` on both
-  the enum and its data-carrying variants. `NotFound { path }` and
-  `Io { path, source }` carry structured fields; convenience constructors
-  `FileResolverError::not_found` / `::io` for common call sites.
-- **`Options::file_resolver` + `Options::virtual_current_file`** fields with
-  builder methods `with_file_resolver` and `with_virtual_current_file`.
-  Virtual current-file path anchors relative `include::` targets when
-  calling `parse` (not `parse_file`) — required for WASM where there's no
-  real `std::fs` path.
-- **Include depth limit (`MAX_INCLUDE_DEPTH = 64`)** — the preprocessor now
-  bails with a warning when nesting exceeds 64 levels. Protects against
-  cyclic includes (`a→b→a`) which previously blew the wasm stack. The
-  constant is re-exported from the crate root for programmatic comparison.
-- **Lexical path normalization** applied to all `Target::Path` include
-  resolutions (both resolver-mode and native `std::fs`): `../sib.adoc`
-  collapses through the parent's components before either the resolver
-  cache lookup or `path.exists()`. Cache keys match regardless of
-  `..`/`.` segments; native callers no longer see the literal `..` in
-  warnings about missing includes.
-- **Distinct warning text for resolver I/O errors (non-NotFound)** —
-  `[opts=optional]` aside, a resolver `Io` failure now surfaces as
-  "include read failed for X: cause" with the source error chain
-  rendered, instead of the generic "file is missing" string.
+- Comments record their syntactic form and keep their text for tooling: the new
+  `CommentKind` on `Comment` separates `//` lines from `[comment]` paragraphs,
+  and a `[comment]` `--` block is a `DelimitedComment` (distinguished from a
+  `////` block by its `--` delimiter).
+- Table recovery warnings for unsupported formats, incomplete final rows, row
+  column-count mismatches, and cells that exceed the configured column count are
+  now distinguishable warning categories with targeted advice, so callers can
+  present separate diagnostics without matching warning text.
 
 ### Changed
 
-- Updated the parser grammar implementation to reduce location-tracking
-  overhead while preserving the same parse output and diagnostics.
-  (upstream 4e6d6bd — peg 0.8.6 inject spans refactor)
-- `Preprocessor` carries a `depth` counter threaded through nested
-  `read_content_from_file` calls.
-- Missing `file_parent` (caller went through `parse` without setting
-  `virtual_current_file`) now surfaces a warning on `ParseResult::warnings()`
-  instead of being only `tracing::error!`-logged — wasm consumers have no
-  default tracing subscriber.
-- `FileResolver::read` returns `Result<Cow<'_, [u8]>, FileResolverError>`
-  so in-memory resolvers can avoid the per-include `Vec<u8>` allocation.
-- `read_and_decode_file` takes `Option<&DynFileResolver>` and prefers it
-  over `std::fs::read` when wired.
-- **Verbatim callout resolver rewritten to match Asciidoctor `CalloutScanRx`
-  SOT** (`lib/asciidoctor/rx.rb:373`). Behavior flips:
-  - Multiple callouts per line: `a <1> <2>` correctly emits both callouts
-    (previously only the rightmost was extracted via `rfind`).
-  - Adjacent markers: `<1><2>` (no whitespace) is now a valid chain.
-  - Mid-word at EOL is a callout: `a<1>` (no preceding whitespace) parses
-    as `a` + callout(1), matching asciidoctor. Previously dropped to literal.
-  - Mid-line markers stay literal: `mid <1> line` (chain doesn't terminate
-    at EOL) emits all-literal text. Previously emitted as callout.
-  - Backslash escape `\<N>` strips the backslash and emits literal `<N>`
-    iff the unescaped marker would itself be a valid callout (chain-to-EOL
-    holds). Otherwise the backslash is preserved.
-  - Non-visible variant `<!N>` / `<!.>` is recognized — the `!` prefix is
-    silently consumed and the callout emits identically to the visible
-    form. Used to hide markers from `tag::`-extracted source.
-  - Known divergences (consumer-triggered, deferred until needed):
-    - Bracketed forms `<--N-->` / `<!--N-->` are NOT recognized — SOT
-      preserves the surrounding `<!--` / `-->` as literal text around the
-      callout, which requires multi-node emission this parser does not
-      yet implement.
-    - Callout numbers beyond `usize::MAX` (~20 digits on 64-bit) silently
-      fall through to literal text instead of parsing as huge callouts.
-      Real-world impact zero.
-- **`serialize_image` now emits `attributes` and `roles`** when the inline
-  `image:foo[link=…,role=…]` macro carries named attributes — previously
-  these were silently dropped from the JSON envelope, so downstream
-  renderers had no way to honor `link=`, `window=`, `width=`, `height=`,
-  or `role=`. Block image serialization is unaffected.
+- **Breaking:** `TocEntry`'s `numbered` and `style` fields are replaced by a
+  single `kind: SectionKind`. Appendix detection becomes `entry.kind ==
+  SectionKind::Appendix`; the special-section classification it previously needed
+  `style` for is now carried by `kind`. Serialized output is unchanged — the
+  `style` key is still emitted for special sections (derived via
+  `SectionKind::as_style`).
+- Updated the parser grammar implementation to reduce location-tracking overhead while
+  preserving the same parse output and diagnostics.
+- **Breaking:** `Position::line` and `Position::column` are now `u32` instead of `usize`
+  (saturating at `u32::MAX` for inputs beyond ~4 billion lines/columns), keeping the
+  per-node `Location` compact now that each boundary also carries its originating `file`.
+- **Breaking:** the `Positioning` enum is removed and `SourceLocation` now holds a
+  single `location: Location` (a point diagnostic is a zero-width span with
+  `start == end`). Read `source_location.location.start` for the line/column instead
+  of matching `Positioning`. Construct diagnostics with `SourceLocation::at_position`
+  / `SourceLocation::at_location`, or `Location::point` for a bare position. Rendered
+  error/warning text is unchanged.
+
+### Removed
+
+- **Breaking:** `inlines_to_string()` is no longer exported by `acdc-parser`. Check
+  `acdc-converters-core::inlines_to_string()` for converter/tooling plain-text extraction
+  from inline nodes (even though we currently don't publish `acdc-converters-core`, you
+  can see an example).
+- **Breaking:** the unused `Location::shift`, `Location::shift_inline`, and
+  `Location::shift_line_column` methods.
 
 ### Fixed
 
-- Cell-style broadening regressions: a non-canonical `[a-z]` after a span/dup
-  operator (`2+verse`, `5*nights`) in inline cell content is no longer dropped;
-  `2x` (a colspan digit with no operator) no longer mis-parses as a style-only
-  spec / phantom row boundary; and the three remaining spec-detection sites
-  (`count_cell_colspans` ×2, adjacent-anchor recovery gate) now use
-  `trim_start()` consistently with the row-boundary parse path, eliminating a
-  count-vs-parse column desync on trailing whitespace before a separator.
-- `image:foo[link=https://example.com]` no longer silently drops the link
-  target. Existing consumers of the JSON envelope that don't read
-  `attributes` are unaffected; consumers that DO read it gain the new keys.
-- PSV multi-line table cells in a NON-last column no longer drop their
-  continuation row's pre-separator content. Previously `is_single_line_row`
-  classified the first row (`|a |m1`) as a complete single-line row and parsed
-  the continuation (`m2 |c`) in a separate group with no open cell, dropping
-  `m2`. PSV row grouping is now unified into `collect_psv_row_group` with a
-  cross-line cell-open rule: a multi-cell line is a complete single-line row
-  UNLESS its last cell continues on the next line (the next line is non-empty,
-  does not start with a separator, and is not a new-row cell-spec). A
-  continuation row's pre-separator text now appends to the still-open previous
-  cell. `[cols="1d,1l,1d"]` `|a |m1` / `m2 |c` → `["a", "m1\nm2", "c"]`,
-  matching asciidoctor (verified on middle/last column, rowspan, colspan,
-  custom-separator, and escaped-pipe continuation shapes).
+- Warnings now report the correct original file and line for content that follows a
+  preprocessor edit. A dropped adjacent line comment, a stripped
+  `ifdef`/`ifndef`/`ifeval` block, or a collapsed multi-line attribute continuation
+  no longer shifts the reported line of everything after it, and a warning inside an
+  `include::`d file is anchored to that file at its true line.
+- A list continuation marker (`+`) on its own line with nothing to attach (the next
+  line is blank or the document ends) is now dropped instead of being rendered as a
+  literal `+` paragraph, matching `asciidoctor`. This commonly appears as a trailing
+  `+` after a block attached to a list item; the list now continues uninterrupted to
+  the following items rather than being split in two.
+- A delimited block (example `====`, listing `----`, literal `....`, sidebar
+  `****`, quote `____`, open `--`, comment `////`, passthrough `++++`, and the
+  Markdown ```` ``` ```` fence) whose opening delimiter runs to end of input with no
+  closing delimiter is now closed at end of input and still rendered, with a
+  `WarningKind::UnterminatedDelimitedBlock` warning — matching `asciidoctor`.
+  Previously this either aborted the parse with a hard error (e.g. an
+  unterminated `====`) or leaked the opening delimiter into a literal paragraph.
+- A document whose only content is a title (`= Title` with no body, no author
+  line, and no following blank line) is now recognized as the document title
+  rather than rendered as a level-0 section, matching `asciidoctor`. Applies to
+  both ATX (`= Title`) and Setext (`Title` / `====`) titles.
+- A trailing ` +` hard line break on the last line of a block (at end-of-input or
+  immediately before a blank line) now renders as a line break instead of a literal
+  `+`, matching `asciidoctor`. A nested span ending in ` +` (e.g. `` `code +` ``, a
+  footnote, or a link label) still stays literal.
+- An auto-generated section id from a title that starts with non-alphanumeric
+  characters (e.g. `=== -- Specialized Environments`) no longer gains a doubled
+  leading underscore (`__specialized_environments`); leading separators are now
+  squeezed away so the id is `_specialized_environments`, matching `asciidoctor`,
+  keeping xref and TOC anchors to those sections working. A title with no id-able
+  characters at all (e.g. `== ---`) now yields an empty id rather than a bare
+  `_`, also matching `asciidoctor`.
+- A `//` line comment that sits directly against preceding block content (no blank
+  line in between) is now dropped instead of being rendered as literal text, matching
+  `asciidoctor`. This covers comments after a paragraph, list item, or description-list
+  entry. Standalone comments (preceded by a blank line, a title, a `+` continuation
+  marker, or another comment), comments inside verbatim blocks, and `tag::`/`end::`
+  include directives are left untouched.
+- A `//` line comment or `////` block comment inside a list or description-list
+  continuation (after a `+` marker) is now treated as a comment instead of being
+  rendered (line comments were emitted as literal text; a block comment preceded
+  by a blank line was dropped but leaked a stray `+` paragraph), matching
+  `asciidoctor`. A trailing `+` followed by a comment terminates the continuation
+  cleanly.
+- A block with the `[comment]` style (an open `--` block or a paragraph) is now dropped
+  and produces no output, matching `asciidoctor`; previously its content was rendered.
+- Document header author lines that aren't a plain `firstname [middlename] [lastname]
+  [<email>]` (e.g. with an `Author:` prefix, a `(role)`, or comma-separated names) are now
+  read as a single author instead of spilling the author line and the header's attribute
+  entries into the document body. Comment lines between the title and the author line are
+  skipped, and multiple authors are separated by `;`, matching `asciidoctor`. Such a
+  non-standard author line also raises a `WarningKind::NonStandardAuthorLine` warning.
+- A `//` line comment between the author line and the revision line is now
+  skipped, so the revision (and any following attribute entries) is still read,
+  matching `asciidoctor`.
+- `{revnumber}` no longer keeps the leading `v` from a `vX.Y` revision line
+  (`v2.0` now resolves to `2.0`), matching `asciidoctor`.
+- `{authorcount}` resolves to `0` for a document with no author (rather than
+  staying an unresolved reference), matching `asciidoctor`.
+- In pipe (`|`) tables (the default
+  [PSV](https://docs.asciidoctor.org/asciidoc/latest/tables/data-format/#default-table-syntax)
+  format), a cell's content can span multiple lines, and a row can be written across
+  several lines (each cell starting on its own line), both matching `asciidoctor`. When
+  the last row has fewer cells than the table has columns, the leftover cells are dropped
+  with a warning (`dropping cells from incomplete row detected end of table`). A cell
+  specifier (`2+`, `.3+`, `^`, `a`, ...) is recognized when it sits immediately before the
+  delimiter and is separated from the cell content by whitespace (e.g. `| name 2+| spans`
+  gives the next cell a colspan of 2), so colspan/rowspan cells count toward the row width
+  and are no longer mistaken for incomplete rows; a specifier flush against the opening
+  delimiter (`|2+|`) stays literal, matching `asciidoctor`.
+- [TSV](https://docs.asciidoctor.org/asciidoc/latest/tables/data-format/#csv-and-tsv)
+  tables (`format=tsv`) now honor quoted field values that span multiple lines, matching
+  `asciidoctor` (the same quoting rules already applied to CSV).
 
 ## [0.9.0] - 2026-04-26
 

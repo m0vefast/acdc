@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 acdc-parser = { workspace = true, features = ["setext", "pre-spec-subs"] }
+acdc-lint = { workspace = true, features = ["pre-spec-subs"] }
 acdc-converters-core = { workspace = true, features = ["pre-spec-subs"] }
 acdc-converters-html = { workspace = true, features = ["pre-spec-subs"] }
 wasm-bindgen = "0.2"

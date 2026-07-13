@@ -1,21 +1,25 @@
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     io::Write,
     path::{Path, PathBuf},
     rc::Rc,
 };
 
-use acdc_converters_core::{Converter, Diagnostics, Options, WarningSource, visitor::Visitor};
+use acdc_converters_core::{
+    Converter, Diagnostics, Options, WarningSource, inlines_to_string, visitor::Visitor,
+};
 #[cfg(feature = "highlighting")]
 use acdc_parser::substitute;
 use acdc_parser::{
-    AttributeValue, Document, DocumentAttributes, IndexTermKind, InlineNode, Substitution,
-    TocEntry, strip_quotes,
+    AttributeValue, Document, DocumentAttributes, IndexTermKind, InlineNode, Reference,
+    Substitution, TocEntry, strip_quotes,
 };
 
 mod admonition;
 mod audio;
 mod constants;
+mod csp;
 mod delimited;
 mod docinfo;
 mod document;
@@ -31,16 +35,26 @@ mod paragraph;
 mod section;
 mod syntax;
 mod table;
-#[cfg(feature = "terminal-preview")]
-mod terminal_preview;
+#[cfg(feature = "terminal")]
+mod terminal;
 mod toc;
 mod video;
 
 pub(crate) use acdc_converters_core::section::{
-    AppendixTracker, PartNumberTracker, SectionNumberTracker, last_section_has_style,
+    AppendixTracker, PartNumberTracker, SectionNumberTracker, SpecialSectionTracker,
+    last_section_has_style,
 };
+pub(crate) use csp::CspFeatures;
 pub use error::Error;
 pub use html_visitor::HtmlVisitor;
+/// The `MathJax` assets acdc emits when `:stem:` is set, exposed so embedded-mode
+/// consumers can reproduce them: the inline configuration `<script>`, its CSP
+/// hash, and the loader URL.
+pub use html_visitor::{MATHJAX_CONFIG_CSP_HASH, MATHJAX_CONFIG_SCRIPT, MATHJAX_LOADER_URL};
+/// The inline terminal-replay player script and its CSP `script-src` hash, for
+/// embedded-mode consumers and hosts that allowlist it without `'unsafe-inline'`.
+#[cfg(feature = "terminal")]
+pub use terminal::{REPLAY_PLAYER_SCRIPT, REPLAY_PLAYER_SCRIPT_CSP_HASH};
 
 /// HTML output flavour, owned by the html converter.
 ///
@@ -95,6 +109,10 @@ pub struct IndexTermEntry {
     pub kind: IndexTermKind<'static>,
     /// Anchor ID for linking back to the term's location
     pub anchor_id: String,
+    /// Plain-text title of the section the term occurs in, used as the
+    /// back-link label. `None` for terms outside any section (e.g. the
+    /// preamble), which fall back to the document title.
+    pub section_title: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -102,6 +120,10 @@ pub struct Processor<'a> {
     options: Options,
     document_attributes: DocumentAttributes<'a>,
     toc_entries: Vec<TocEntry<'a>>,
+    /// Cross-reference targets keyed by id (sections + titled blocks), cloned
+    /// from `Document::references`, for O(1) `<<id>>` resolution. `toc_entries`
+    /// is kept separately for rendering the (ordered) table of contents.
+    references: HashMap<&'a str, Reference<'a>>,
     /// Shared counter for auto-numbering example blocks.
     /// Uses Rc<Cell<>> so all clones share the same counter.
     example_counter: Rc<Cell<usize>>,
@@ -120,15 +142,20 @@ pub struct Processor<'a> {
     /// Collected index term entries for rendering in the index catalog.
     /// Uses `Rc<RefCell<>>` so all clones can add entries during traversal.
     index_entries: Rc<RefCell<Vec<IndexTermEntry>>>,
-    /// Whether the document's last section has the `[index]` style.
-    /// Index sections are only rendered if they are the last section.
-    has_valid_index_section: bool,
+    /// Whether to generate acdc's index catalog: true only when the
+    /// `:acdc-index:` document attribute is set AND the document's last section
+    /// has the `[index]` style. When false the feature is fully off — no
+    /// `_indexterm_` anchors and `[index]` sections render empty, matching
+    /// asciidoctor (index generation is an acdc extension; see `crate::index`).
+    generate_index: bool,
     /// Section number tracker for `:sectnums:` support.
     section_number_tracker: SectionNumberTracker,
     /// Part number tracker for `:partnums:` support in book doctype.
     part_number_tracker: PartNumberTracker,
     /// Appendix tracker for `[appendix]` style on level-0 sections.
     appendix_tracker: AppendixTracker,
+    /// Tracks special sections so their subsections skip `:sectnums:` numbering.
+    special_section_tracker: SpecialSectionTracker,
     /// HTML output variant (Standard or Semantic).
     variant: HtmlVariant,
 }
@@ -140,10 +167,40 @@ impl<'a> Processor<'a> {
         &self.document_attributes
     }
 
-    /// Get a reference to the TOC entries
+    /// Resolve a cross-reference target id to its display text, matching
+    /// asciidoctor: an explicit xreflabel wins, else the target's title, else
+    /// the literal `[id]` for unknown/untitled targets.
     #[must_use]
-    pub fn toc_entries(&self) -> &[TocEntry<'a>] {
-        &self.toc_entries
+    pub(crate) fn xref_text(&self, target: &str) -> String {
+        // Resolution order: explicit xreflabel > target title > literal `[id]`.
+        // A target present in the catalog but with no reflabel/title (e.g. an
+        // untitled block with an `[[id]]`) falls back to `[id]`, same as an id
+        // that is absent (an unresolved reference).
+        match self.references.get(target) {
+            Some(reference) => {
+                if let Some(label) = reference.xreflabel {
+                    label.to_string()
+                } else if let Some(title) = &reference.title {
+                    inlines_to_string(title)
+                } else {
+                    format!("[{target}]")
+                }
+            }
+            None => format!("[{target}]"),
+        }
+    }
+
+    /// Resolve a cross-reference target id to its title's inline nodes, so the
+    /// renderer can preserve the title's formatting in the link text. Returns
+    /// `None` when the target is unknown, untitled, or carries an explicit
+    /// `xreflabel` (which wins over the title and is plain text — see
+    /// [`Self::xref_text`]).
+    #[must_use]
+    pub(crate) fn xref_title_inlines(&self, target: &str) -> Option<&[InlineNode<'a>]> {
+        self.references
+            .get(target)
+            .filter(|reference| reference.xreflabel.is_none())
+            .and_then(|reference| reference.title.as_deref())
     }
 
     /// Get a reference to the collected index entries
@@ -152,10 +209,11 @@ impl<'a> Processor<'a> {
         &self.index_entries
     }
 
-    /// Check if the document has a valid index section (last section with `[index]` style).
+    /// Whether acdc's index catalog should be generated (the `:acdc-index:`
+    /// attribute is set and the last section has the `[index]` style).
     #[must_use]
-    pub fn has_valid_index_section(&self) -> bool {
-        self.has_valid_index_section
+    pub fn generate_index(&self) -> bool {
+        self.generate_index
     }
 
     /// Get the HTML output variant.
@@ -201,6 +259,12 @@ impl<'a> Processor<'a> {
         &self.appendix_tracker
     }
 
+    /// Get a reference to the special-section tracker
+    #[must_use]
+    pub(crate) fn special_section_tracker(&self) -> &SpecialSectionTracker {
+        &self.special_section_tracker
+    }
+
     /// Generate a caption prefix based on document attributes.
     ///
     /// Returns the caption prefix string. If captions are disabled via `:X-caption!:`,
@@ -232,9 +296,14 @@ impl<'a> Processor<'a> {
         }
     }
 
-    /// Generate a unique anchor ID for an index term and collect the entry.
+    /// Generate a unique anchor ID for an index term and collect the entry,
+    /// recording the section it occurs in for the back-link label.
     #[must_use]
-    pub fn add_index_entry(&self, kind: IndexTermKind<'static>) -> String {
+    pub fn add_index_entry(
+        &self,
+        kind: IndexTermKind<'static>,
+        section_title: Option<String>,
+    ) -> String {
         let count = self.index_term_counter.get();
         self.index_term_counter.set(count + 1);
         let anchor_id = format!("_indexterm_{count}");
@@ -242,6 +311,7 @@ impl<'a> Processor<'a> {
         self.index_entries.borrow_mut().push(IndexTermEntry {
             kind,
             anchor_id: anchor_id.clone(),
+            section_title,
         });
 
         anchor_id
@@ -268,11 +338,14 @@ impl<'a> Processor<'a> {
         // independent of `self`'s stored-attribute lifetime.
         let processor: Processor<'doc> = Processor {
             toc_entries: doc.toc_entries.clone(),
+            references: doc.references.clone(),
             document_attributes: doc.attributes.clone(),
-            has_valid_index_section: last_section_has_style(&doc.blocks, "index"),
+            generate_index: index_generation_enabled(&doc.attributes)
+                && last_section_has_style(&doc.blocks, "index"),
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: SpecialSectionTracker::new(),
             options: self.options.clone(),
             example_counter: self.example_counter.clone(),
             table_counter: self.table_counter.clone(),
@@ -376,6 +449,17 @@ pub(crate) const WEBFONTS_DEFAULT: &str = "";
 /// Stylesheet I/O failures all advise the same fix; centralize the wording.
 pub(crate) const STYLESHEET_ADVICE: &str =
     "Check stylesheet paths and filesystem permissions, then rerun the conversion.";
+
+/// Whether acdc's index generation is opted into via the `:acdc-index:`
+/// document attribute. Index generation is an acdc extension over asciidoctor's
+/// html5 backend (see `crate::index`), so it is off unless the author asks for
+/// it. Treated as a boolean attribute: present and not soft-unset (`:!acdc-index:`)
+/// turns it on.
+pub(crate) fn index_generation_enabled(attributes: &DocumentAttributes<'_>) -> bool {
+    attributes
+        .get("acdc-index")
+        .is_some_and(|v| !matches!(v, AttributeValue::Bool(false) | AttributeValue::None))
+}
 
 pub(crate) fn load_css(dark_mode: bool, variant: HtmlVariant) -> &'static str {
     match (variant, dark_mode) {
@@ -550,16 +634,18 @@ impl<'a> Processor<'a> {
             options,
             document_attributes,
             toc_entries: vec![],
+            references: HashMap::new(),
             example_counter: Rc::new(Cell::new(0)),
             table_counter: Rc::new(Cell::new(0)),
             figure_counter: Rc::new(Cell::new(0)),
             listing_counter: Rc::new(Cell::new(0)),
             index_term_counter: Rc::new(Cell::new(0)),
             index_entries: Rc::new(RefCell::new(Vec::new())),
-            has_valid_index_section: false,
+            generate_index: false,
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: SpecialSectionTracker::new(),
             variant,
         }
     }
@@ -844,7 +930,7 @@ pub(crate) fn render_pre_code<W: std::io::Write>(
     visitor: &mut HtmlVisitor<'_, '_, W>,
     subs: &[Substitution],
 ) -> Result<(), Error> {
-    use acdc_converters_core::visitor::{Visitor, WritableVisitor};
+    use acdc_converters_core::visitor::Visitor;
     #[cfg(feature = "highlighting")]
     let highlighting_enabled = visitor
         .processor
@@ -852,16 +938,13 @@ pub(crate) fn render_pre_code<W: std::io::Write>(
         .get("source-highlighter")
         .is_some_and(|v| !matches!(v, AttributeValue::Bool(false)));
 
-    let mut w = visitor.writer_mut();
-
     #[cfg(feature = "highlighting")]
     if let Some(lang) = language {
         if highlighting_enabled {
             write!(
-                w,
+                visitor.writer,
                 "<pre class=\"highlight\"><code class=\"language-{lang}\" data-lang=\"{lang}\">"
             )?;
-            let _ = w;
             let processor = visitor.processor.clone();
             let (theme_name, mode) = resolve_highlight_settings(&processor.document_attributes);
             let effective_inlines = apply_attribute_subs(inlines, subs, &processor);
@@ -876,24 +959,19 @@ pub(crate) fn render_pre_code<W: std::io::Write>(
                 mode,
                 Some(&mut visitor.diagnostics),
             )?;
-            w = visitor.writer_mut();
-            writeln!(w, "</code></pre>")?;
+            writeln!(visitor.writer, "</code></pre>")?;
         } else {
             write!(
-                w,
+                visitor.writer,
                 "<pre class=\"highlight\"><code class=\"language-{lang}\" data-lang=\"{lang}\">"
             )?;
-            let _ = w;
             visitor.visit_inline_nodes(inlines)?;
-            w = visitor.writer_mut();
-            writeln!(w, "</code></pre>")?;
+            writeln!(visitor.writer, "</code></pre>")?;
         }
     } else {
-        write!(w, "<pre>")?;
-        let _ = w;
+        write!(visitor.writer, "<pre>")?;
         visitor.visit_inline_nodes(inlines)?;
-        w = visitor.writer_mut();
-        writeln!(w, "</pre>")?;
+        writeln!(visitor.writer, "</pre>")?;
     }
 
     #[cfg(not(feature = "highlighting"))]
@@ -901,19 +979,15 @@ pub(crate) fn render_pre_code<W: std::io::Write>(
         let _ = subs;
         if let Some(lang) = language {
             write!(
-                w,
+                visitor.writer,
                 "<pre class=\"highlight\"><code class=\"language-{lang}\" data-lang=\"{lang}\">"
             )?;
-            let _ = w;
             visitor.visit_inline_nodes(inlines)?;
-            w = visitor.writer_mut();
-            writeln!(w, "</code></pre>")?;
+            writeln!(visitor.writer, "</code></pre>")?;
         } else {
-            write!(w, "<pre>")?;
-            let _ = w;
+            write!(visitor.writer, "<pre>")?;
             visitor.visit_inline_nodes(inlines)?;
-            w = visitor.writer_mut();
-            writeln!(w, "</pre>")?;
+            writeln!(visitor.writer, "</pre>")?;
         }
     }
 
@@ -1450,6 +1524,91 @@ This is a paragraph.
         Ok(())
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Content Security Policy (:csp:) tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    fn convert(content: &str, embedded: bool) -> Result<String, Box<dyn std::error::Error>> {
+        let parsed = acdc_parser::parse(content, &acdc_parser::Options::default())?;
+        let doc = parsed.document();
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let render_options = RenderOptions {
+            embedded,
+            ..RenderOptions::default()
+        };
+        Ok(processor.convert_to_string(doc, &render_options)?)
+    }
+
+    #[test]
+    fn csp_attribute_emits_hardening_meta() -> TestResult {
+        let html = convert("= T\n:csp:\n\nHi.\n", false)?;
+        assert!(html.contains(r#"<meta http-equiv="Content-Security-Policy" content=""#));
+        assert!(html.contains("default-src 'self'"));
+        assert!(html.contains("script-src 'self'"));
+        // Scripts are never allowed inline wholesale (the point of the hardening).
+        assert!(!html.contains("script-src 'self' 'unsafe-inline'"));
+        // Inline styles must stay allowed (acdc emits inline style attributes).
+        assert!(html.contains("style-src 'self' 'unsafe-inline'"));
+        Ok(())
+    }
+
+    #[cfg(feature = "terminal")]
+    #[test]
+    fn csp_allowlists_the_replay_player_hash() -> TestResult {
+        let html = convert("= T\n:csp:\n\nHi.\n", false)?;
+        assert!(html.contains(REPLAY_PLAYER_SCRIPT_CSP_HASH));
+        Ok(())
+    }
+
+    #[test]
+    fn csp_with_stem_allowlists_mathjax() -> TestResult {
+        let html = convert("= T\n:csp:\n:stem:\n\nstem:[x^2]\n", false)?;
+        let csp = html
+            .lines()
+            .find(|line| line.contains("Content-Security-Policy"))
+            .ok_or("missing CSP meta")?;
+        assert!(csp.contains(MATHJAX_CONFIG_CSP_HASH));
+        assert!(csp.contains("https://cdn.jsdelivr.net"));
+        Ok(())
+    }
+
+    #[test]
+    fn mathjax_config_hash_matches_embedded_script() -> TestResult {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        use sha2::{Digest, Sha256};
+
+        // The build-time hash must cover exactly the code between the <script>
+        // tags. Recomputing it here keeps build.rs and the runtime wrapping in
+        // sync without any manual step.
+        let inner = MATHJAX_CONFIG_SCRIPT
+            .strip_prefix("<script>")
+            .and_then(|script| script.strip_suffix("</script>"))
+            .ok_or("MathJax config must be wrapped in <script> tags")?;
+        let expected = format!(
+            "sha256-{}",
+            STANDARD.encode(Sha256::digest(inner.as_bytes()))
+        );
+        assert_eq!(MATHJAX_CONFIG_CSP_HASH, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn no_csp_attribute_emits_no_meta() -> TestResult {
+        let html = convert("= T\n\nHi.\n", false)?;
+        assert!(!html.contains("Content-Security-Policy"));
+        Ok(())
+    }
+
+    #[test]
+    fn csp_is_standalone_only_not_embedded() -> TestResult {
+        let html = convert("= T\n:csp:\n\nHi.\n", true)?;
+        assert!(!html.contains("Content-Security-Policy"));
+        Ok(())
+    }
+
     #[test]
     fn test_light_mode_no_dark_css() -> TestResult {
         let content = "= Title\n:light-mode:\n\nHello world.\n";
@@ -1731,6 +1890,78 @@ Content.
     }
 
     #[test]
+    fn test_appendix_subsection_numbering() -> TestResult {
+        // With :sectnums:, appendix subsections number with the appendix letter
+        // as the top component (A.1, A.1.1, A.2, then B.1), in both the body and
+        // the TOC. Matches asciidoctor.
+        let content = r"= Book Title
+:doctype: book
+:sectnums:
+:toc:
+:toclevels: 4
+
+== Regular Chapter
+
+=== Reg Sub
+
+[appendix]
+== First App
+
+=== App Sub One
+
+==== App Sub Sub
+
+=== App Sub Two
+
+[appendix]
+== Second App
+
+=== Second Sub
+";
+        let parser_options = acdc_parser::Options::default();
+        let parsed = acdc_parser::parse(content, &parser_options)?;
+        let doc = parsed.document();
+
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let html = processor.convert_to_string(doc, &RenderOptions::default())?;
+
+        // Body headings.
+        for expected in [
+            ">1. Regular Chapter</h2>",
+            ">1.1. Reg Sub</h3>",
+            ">Appendix A: First App</h2>",
+            ">A.1. App Sub One</h3>",
+            ">A.1.1. App Sub Sub</h4>",
+            ">A.2. App Sub Two</h3>",
+            ">Appendix B: Second App</h2>",
+            ">B.1. Second Sub</h3>",
+        ] {
+            assert!(html.contains(expected), "body should contain {expected:?}");
+        }
+
+        // TOC entries.
+        for expected in [
+            "\">A.1. App Sub One</a>",
+            "\">A.1.1. App Sub Sub</a>",
+            "\">A.2. App Sub Two</a>",
+            "\">B.1. Second Sub</a>",
+        ] {
+            assert!(html.contains(expected), "TOC should contain {expected:?}");
+        }
+
+        // The broken literal `0.` component must not appear anywhere.
+        assert!(
+            !html.contains(">0."),
+            "appendix subsections must not use a literal 0 component"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_appendix_custom_caption() -> TestResult {
         let content = r"= Book Title
 :doctype: book
@@ -1838,7 +2069,8 @@ Content.
         )?;
 
         assert!(
-            html.contains("<div class=\"paragraph\" data-src-start=") && html.contains("data-src-end="),
+            html.contains("<div class=\"paragraph\" data-src-start=")
+                && html.contains("data-src-end="),
             "expected paragraph div to carry data-src attrs, got: {html}"
         );
         Ok(())
@@ -1912,10 +2144,13 @@ Content.
         );
         let html = processor.convert_to_string(doc, &RenderOptions::default())?;
 
-        // Should still be demoted to sect1/h2, just no prefix
+        // Demoted to sect1/h2; with the caption disabled the heading still shows
+        // the bare letter numeral ("A. "), matching asciidoctor.
         assert!(
-            html.contains("<div class=\"sect1\">\n<h2 id=\"_first_appendix\">First Appendix</h2>"),
-            "appendix with disabled caption should have no prefix but still be demoted"
+            html.contains(
+                "<div class=\"sect1\">\n<h2 id=\"_first_appendix\">A. First Appendix</h2>"
+            ),
+            "appendix with disabled caption should show the bare letter numeral and stay demoted"
         );
 
         Ok(())

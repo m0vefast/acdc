@@ -21,9 +21,7 @@ impl<W: Write> TerminalVisitor<'_, '_, W> {
             temp_visitor.visit_inline_node(node)?;
         }
         if let Some(subtitle) = &header.subtitle {
-            let w = temp_visitor.writer_mut();
-            write!(w, ": ")?;
-            let _ = w;
+            write!(temp_visitor.writer, ": ")?;
             for node in subtitle {
                 temp_visitor.visit_inline_node(node)?;
             }
@@ -139,6 +137,7 @@ mod tests {
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: acdc_converters_core::section::SpecialSectionTracker::new(),
             terminal_width: crate::FALLBACK_TERMINAL_WIDTH,
             index_entries: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
             has_valid_index_section: false,
@@ -194,6 +193,7 @@ mod tests {
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: acdc_converters_core::section::SpecialSectionTracker::new(),
             terminal_width: crate::FALLBACK_TERMINAL_WIDTH,
             index_entries: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
             has_valid_index_section: false,
@@ -266,6 +266,7 @@ mod tests {
             section_number_tracker,
             part_number_tracker,
             appendix_tracker,
+            special_section_tracker: acdc_converters_core::section::SpecialSectionTracker::new(),
             terminal_width: crate::FALLBACK_TERMINAL_WIDTH,
             index_entries: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
             has_valid_index_section: false,

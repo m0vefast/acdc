@@ -45,19 +45,18 @@ pub(crate) fn process_passthrough_with_quotes<'a>(
             let prefix_len = total_span - content.len() - suffix_len;
 
             let content_abs_start = passthrough.location.absolute_start + prefix_len;
-            let content_col_start = passthrough.location.start.column + prefix_len;
+            let content_col_start =
+                passthrough.location.start.column + u32::try_from(prefix_len).unwrap_or(u32::MAX);
+            let content_line = passthrough.location.start.line;
 
             Location {
                 absolute_start: content_abs_start,
                 absolute_end: content_abs_start + content.len(),
-                start: crate::Position {
-                    line: passthrough.location.start.line,
-                    column: content_col_start,
-                },
-                end: crate::Position {
-                    line: passthrough.location.start.line,
-                    column: content_col_start + content.len(),
-                },
+                start: crate::Position::new(content_line, content_col_start),
+                end: crate::Position::new(
+                    content_line,
+                    content_col_start + u32::try_from(content.len()).unwrap_or(u32::MAX),
+                ),
             }
         } else {
             passthrough.location.clone()
@@ -161,20 +160,18 @@ pub(crate) fn parse_text_for_quotes_in<'a>(
 /// the same line.
 fn plain_text_at<'a>(text: &'a str, base_location: &Location, offset: usize) -> InlineNode<'a> {
     let abs_start = base_location.absolute_start + offset;
-    let col_start = base_location.start.column + offset;
+    let col_start = base_location.start.column + u32::try_from(offset).unwrap_or(u32::MAX);
+    let line = base_location.start.line;
     InlineNode::PlainText(Plain {
         content: text,
         location: Location {
             absolute_start: abs_start,
             absolute_end: abs_start + text.len(),
-            start: crate::Position {
-                line: base_location.start.line,
-                column: col_start,
-            },
-            end: crate::Position {
-                line: base_location.start.line,
-                column: col_start + text.len(),
-            },
+            start: crate::Position::new(line, col_start),
+            end: crate::Position::new(
+                line,
+                col_start + u32::try_from(text.len()).unwrap_or(u32::MAX),
+            ),
         },
         escaped: false,
     })

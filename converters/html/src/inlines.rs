@@ -45,6 +45,7 @@
 use std::io::{self, Write};
 
 use acdc_converters_core::{
+    inlines_to_string,
     substitutions::{restore_escaped_patterns, strip_backslash_escapes},
     visitor::{Visitor, WritableVisitor},
 };
@@ -53,7 +54,7 @@ use acdc_parser::{
     CurvedQuotation, ElementAttributes, Footnote, Form, Highlight, Icon, Image, IndexTerm,
     IndexTermKind, InlineMacro, InlineNode, Italic, Keyboard, Link, Mailto, Menu, Monospace, Pass,
     Plain, Raw, Stem, StemNotation, Subscript, Substitution, Superscript, Url, Verbatim,
-    inlines_to_string, parse_text_for_quotes, strip_quotes, substitute,
+    parse_text_for_quotes, strip_quotes, substitute,
 };
 
 /// Leak a `&str` into a `&'static str` so index term kinds can be cached
@@ -1046,26 +1047,30 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         let processor = self.processor.clone();
 
         if xref.text.is_empty() {
-            // Priority: xreflabel (from [[id,Custom Text]]) > section title > fallback
-            let display_text = processor
-                .toc_entries()
-                .iter()
-                .find(|entry| entry.id == xref.target)
-                .map_or_else(
-                    || format!("[{}]", xref.target),
-                    |entry| {
-                        entry.xreflabel.as_ref().map_or_else(
-                            || inlines_to_string(&entry.title),
-                            std::string::ToString::to_string,
-                        )
-                    },
-                );
+            // Resolve via the id -> reference map (sections + titled blocks):
+            // xreflabel (from [[id,Custom Text]]) > target title > fallback `[id]`.
+            //
+            // A resolved title is rendered through the inline pipeline so its
+            // formatting (`<code>`, bold, italic, ...) is preserved in the link,
+            // matching asciidoctor. An xreflabel and the `[id]` fallback are plain
+            // text. Only the title path needs the inline nodes; the rest reuse the
+            // flattened `xref_text`.
+            let title_inlines = processor.xref_title_inlines(xref.target);
 
-            let w = self.writer_mut();
-            if options.inlines_basic || options.toc_mode {
-                write!(w, "{display_text}")?;
+            let linked = !(options.inlines_basic || options.toc_mode);
+            if linked {
+                write!(self.writer_mut(), "<a href=\"#{}\">", xref.target)?;
+            }
+            if let Some(inlines) = title_inlines {
+                for inline in inlines {
+                    self.render_inline_node(inline, options, subs)?;
+                }
             } else {
-                write!(w, "<a href=\"#{}\">{display_text}</a>", xref.target)?;
+                let display_text = processor.xref_text(xref.target);
+                write!(self.writer_mut(), "{display_text}")?;
+            }
+            if linked {
+                write!(self.writer_mut(), "</a>")?;
             }
             return Ok(());
         }
@@ -1184,23 +1189,22 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
         options: &RenderOptions,
         subs: &[Substitution],
     ) -> Result<(), Error> {
-        if options.toc_mode {
-            // In TOC mode, skip anchor but still output visible term text
-            if it.is_visible() {
-                let text = substitution_text(it.term(), subs, options);
-                write!(self.writer_mut(), "{text}")?;
-            }
-            return Ok(());
+        // An index term's anchor only exists to be the link target of acdc's
+        // generated `[index]` section (an extension; asciidoctor's html5 backend
+        // emits no anchor and leaves `[index]` empty). So emit one — and feed
+        // the index catalog, recording the enclosing section for the back-link
+        // label — only when index generation is enabled (`:acdc-index:` + a
+        // last `[index]` section).
+        if !options.toc_mode && self.processor.generate_index() {
+            let anchor_id = self.processor.clone().add_index_entry(
+                index_term_kind_to_static(&it.kind),
+                self.current_section_title.clone(),
+            );
+            write!(self.writer_mut(), "<a id=\"{anchor_id}\"></a>")?;
         }
 
-        let anchor_id = self
-            .processor
-            .clone()
-            .add_index_entry(index_term_kind_to_static(&it.kind));
-        write!(self.writer_mut(), "<a id=\"{anchor_id}\"></a>")?;
-
         // Flow terms (visible): also output the term text.
-        // Concealed terms: anchor only, no visible text.
+        // Concealed terms: no visible text.
         if it.is_visible() {
             let text = substitution_text(it.term(), subs, options);
             write!(self.writer_mut(), "{text}")?;

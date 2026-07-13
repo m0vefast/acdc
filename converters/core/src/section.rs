@@ -9,7 +9,7 @@ use std::{
     rc::Rc,
 };
 
-use acdc_parser::{AttributeValue, Block, DocumentAttributes, MAX_SECTION_LEVELS};
+use acdc_parser::{AttributeValue, Block, DocumentAttributes, MAX_SECTION_LEVELS, SectionKind};
 
 /// Whether the last section in `blocks` is tagged with the `[index]` style.
 ///
@@ -30,6 +30,54 @@ pub fn last_section_has_style(blocks: &[Block<'_>], style: &str) -> bool {
 /// Default maximum section level for numbering.
 pub const DEFAULT_SECTION_LEVEL: u8 = 3;
 
+/// Decides which sections take part in `:sectnums:` numbering, accounting for
+/// `AsciiDoc` special sections.
+///
+/// A special section (`[preface]`, `[glossary]`, …) is not numbered, and neither
+/// are the subsections nested under it. `[appendix]` is special too, but it
+/// begins its own (letter-based) numbered sequence, so it does *not* suppress
+/// numbering for its descendants.
+///
+/// Feed every section to [`enter`](Self::enter) once, in document (pre-order)
+/// order — the same order both the body walk and the flat TOC list visit
+/// sections — so every converter applies the rule identically. State is shared
+/// across clones (like the other trackers here) so a cloned `Processor` keeps a
+/// single walk.
+#[derive(Clone, Debug, Default)]
+pub struct SpecialSectionTracker {
+    /// Levels at which a still-open suppressing ancestor section started.
+    suppress_levels: Rc<RefCell<Vec<u8>>>,
+}
+
+impl SpecialSectionTracker {
+    /// Create a new tracker.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record entering a section (in document order) and return whether it
+    /// participates in `:sectnums:` numbering.
+    ///
+    /// Returns `false` for a special section and for any section nested under a
+    /// non-appendix special section.
+    #[must_use]
+    pub fn enter(&self, level: u8, kind: SectionKind) -> bool {
+        let mut stack = self.suppress_levels.borrow_mut();
+        // Leaving any sibling-or-shallower subtree closes its suppression.
+        while stack.last().is_some_and(|&started_at| level <= started_at) {
+            stack.pop();
+        }
+        let inside_special = !stack.is_empty();
+        // Special sections suppress their descendants — except appendix, whose
+        // subsections continue its letter numbering.
+        if kind.is_special() && kind != SectionKind::Appendix {
+            stack.push(level);
+        }
+        !(inside_special || kind.is_special())
+    }
+}
+
 /// Tracks section numbers for `:sectnums:` attribute support.
 /// Maintains hierarchical counters (e.g., "1.", "1.1.", "1.1.1.").
 #[derive(Clone, Debug)]
@@ -40,6 +88,11 @@ pub struct SectionNumberTracker {
     enabled: Rc<Cell<bool>>,
     /// Maximum level to number (from `:sectnumlevels:`, default 3)
     max_level: u8,
+    /// When inside an appendix subtree, the appendix's letter numeral (`A`, `B`,
+    /// …). Subsection numbers use this letter as their top component (`A.1`,
+    /// `A.1.1`) instead of a digit. Cleared when a normal top-level section
+    /// resumes numeric numbering.
+    appendix_letter: Rc<Cell<Option<char>>>,
 }
 
 impl SectionNumberTracker {
@@ -50,6 +103,21 @@ impl SectionNumberTracker {
         for c in counters.iter_mut() {
             *c = 0;
         }
+        self.appendix_letter.set(None);
+    }
+
+    /// Begin an appendix subtree: record the appendix's letter numeral and zero
+    /// the section counters so its subsections number as `A.1`, `A.1.1`, ….
+    ///
+    /// Called instead of [`reset`](Self::reset) when entering an `[appendix]` so
+    /// the caption letter (`Appendix A:`) and the subsection numbers (`A.1`)
+    /// agree on the same letter.
+    pub fn enter_appendix_subtree(&self, letter: char) {
+        let mut counters = self.counters.borrow_mut();
+        for c in counters.iter_mut() {
+            *c = 0;
+        }
+        self.appendix_letter.set(Some(letter));
     }
 
     /// Create a new section number tracker.
@@ -72,13 +140,26 @@ impl SectionNumberTracker {
             counters: Rc::new(RefCell::new([0; MAX_SECTION_LEVELS as usize + 1])),
             enabled: Rc::new(Cell::new(enabled)),
             max_level,
+            appendix_letter: Rc::new(Cell::new(None)),
         }
     }
 
     /// Enter a section and return its number if numbering is enabled.
     /// Returns None if numbering is disabled or section is beyond max level.
+    ///
+    /// Inside an appendix subtree (see [`enter_appendix_subtree`]) the top
+    /// component is the appendix letter, so subsections number as `A.1`,
+    /// `A.1.1`. A normal top-level section (`level == 1`) clears that state and
+    /// resumes numeric numbering.
+    ///
+    /// [`enter_appendix_subtree`]: Self::enter_appendix_subtree
     #[must_use]
     pub fn enter_section(&self, level: u8) -> Option<String> {
+        // A normal top-level section ends any appendix region.
+        if level == 1 {
+            self.appendix_letter.set(None);
+        }
+
         if !self.enabled.get() || level == 0 || level > self.max_level {
             return None;
         }
@@ -96,13 +177,21 @@ impl SectionNumberTracker {
             *c = 0;
         }
 
-        // Build the number string (e.g., "1.2.3.")
-        let number: String = counters
-            .get(..=level_idx)?
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(".");
+        // Build the number string. Inside an appendix subtree the level-1
+        // component is the appendix letter (`A.1`), deeper levels stay numeric.
+        let number: String = if let Some(letter) = self.appendix_letter.get() {
+            std::iter::once(letter.to_string())
+                .chain(counters.get(1..=level_idx)?.iter().map(ToString::to_string))
+                .collect::<Vec<_>>()
+                .join(".")
+        } else {
+            counters
+                .get(..=level_idx)?
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(".")
+        };
 
         Some(format!("{number}. "))
     }
@@ -244,25 +333,74 @@ impl AppendixTracker {
         }
     }
 
-    /// Enter an appendix boundary. Returns the formatted prefix (e.g. "Appendix A: ")
-    /// if caption is enabled, or `None` if caption is disabled.
-    /// Also resets section counters for the new appendix.
+    /// Enter an appendix boundary. Returns the formatted heading prefix:
+    /// `"Appendix A: "` with the caption, or the bare numeral `"A. "` when the
+    /// caption is disabled (`:appendix-caption!:`). The letter prefix is shown
+    /// regardless of `:sectnums:`.
+    ///
+    /// Also begins the appendix subtree on the shared section tracker so its
+    /// subsections number as `A.1`, `A.1.1`, … using the same letter.
     #[must_use]
-    pub fn enter_appendix(&self) -> Option<String> {
+    pub fn enter_appendix(&self) -> String {
         let count = self.counter.get();
         self.counter.set(count + 1);
-        self.section_tracker.reset();
 
-        self.caption.as_ref().map(|caption| {
-            let letter = char::from(b'A' + u8::try_from(count).unwrap_or(25).min(25));
-            format!("{caption} {letter}: ")
-        })
+        let letter = char::from(b'A' + u8::try_from(count).unwrap_or(25).min(25));
+        self.section_tracker.enter_appendix_subtree(letter);
+
+        match self.caption.as_ref() {
+            Some(caption) => format!("{caption} {letter}: "),
+            None => format!("{letter}. "),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn special_tracker_numbers_normal_sections() {
+        let tracker = SpecialSectionTracker::new();
+        assert!(tracker.enter(1, SectionKind::Normal));
+        assert!(tracker.enter(2, SectionKind::Normal));
+        assert!(tracker.enter(1, SectionKind::Normal));
+    }
+
+    #[test]
+    fn special_tracker_suppresses_preface_subtree() {
+        let tracker = SpecialSectionTracker::new();
+        // [preface] == Introduction
+        assert!(!tracker.enter(1, SectionKind::Preface));
+        // === Features (nested) — unnumbered by inheritance
+        assert!(!tracker.enter(2, SectionKind::Normal));
+        // ==== Deeper (still nested) — unnumbered
+        assert!(!tracker.enter(3, SectionKind::Normal));
+        // == Real Chapter (sibling of the preface) — numbering resumes
+        assert!(tracker.enter(1, SectionKind::Normal));
+        assert!(tracker.enter(2, SectionKind::Normal));
+    }
+
+    #[test]
+    fn special_tracker_appendix_does_not_suppress_descendants() {
+        let tracker = SpecialSectionTracker::new();
+        // [appendix] == App — special, so not part of the normal numbered run
+        assert!(!tracker.enter(1, SectionKind::Appendix));
+        // === App Sub — appendix begins its own sequence, so the subsection is
+        // not suppressed the way a preface subsection would be.
+        assert!(tracker.enter(2, SectionKind::Normal));
+    }
+
+    #[test]
+    fn special_tracker_handles_special_within_special() {
+        let tracker = SpecialSectionTracker::new();
+        assert!(!tracker.enter(1, SectionKind::Preface));
+        // A nested special section is itself unnumbered, and so is its subtree.
+        assert!(!tracker.enter(2, SectionKind::Abstract));
+        assert!(!tracker.enter(3, SectionKind::Normal));
+        // Back out to a normal top-level section.
+        assert!(tracker.enter(1, SectionKind::Normal));
+    }
 
     fn attrs_with_sectnums() -> DocumentAttributes<'static> {
         let mut attrs = DocumentAttributes::default();
@@ -476,9 +614,9 @@ mod tests {
         let attrs = DocumentAttributes::default();
         let section_tracker = SectionNumberTracker::new(&attrs);
         let tracker = AppendixTracker::new(&attrs, section_tracker);
-        assert_eq!(tracker.enter_appendix(), Some("Appendix A: ".to_string()));
-        assert_eq!(tracker.enter_appendix(), Some("Appendix B: ".to_string()));
-        assert_eq!(tracker.enter_appendix(), Some("Appendix C: ".to_string()));
+        assert_eq!(tracker.enter_appendix(), "Appendix A: ");
+        assert_eq!(tracker.enter_appendix(), "Appendix B: ");
+        assert_eq!(tracker.enter_appendix(), "Appendix C: ");
     }
 
     #[test]
@@ -490,18 +628,66 @@ mod tests {
         );
         let section_tracker = SectionNumberTracker::new(&attrs);
         let tracker = AppendixTracker::new(&attrs, section_tracker);
-        assert_eq!(tracker.enter_appendix(), Some("Annexe A: ".to_string()));
-        assert_eq!(tracker.enter_appendix(), Some("Annexe B: ".to_string()));
+        assert_eq!(tracker.enter_appendix(), "Annexe A: ");
+        assert_eq!(tracker.enter_appendix(), "Annexe B: ");
     }
 
     #[test]
     fn test_appendix_tracker_disabled_caption() {
+        // With the caption disabled (`:appendix-caption!:`) the appendix still
+        // gets its bare letter numeral (`A.`, `B.`), matching asciidoctor.
         let mut attrs = DocumentAttributes::default();
         attrs.set("appendix-caption".into(), AttributeValue::Bool(false));
         let section_tracker = SectionNumberTracker::new(&attrs);
         let tracker = AppendixTracker::new(&attrs, section_tracker);
-        assert!(tracker.enter_appendix().is_none());
-        assert!(tracker.enter_appendix().is_none());
+        assert_eq!(tracker.enter_appendix(), "A. ");
+        assert_eq!(tracker.enter_appendix(), "B. ");
+    }
+
+    #[test]
+    fn test_appendix_subtree_numbers_subsections_with_letter() {
+        // Appendix subsections number as `A.1`, `A.1.1`, `A.2`, then `B.1` for
+        // the next appendix, matching asciidoctor.
+        let attrs = attrs_with_sectnums();
+        let section_tracker = SectionNumberTracker::new(&attrs);
+        let appendix_tracker = AppendixTracker::new(&attrs, section_tracker.clone());
+
+        assert_eq!(appendix_tracker.enter_appendix(), "Appendix A: ");
+        assert_eq!(section_tracker.enter_section(2), Some("A.1. ".to_string()));
+        assert_eq!(
+            section_tracker.enter_section(3),
+            Some("A.1.1. ".to_string())
+        );
+        assert_eq!(section_tracker.enter_section(2), Some("A.2. ".to_string()));
+
+        assert_eq!(appendix_tracker.enter_appendix(), "Appendix B: ");
+        assert_eq!(section_tracker.enter_section(2), Some("B.1. ".to_string()));
+    }
+
+    #[test]
+    fn test_normal_section_clears_appendix_letter() {
+        // A normal top-level section after an appendix resumes numeric numbering.
+        let attrs = attrs_with_sectnums();
+        let section_tracker = SectionNumberTracker::new(&attrs);
+        let appendix_tracker = AppendixTracker::new(&attrs, section_tracker.clone());
+
+        let _ = appendix_tracker.enter_appendix();
+        assert_eq!(section_tracker.enter_section(2), Some("A.1. ".to_string()));
+        assert_eq!(section_tracker.enter_section(1), Some("1. ".to_string()));
+        assert_eq!(section_tracker.enter_section(2), Some("1.1. ".to_string()));
+    }
+
+    #[test]
+    fn test_appendix_subtree_respects_sectnumlevels() {
+        // :sectnumlevels: caps appendix subsections just like normal sections.
+        let attrs = attrs_with_sectnums_and_levels(2);
+        let section_tracker = SectionNumberTracker::new(&attrs);
+        let appendix_tracker = AppendixTracker::new(&attrs, section_tracker.clone());
+
+        let _ = appendix_tracker.enter_appendix();
+        assert_eq!(section_tracker.enter_section(2), Some("A.1. ".to_string()));
+        // Level 3 is beyond sectnumlevels=2, so unnumbered.
+        assert!(section_tracker.enter_section(3).is_none());
     }
 
     #[test]

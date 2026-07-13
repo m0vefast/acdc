@@ -1,12 +1,13 @@
 //! Preprocessor behavior inside verbatim blocks (`----`/`....`/`++++`).
 //!
-//! Directives like `include::`, `ifdef::`, `ifeval::`, `endif::` inside a
-//! verbatim block must NOT be processed — they render as literal source per
-//! asciidoctor semantics. Pre-fix, undefined `ifdef::var[]` silently dropped
-//! lines from the preprocessor output, shifting downstream source-line
-//! numbers and breaking cursor placement in everything after the block.
-//!
-//! Fix landed in `acdc-parser/src/preprocessor/mod.rs`.
+//! asciidoctor parity (cron #14 decision): the preprocessor runs BEFORE block
+//! parsing, so `include::`, `ifdef::`, `ifeval::`, `endif::` directives are
+//! processed everywhere — including inside `----` listing / `....` literal /
+//! `++++` passthrough blocks. asciidoctor 2.0.26 confirmed: an undefined
+//! `ifdef::var[]` inside a listing DROPS its body; a defined one keeps it; the
+//! directive lines themselves are consumed. To render a literal directive in a
+//! source-code example, escape it (`\ifdef::…`) — asciidoctor strips the
+//! backslash and shows the directive text.
 
 use acdc_parser::{Options, parse};
 
@@ -17,10 +18,10 @@ fn parse_text(input: &str) -> String {
 }
 
 #[test]
-fn ifdef_undefined_var_inside_listing_block_preserves_lines() {
-    // `var` is NOT defined. Without the fix, `ifdef::var[]` … `endif::[]`
-    // would evaluate false and DROP the body lines silently. With the fix,
-    // the listing block content is preserved verbatim.
+fn ifdef_undefined_var_inside_listing_block_drops_body() {
+    // `var` is NOT defined. asciidoctor processes the directive even inside a
+    // `[source,asciidoc]` listing → the gated body is dropped and the
+    // `ifdef`/`endif` lines are consumed.
     let input = "\
 [source,asciidoc]
 ----
@@ -31,23 +32,19 @@ endif::[]
 ";
     let json = parse_text(input);
     assert!(
-        json.contains("ifdef::var[]"),
-        "ifdef directive line dropped from listing block; {json}"
+        !json.contains("content that must survive"),
+        "undefined ifdef body should be dropped (asciidoctor parity); {json}"
     );
     assert!(
-        json.contains("content that must survive"),
-        "listing block body dropped when ifdef undefined; {json}"
-    );
-    assert!(
-        json.contains("endif::[]"),
-        "endif directive line dropped from listing block; {json}"
+        !json.contains("ifdef::var[]") && !json.contains("endif::[]"),
+        "directive lines should be consumed, not left literal; {json}"
     );
 }
 
 #[test]
-fn ifdef_defined_var_inside_listing_block_still_literal() {
-    // Even when `var` IS defined, the directive must NOT trigger inside the
-    // listing block — asciidoctor treats the body verbatim regardless.
+fn ifdef_defined_var_inside_listing_block_keeps_body() {
+    // `var` IS defined → the directive triggers inside the listing block and
+    // the body survives; the directive lines are consumed.
     let input = "\
 :var: true
 
@@ -60,19 +57,19 @@ endif::[]
 ";
     let json = parse_text(input);
     assert!(
-        json.contains("ifdef::var[]") && json.contains("endif::[]"),
-        "verbatim block contents lost their directive lines; {json}"
+        json.contains("literal body line"),
+        "defined ifdef body should survive; {json}"
     );
     assert!(
-        json.contains("literal body line"),
-        "listing block body content missing; {json}"
+        !json.contains("ifdef::var[]") && !json.contains("endif::[]"),
+        "directive lines should be consumed, not left literal; {json}"
     );
 }
 
 #[test]
 fn ifdef_outside_verbatim_block_still_processed() {
-    // Sanity: directive processing still works for ifdef OUTSIDE verbatim
-    // blocks. With `var` undefined, the gated paragraph should be dropped.
+    // Sanity: directive processing works OUTSIDE verbatim blocks too. With
+    // `var` undefined, the gated paragraph is dropped.
     let input = "\
 ifdef::undefined_var[]
 should be dropped
@@ -83,7 +80,7 @@ surviving paragraph
     let json = parse_text(input);
     assert!(
         !json.contains("should be dropped"),
-        "ifdef-gated paragraph regressed (must drop when var undefined); {json}"
+        "ifdef-gated paragraph must drop when var undefined; {json}"
     );
     assert!(
         json.contains("surviving paragraph"),
@@ -93,8 +90,8 @@ surviving paragraph
 
 #[test]
 fn escape_unwrap_in_verbatim_block() {
-    // `\ifdef::var[]` inside a listing block — backslash is stripped for
-    // display but the directive is NOT processed.
+    // `\ifdef::var[]` inside a listing block — asciidoctor strips the backslash
+    // and shows the directive text LITERALLY (the directive is not processed).
     let input = "\
 [source,asciidoc]
 ----
@@ -104,24 +101,21 @@ body
 ----
 ";
     let json = parse_text(input);
-    // The `\` should be unwrapped; body and directive lines all literal.
     assert!(
         json.contains("ifdef::var[]"),
-        "escape-unwrap failed for \\ifdef; {json}"
+        "escape-unwrap failed for \\ifdef (should show literal directive); {json}"
     );
     assert!(
         json.contains("endif::[]"),
         "escape-unwrap failed for \\endif; {json}"
     );
-    assert!(
-        json.contains("body"),
-        "verbatim body missing; {json}"
-    );
+    assert!(json.contains("body"), "verbatim body missing; {json}");
 }
 
 #[test]
-fn directive_in_passthrough_block_also_preserved() {
-    // `++++` passthrough block also verbatim — directive must NOT process.
+fn directive_in_passthrough_block_is_processed() {
+    // asciidoctor parity: `++++` passthrough blocks are also preprocessed, so
+    // an undefined `ifdef::var[]` drops its body there too.
     let input = "\
 ++++
 ifdef::var[]
@@ -131,7 +125,7 @@ endif::[]
 ";
     let json = parse_text(input);
     assert!(
-        json.contains("ifdef::var[]") && json.contains("pass content"),
-        "passthrough block lost directive line or body; {json}"
+        !json.contains("pass content"),
+        "undefined ifdef body in passthrough should be dropped; {json}"
     );
 }

@@ -402,10 +402,6 @@ impl Default for CellSpecifier {
 }
 
 /// Parse a single style letter into a `ColumnStyle`.
-///
-/// Only the seven canonical AsciiDoc cell styles map to a variant; any other
-/// lowercase letter is a syntactically-valid-but-semantically-unknown style
-/// that asciidoctor silently drops (see [`is_style_position_byte`]).
 fn parse_style_byte(byte: u8) -> Option<ColumnStyle> {
     match byte {
         b'a' => Some(ColumnStyle::AsciiDoc),
@@ -416,46 +412,6 @@ fn parse_style_byte(byte: u8) -> Option<ColumnStyle> {
         b'm' => Some(ColumnStyle::Monospace),
         b's' => Some(ColumnStyle::Strong),
         _ => None,
-    }
-}
-
-/// Whether `byte` occupies the optional single-letter STYLE position of a cell
-/// specifier. Asciidoctor's `CellSpecStartRx` ends in `([a-z])?` — ANY single
-/// ASCII lowercase letter is accepted at the style position, not just the seven
-/// canonical styles. Unknown letters (e.g. `v` for "verse", which is a block
-/// style but NOT a cell style) are consumed by the grammar and then dropped
-/// semantically (`parse_style_byte` returns `None` for them).
-///
-/// This matters for ROW-BOUNDARY detection: a line beginning `v|苹果` must be
-/// recognized as a new-row cell start (the `v|` is a — invalid — cell spec),
-/// exactly as asciidoctor does. Treating only the seven valid letters as a
-/// style position caused `v|`-prefixed body rows to be mis-absorbed as a
-/// continuation of the prior row, silently dropping their content.
-fn is_style_position_byte(byte: u8) -> bool {
-    byte.is_ascii_lowercase()
-}
-
-/// Decide whether the byte optionally occupying a cell specifier's `([a-z])?`
-/// STYLE slot should be CONSUMED (advancing `pos` past it). Single chokepoint
-/// for ALL THREE style-slot sites in [`CellSpecifier::build_result`] (after a
-/// span/dup operator, after an alignment marker, and the bare style-only spec)
-/// so a new site cannot silently reintroduce the unguarded-broadening bug.
-///
-/// - A CANONICAL style letter (one of the seven [`parse_style_byte`] maps) is
-///   always the slot, in any context.
-/// - A BROADENED non-canonical `[a-z]` is the slot ONLY when it cannot instead
-///   be CONTENT: (a) `context == FirstPart`, AND (b) it does not trail a BARE
-///   colspan/rowspan digit — one not consumed by a `*`/`+` operator. `2x` /
-///   `^2x` are `<digit><letter>` content, not a spec (asciidoctor requires an
-///   operator after a colspan number); the `+`/`*` branch passes
-///   `trails_bare_span = false` because its operator already validated the span.
-fn consume_style_slot(byte: Option<u8>, context: ParseContext, trails_bare_span: bool) -> bool {
-    match byte {
-        Some(b) if parse_style_byte(b).is_some() => true,
-        Some(b) => {
-            context == ParseContext::FirstPart && !trails_bare_span && is_style_position_byte(b)
-        }
-        None => false,
     }
 }
 
@@ -609,12 +565,9 @@ impl CellSpecifier {
         if (is_span || is_duplication) && has_span_or_dup {
             pos += 1;
 
-            // Style letter after the operator. The `*`/`+` operator already
-            // validated the colspan, so the slot is genuine even for a broadened
-            // non-canonical letter at FirstPart: trails_bare_span = false. (In
-            // InlineContent the chokepoint refuses it, so `2+verse` keeps `v`.)
-            let style = bytes.get(pos).copied().and_then(parse_style_byte);
-            if consume_style_slot(bytes.get(pos).copied(), context, false) {
+            // Parse optional style letter after operator
+            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
+            if style.is_some() {
                 pos += 1;
             }
 
@@ -641,17 +594,9 @@ impl CellSpecifier {
             };
             (spec, pos)
         } else if (halign.is_some() || valign.is_some()) && context == ParseContext::FirstPart {
-            // Alignment without span operator - still valid (only in FirstPart).
-            // No operator here, so a parsed colspan/rowspan is BARE: `^2x` is
-            // `<align><digit><letter>` content, not a spec. Gate the broadened
-            // non-canonical letter on trails_bare_span so it cannot flip into a
-            // phantom row boundary (canonical letters still consumed).
-            let style = bytes.get(pos).copied().and_then(parse_style_byte);
-            if consume_style_slot(
-                bytes.get(pos).copied(),
-                context,
-                colspan.is_some() || rowspan.is_some(),
-            ) {
+            // Alignment without span operator - still valid (only in FirstPart context)
+            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
+            if style.is_some() {
                 pos += 1;
             }
             (
@@ -667,24 +612,10 @@ impl CellSpecifier {
                 pos,
             )
         } else if context == ParseContext::FirstPart {
-            // Check for style-only specifier (e.g., `s|` for strong, or `v|`
-            // for the unknown "verse" style). Only accepted in FirstPart
-            // context (first-part in PSV tables). The style position accepts
-            // any single `[a-z]` (asciidoctor's `([a-z])?`): the byte is
-            // consumed so the prefix is recognized as a complete cell
-            // specifier — and thus a row boundary — even when the letter is
-            // not one of the seven canonical styles. Unknown letters resolve
-            // to `style = None` (dropped), matching asciidoctor, instead of
-            // leaking the letter into cell content.
-            // Bare style-only spec (no operator). A parsed colspan/rowspan is
-            // BARE (`2x` is `<digit><letter>` content), so gate the broadened
-            // non-canonical letter on trails_bare_span (canonical still consumed).
-            if consume_style_slot(
-                bytes.get(pos).copied(),
-                context,
-                colspan.is_some() || rowspan.is_some(),
-            ) {
-                let style = bytes.get(pos).copied().and_then(parse_style_byte);
+            // Check for style-only specifier (e.g., `s|` for strong)
+            // Only accepted in FirstPart context (first-part in PSV tables)
+            let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
+            if let Some(style) = style {
                 pos += 1;
                 (
                     Self {
@@ -692,7 +623,7 @@ impl CellSpecifier {
                         rowspan: 1,
                         halign: None,
                         valign: None,
-                        style,
+                        style: Some(style),
                         is_duplication: false,
                         duplication_count: 1,
                     },
@@ -799,8 +730,7 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
     // as content. `is_psv` is plumbed from `parse_table_block_impl` in
     // document.rs based on user intent (`[separator=]`/`[format=]`/fence).
     let start_idx = if is_psv {
-        // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
-        let p0 = parts[0].content.trim_start();
+        let p0 = parts[0].content.trim();
         if !p0.is_empty() {
             let (spec, spec_len) = CellSpecifier::parse(p0, ParseContext::FirstPart);
             if spec_len > 0 && spec_len == p0.len() {
@@ -815,8 +745,7 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
 
     let total_parts = parts.len();
     for (i, part) in parts.iter().enumerate().skip(start_idx) {
-        // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
-        let trimmed = part.content.trim_start();
+        let trimmed = part.content.trim();
         // Trailing empty part (line ends with separator) — usually a
         // bare line ender, no cell. BUT: when the previous part ends with
         // a cell style char (`a`, `s`, `m`, `l`, `v`, `e`, `h`, `d`) the
@@ -860,7 +789,14 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
             pending
         } else {
             let (spec, spec_len) = CellSpecifier::parse(trimmed, ParseContext::InlineContent);
-            if spec_len > 0 { spec.colspan } else { 1 }
+            // asciidoctor parity: a span/dup token consuming the WHOLE cell
+            // (`|2+|`) is literal (colspan 1); only a PREFIX spec (content
+            // after it, e.g. `2+wide`) contributes its colspan.
+            if spec_len > 0 && spec_len < trimmed.len() {
+                spec.colspan
+            } else {
+                1
+            }
         };
         total += cs;
     }
@@ -958,14 +894,7 @@ fn is_new_row_start(line: &str, separator: &Separator<'_>, is_psv: bool) -> bool
 /// cell specifier. Extracted so both single-codepoint (escape-aware) and
 /// multi-codepoint (literal find) paths share the same validation.
 fn validate_row_start_at(line: &str, sep_pos: usize) -> bool {
-    // Asciidoctor's `CellSpecStartRx` is `^[ \t]*(...)?(...)?([a-z])?$`:
-    // LEADING whitespace is allowed, but the cell specifier must abut the
-    // separator with NO trailing whitespace. `s|x` / `v|x` are row starts;
-    // `s | x` / `r | s` are NOT (the space before `|` makes the line a
-    // content continuation). Trimming only the start preserves this
-    // distinction — trimming both ends would mis-classify `r | s` as a new
-    // row (spec_len would equal the trimmed length).
-    let before_sep = line[..sep_pos].trim_start();
+    let before_sep = line[..sep_pos].trim();
     if before_sep.is_empty() {
         return false;
     }
@@ -1036,109 +965,6 @@ fn handle_cross_row_continuation(
 }
 
 impl Table<'_> {
-    /// Option-A unification: a single streaming separator-driven PSV cell
-    /// assembler. A cell's content runs from its opening separator to the next
-    /// UNESCAPED separator, ACROSS line breaks — so a continuation row's
-    /// pre-separator content joins the still-open cell regardless of column
-    /// position (fixes the multi-line-cell-in-a-non-last-column bug by
-    /// construction). Row boundaries reproduce acdc's established HYBRID model
-    /// (intentionally divergent from asciidoctor's pure cell-flow — e.g.
-    /// `table_incomplete_row_single_line` keeps short rows): a multi-cell line is
-    /// its own row UNLESS its last cell continues on the next line (the peek);
-    /// 1-cell / spec-prefixed / trailing-`a|` first lines enter newline-cell
-    /// collection that flows until ncols / blank / a new-row cell-spec.
-    ///
-    /// Subsumes the inline `is_single_line_row` classifier + the multi-line
-    /// collector. Cell emission + adjacent-anchor recovery still delegate to
-    /// `parse_row_with_positions` (per collected group) so the spec/offset math
-    /// stays byte-identical; `count_cell_colspans` / `is_new_row_start` remain
-    /// the grouping predicates. (Header detection + cross-row continuation +
-    /// merge are handled by the caller path below, unchanged.)
-    fn collect_psv_row_group<'a>(
-        lines: &[&'a str],
-        i: &mut usize,
-        current_offset: &mut usize,
-        separator: &Separator<'_>,
-        ncols: Option<usize>,
-    ) -> (Vec<&'a str>, bool) {
-        // Returns (row_lines, was_single_line_row). `was_single_line_row` mirrors
-        // the old `is_single_line_row` so the caller's merge gate is unchanged.
-        let raw_first = lines.get(*i).copied().unwrap_or("");
-        let row_start_first = raw_first.trim_end();
-        let is_single = {
-            if line_has_unescaped_separator(row_start_first, separator) {
-                let parts = split_line(row_start_first, separator);
-                let trailing_modifier_with_empty = parts.len() >= 2
-                    && parts.last().is_some_and(|p| p.content.trim().is_empty())
-                    && parts.get(parts.len() - 2).is_some_and(|p| {
-                        let trimmed = p.content.trim_end();
-                        let last_token = trimmed
-                            .rsplit_once(char::is_whitespace)
-                            .map_or(trimmed, |(_, after)| after);
-                        if last_token.is_empty() {
-                            return false;
-                        }
-                        let (_, spec_len) =
-                            CellSpecifier::parse(last_token, ParseContext::FirstPart);
-                        spec_len > 0 && spec_len == last_token.len()
-                    });
-                let multi_cell_line = parts.len() > 2 && !trailing_modifier_with_empty;
-                // The peek (now by-construction part of the unified grouping): a
-                // multi-cell line is a COMPLETE single-line row UNLESS its last
-                // cell continues on the next line (next line is non-empty, does
-                // not start with a separator, and is not a new-row cell-spec).
-                let next_continues_last_cell = lines.get(*i + 1).is_some_and(|nl| {
-                    let t = nl.trim_end();
-                    !t.is_empty()
-                        && !t.starts_with(separator.raw)
-                        && !is_new_row_start(t, separator, true)
-                });
-                multi_cell_line && !next_continues_last_cell
-            } else {
-                false
-            }
-        };
-        let mut row_lines = Vec::new();
-        if is_single {
-            row_lines.push(row_start_first);
-            *current_offset += raw_first.len() + 1;
-            *i += 1;
-            return (row_lines, true);
-        }
-        let mut accumulated_cols: usize = 0;
-        let mut row_has_continuation_paragraph = false;
-        while let Some(&current_line) = lines.get(*i) {
-            let trimmed = current_line.trim_end();
-            if trimmed.is_empty() {
-                break;
-            }
-            if !row_lines.is_empty() && is_new_row_start(trimmed, separator, true) {
-                break;
-            }
-            if row_has_continuation_paragraph
-                && trimmed.starts_with(separator.raw)
-                && count_unescaped_separators(trimmed, separator) > 1
-            {
-                break;
-            }
-            if !row_lines.is_empty()
-                && trimmed.starts_with(separator.raw)
-                && let Some(expected) = ncols
-                && accumulated_cols >= expected
-            {
-                break;
-            }
-            if !row_lines.is_empty() && !trimmed.starts_with(separator.raw) {
-                row_has_continuation_paragraph = true;
-            }
-            accumulated_cols += count_cell_colspans(trimmed, separator, true);
-            row_lines.push(trimmed);
-            *current_offset += current_line.len() + 1;
-            *i += 1;
-        }
-        (row_lines, false)
-    }
-
     pub(crate) fn parse_rows_with_positions(
         text: &str,
         separator: &Separator<'_>,
@@ -1211,39 +1037,191 @@ impl Table<'_> {
             }
 
             // Collect lines for this row (until we hit an empty line or end)
+            let mut row_lines = Vec::new();
             let row_start_offset = current_offset;
-            // Option-A unification: ALL PSV row grouping — the single-line-vs-
-            // multi-line classification (now incl. the cross-line cell-open peek
-            // that fixes multi-line cells in NON-last columns by construction) and
-            // the newline-cell collector — lives in ONE place: collect_psv_row_group.
-            // DSV/TSV keep the line-per-row behavior inline (they have no multi-line
-            // cells; a separator-less line is the rare collect case).
-            let (row_lines, is_single_line_row) = if is_psv {
-                Self::collect_psv_row_group(&lines, &mut i, &mut current_offset, separator, ncols)
-            } else {
-                let first_line = line_ref.trim_end();
-                let single = first_line.matches(separator.raw).count() > 0;
-                let mut rl: Vec<&str> = Vec::new();
-                if single {
-                    rl.push(first_line);
-                    current_offset += line_ref.len() + 1;
-                    i += 1;
+
+            // Check if this is a single-line-per-row table (line has multiple separators)
+            // vs multi-line-per-row table (one cell per line, rows separated by empty lines)
+            //
+            // PSV intent (any user-asserted separator, including `:` via
+            // `[separator=:]` or `[format=psv]`) supports multi-line cells;
+            // pure DSV/TSV (no PSV intent) do not — every line is a complete
+            // row. For PSV, count UNESCAPED separators via
+            // `split_line` so that lines containing `\|` (e.g. AsciiDoc reference
+            // docs describing `a|` syntax inside backticks: `` `a\|` ``) aren't
+            // mis-classified as single-line rows. Previously the naïve
+            // `first_line.matches(separator).count()` over-counted escaped
+            // separators, triggering "unterminated table block" cascades — see
+            // Glyph render-fidelity tests for the user-visible failure mode.
+            let first_line = line_ref.trim_end();
+            // PSV (any sep that isn't CSV `,` / TSV `\t` / ambiguous `:`) supports
+            // multi-line cells. DSV/TSV/CSV treat every line as one row, so the
+            // "is this a complete single-line row" check is PSV-only.
+            // Historical limit was hard-coded `"|" | "!"`; the gate is not a
+            // grammar constraint — `split_line` + `CellSpecifier::parse` work
+            // identically for any sep char (the spec is char-agnostic, only
+            // depends on what follows after the leading separator). See
+            // asciidoctor 2.x docs/tables/data-format/ — `[separator=X]` for
+            // arbitrary single-char X gets full PSV cell-spec support.
+            let is_single_line_row = if is_psv {
+                // Round 14 architectural fix: escape-aware. PSV `\<sep>` is
+                // an escape, not a delimiter; raw `contains` would let a
+                // line whose only seps are escaped (e.g. `\:foo`) trigger
+                // single-line-row detection and drop content downstream.
+                if line_has_unescaped_separator(first_line, separator) {
+                    let parts = split_line(first_line, separator);
+                    // `split_line` for `|` returns leading empty + N content parts.
+                    // > 2 parts ⇒ at least 2 real cell boundaries ⇒ single-line row.
+                    // BUT: if the line ENDS with a cell modifier followed by
+                    // a separator and NO content (e.g. `a| label a| more a|`
+                    // ending in `a|` with no trailing content), the last
+                    // cell's content arrives on subsequent lines as
+                    // multi-line continuation. Asciidoctor handles this as
+                    // a multi-line row. Treating it as single-line drops
+                    // the continuation lines into a detached "row" whose
+                    // first line has no separator — parse_row_with_positions
+                    // then skips them entirely (no last_cell to append to),
+                    // and the `a|` cell ends up with empty content.
+                    //
+                    // Distinguish from `|placeholder||` (3 cells, last 2
+                    // empty, FULLY single-line): the second-to-last part
+                    // ends with a cell style/spec character (`a`, `s`,
+                    // `m`, `l`, `v`, `e`, `h`, `d`, or a colspan digit
+                    // followed by `+`). For `|placeholder||`, the second-
+                    // to-last part is empty (no modifier char preceding
+                    // the trailing `||`).
+                    let trailing_modifier_with_empty = parts.len() >= 2
+                        && parts.last().is_some_and(|p| p.content.trim().is_empty())
+                        && parts.get(parts.len() - 2).is_some_and(|p| {
+                            let trimmed = p.content.trim_end();
+                            // The trailing `a|` / `2+|` / `.2+|` / `^|` etc.
+                            // marker that signals a multi-line continuation
+                            // cell must be a STANDALONE token at the end —
+                            // separated from prior content by whitespace —
+                            // AND parse as a complete cell specifier under
+                            // FirstPart grammar. The previous ends_with-char
+                            // heuristic mis-fired on plain text words ending
+                            // in a style letter (e.g. "Same" ends with 'e',
+                            // "Total" ends with 'l') — those have NO trailing-
+                            // spec semantics and a row like `| Same | Same |`
+                            // is a fully-formed single-line row whose last
+                            // cell happens to be empty. Mis-detecting them as
+                            // multi-line continuation makes the collector
+                            // absorb the NEXT row into this one (see
+                            // `asciidoc-comprehensive-table-edit-all-cells`
+                            // Tables #25/#26/#37 case 1 regressions).
+                            let last_token = trimmed
+                                .rsplit_once(char::is_whitespace)
+                                .map_or(trimmed, |(_, after)| after);
+                            if last_token.is_empty() {
+                                return false;
+                            }
+                            let (_, spec_len) =
+                                CellSpecifier::parse(last_token, ParseContext::FirstPart);
+                            spec_len > 0 && spec_len == last_token.len()
+                        });
+                    let single_by_shape = parts.len() > 2 && !trailing_modifier_with_empty;
+                    // Lookahead: even a complete-looking single-line row is a
+                    // MULTI-LINE cell-flow start when the NEXT line is a
+                    // CONTINUATION — a non-empty line that neither starts a new
+                    // row (spec-led, `is_new_row_start`) nor begins with the
+                    // separator, i.e. its leading text continues this row's last
+                    // cell. Covers `|a |m1` / `m2 |c` (mid-column) and
+                    // `|a |b |m1` / `m2` (last-column). A next line that BEGINS
+                    // with the separator (`|R2C1|R2C2` / `|R3C1...`) is a new
+                    // row, so the current line stays single-line (short row).
+                    // asciidoctor flows cell CONTENT across such continuation
+                    // lines; classifying the current line single-line splits the
+                    // flow and drops the continuation.
+                    let next_is_continuation = lines.get(i + 1).is_some_and(|nl| {
+                        let t = nl.trim_end();
+                        !t.is_empty()
+                            && !is_new_row_start(t, separator, is_psv)
+                            && !t.trim_start().starts_with(separator.raw)
+                    });
+                    single_by_shape && !next_is_continuation
                 } else {
-                    while let Some(&current_line) = lines.get(i) {
-                        let trimmed = current_line.trim_end();
-                        if trimmed.is_empty() {
-                            break;
-                        }
-                        if !rl.is_empty() && is_new_row_start(trimmed, separator, false) {
-                            break;
-                        }
-                        rl.push(trimmed);
-                        current_offset += current_line.len() + 1;
-                        i += 1;
-                    }
+                    false
                 }
-                (rl, single)
+            } else {
+                // DSV / TSV: every line is a row (no multi-line cells).
+                first_line.matches(separator.raw).count() > 0
             };
+
+            if is_single_line_row {
+                // Single-line row format: each line is a complete row
+                row_lines.push(first_line);
+                current_offset += line_ref.len() + 1;
+                i += 1;
+            } else {
+                // Multi-line row format: collect lines until empty line, a new
+                // row start (line begins with a `.N+|` / `2+|` / `a|` / etc.
+                // spec), OR — when `ncols` is known — until accumulated cells
+                // already fill the row and the next line is a `|cell`-prefix
+                // continuation that actually belongs to the next row. The
+                // ncols-aware break is what makes layouts like
+                //     .2+|food
+                //     |apple .2+|10
+                //     |banana
+                // parse correctly: without it, `|banana` (which `is_new_row_
+                // start` rejects because parts[0]="") gets bundled into the
+                // food row, producing an over-full row that downstream layout
+                // can't reconcile.
+                let mut accumulated_cols: usize = 0;
+                // Track whether row_lines includes "continuation paragraph"
+                // lines (non-separator-starting lines that are content of a
+                // multi-line `a|` cell). When true, a subsequent line that
+                // looks like an inline row (starts with `|` AND has multiple
+                // separators) is a NEW row, NOT continuation — even when
+                // accumulated_cols < ncols. Asciidoctor treats trailing-`a|`
+                // cells as extending until the next clear row marker; the
+                // remaining columns (3-5 in a 6-col table with 3 `a|` cells)
+                // render as empty/phantom, not filled from continuation.
+                let mut row_has_continuation_paragraph = false;
+                while let Some(&current_line) = lines.get(i) {
+                    let trimmed = current_line.trim_end();
+                    if trimmed.is_empty() {
+                        break;
+                    }
+                    // If we already have content and this line starts a new row, break
+                    if !row_lines.is_empty() && is_new_row_start(trimmed, separator, is_psv) {
+                        break;
+                    }
+                    // Trailing-`a|` multi-line cell continuation: when a
+                    // previous line was a continuation paragraph and the
+                    // current line is a clear inline-row (multi-`|` line),
+                    // break — the `a|` cell content ended; this is a new
+                    // row. See `row_has_continuation_paragraph` doc above.
+                    // All three gates below are PSV-only multi-line-row
+                    // heuristics (continuation paragraphs, ncols-aware row
+                    // break, new-row detection). Use the captured `is_psv`
+                    // plumbed from `parse_table_block_impl` in document.rs —
+                    // recomputing the PSV decision from `separator` alone
+                    // here would re-introduce the historical cross-site drift.
+                    if row_has_continuation_paragraph
+                        && is_psv
+                        && trimmed.starts_with(separator.raw)
+                        && count_unescaped_separators(trimmed, separator) > 1
+                    {
+                        break;
+                    }
+                    if !row_lines.is_empty()
+                        && is_psv
+                        && trimmed.starts_with(separator.raw)
+                        && let Some(expected) = ncols
+                        && accumulated_cols >= expected
+                    {
+                        break;
+                    }
+                    if !row_lines.is_empty() && is_psv && !trimmed.starts_with(separator.raw) {
+                        row_has_continuation_paragraph = true;
+                    }
+                    accumulated_cols += count_cell_colspans(trimmed, separator, is_psv);
+                    row_lines.push(trimmed);
+                    current_offset += current_line.len() + 1; // +1 for newline
+                    i += 1;
+                }
+            }
 
             if !row_lines.is_empty() {
                 let columns =
@@ -1530,12 +1508,7 @@ impl Table<'_> {
             // Adjacent-anchor recovery is a PSV-only fix-up. All four gates
             // below consume the same captured `is_psv` from the function's
             // entry — there is exactly one PSV decision per table, not 11.
-            // trim_start: match the changed row-boundary parse path (no trailing ws before sep)
-            let p0_trimmed = if is_psv {
-                parts[0].content.trim_start()
-            } else {
-                ""
-            };
+            let p0_trimmed = if is_psv { parts[0].content.trim() } else { "" };
             // When `!is_psv`, `p0_trimmed` is already forced to "" above, so
             // the inner branches degrade naturally without re-guarding on
             // `is_psv` — clippy-pedantic flags the double-guard as
@@ -1555,6 +1528,13 @@ impl Table<'_> {
                     let prev = &mut left_slice[i - 1];
                     let cur = &mut right_slice[0];
                     let trimmed_end = prev.content.trim_end();
+                    // asciidoctor: the specifier must be FLUSH against the `|`
+                    // (no whitespace between the spec and the delimiter). A
+                    // space before `|` — `x 2+ |` — makes the token literal
+                    // cell content, not a colspan/duplication spec.
+                    if trimmed_end.len() != prev.content.len() {
+                        continue;
+                    }
                     let Some(last_ws) = trimmed_end.rfind(|c: char| c.is_whitespace()) else {
                         continue;
                     };
@@ -1583,13 +1563,18 @@ impl Table<'_> {
                     // grammar — e.g., `a| cell1 a| cell2 a| cell3`. The
                     // CellSpecifier::parse(..., FirstPart) check below is
                     // strict enough on its own.
-                    if multi_line_continuation {
-                        if !candidate.contains('+') && !candidate.contains('*') {
-                            continue;
-                        }
-                        if !candidate.contains('.') {
-                            continue;
-                        }
+                    if multi_line_continuation
+                        && !candidate.contains('+')
+                        && !candidate.contains('*')
+                    {
+                        // Candidate must carry a span/dup operator (`+`/`*`) to be
+                        // a trailing cell spec. The extra `.`-required filter was
+                        // removed: it rejected legitimate `N*` / `N+` trailing
+                        // specs (`|rated 5*|next`, `|5G coverage 2+|GB`) that
+                        // asciidoctor DOES parse as duplication/colspan. The
+                        // `CellSpecifier::parse` FULL-consume check below is the
+                        // authoritative gate against natural-text false positives.
+                        continue;
                     }
                     let (spec, spec_len) = CellSpecifier::parse(candidate, ParseContext::FirstPart);
                     if spec_len == 0 || spec_len != candidate.len() {
@@ -1640,14 +1625,8 @@ impl Table<'_> {
             // `psv_skip_first` alias is redundant.
             for (i, part) in parts.iter().enumerate() {
                 if i == 0 && is_psv {
-                    // First part is before first separator (PSV format only).
-                    // Trim only the LEADING whitespace: asciidoctor's
-                    // `CellSpecStartRx` (`^[ \t]*…([a-z])?$`) accepts leading
-                    // ws but requires the specifier to abut the separator with
-                    // NO trailing ws. `r |` (space before `|`) is therefore
-                    // CONTENT, not a `r`-style spec — trimming both ends would
-                    // mis-recover it as a spec and silently drop the `r`.
-                    let trimmed = part.content.trim_start();
+                    // First part is before first separator (PSV format only)
+                    let trimmed = part.content.trim();
                     if !trimmed.is_empty() {
                         // Check if this looks like a specifier (e.g., "2+", "3*", "^.>", "s")
                         // Style-only specifiers (e.g., "s" for strong) are valid here
@@ -1657,31 +1636,36 @@ impl Table<'_> {
                             // Entire first part is a specifier, apply to next cell
                             pending_spec = Some(spec);
                         } else if let Some(last_cell) = columns.last_mut() {
-                            // NON-empty, NON-spec content BEFORE the first separator on a
-                            // CONTINUATION line belongs to the still-open previous cell:
-                            // asciidoctor runs a cell's content to the next UNESCAPED
-                            // separator across line breaks — `|m1` / `m2 | tail` →
-                            // cell1 = "m1\nm2", cell2 = "tail" (verified vs asciidoctor).
-                            // Pre-fix this slot was dropped ("skip for PSV"), losing the
-                            // continuation row's pre-separator text. A row's FIRST line
-                            // starts with the separator (parts[0] empty), so this only
-                            // fires on genuine continuation lines, where columns.last is
-                            // the open cell. Mirror the no-separator continuation append
-                            // above (raw push + newline join) for source-faithful offsets.
+                            // Non-spec content before the first separator on a
+                            // MID-ROW line is CONTINUATION of the previous
+                            // multi-line cell — asciidoctor keeps it attached
+                            // rather than dropping it. Example (`[cols="1l,1d"]`):
+                            //     |m1
+                            //     m2 | tail
+                            // → cell1 = `m1\nm2`, cell2 = `tail`. Row grouping
+                            // (count_cell_colspans) already placed this line in
+                            // the current row because `|m1` underfills ncols. This
+                            // fires only when `parts[0]` is non-empty (the line
+                            // does NOT start with the separator — a `|`-led line
+                            // like `|rated 5*|next` has an empty `parts[0]` and is
+                            // untouched) AND a previous cell exists (on a row's
+                            // FIRST line `columns` is empty, so genuine before-
+                            // first-separator content is still dropped).
+                            let leading_ws = part.content.len() - part.content.trim_start().len();
+                            let cont_start = current_offset + part.start + leading_ws;
                             if last_cell.content.is_empty() {
-                                last_cell.content_start = current_offset + part.start;
+                                last_cell.content_start = cont_start;
                             } else {
                                 last_cell.content.push('\n');
                             }
-                            // trim_end drops the space before the separator (asciidoctor
-                            // rstrips each row); leading ws is preserved and offsets stay
-                            // source-aligned (the dropped bytes are at the tail).
-                            let cont = part.content.trim_end();
-                            last_cell.content.push_str(cont);
-                            last_cell.end =
-                                current_offset + part.start + cont.len().saturating_sub(1);
+                            last_cell.content.push_str(trimmed);
+                            let cont_end = cont_start + trimmed.len().saturating_sub(1);
+                            if cont_end > last_cell.end {
+                                last_cell.end = cont_end;
+                            }
                         }
-                        // (else: columns empty — malformed leading content, skip as before.)
+                        // else (no previous cell): row's first line — genuine
+                        // before-first-separator content, skipped for PSV.
                     }
                     continue;
                 }
@@ -1703,7 +1687,18 @@ impl Table<'_> {
                 } else if let Some(pending) = pending_spec.take() {
                     (pending, 0)
                 } else {
-                    CellSpecifier::parse(cell_content_trimmed, ParseContext::InlineContent)
+                    let (s, off) =
+                        CellSpecifier::parse(cell_content_trimmed, ParseContext::InlineContent);
+                    // asciidoctor parity: a span/dup token that consumes the
+                    // ENTIRE cell (`|2+|`) is literal content, not a specifier —
+                    // only a PREFIX spec (content follows it in the same cell,
+                    // e.g. `2+wide`) applies. Reject whole-cell consumption so
+                    // the token survives as the cell's text (never dropped).
+                    if off > 0 && off == cell_content_trimmed.len() {
+                        (CellSpecifier::default(), 0)
+                    } else {
+                        (s, off)
+                    }
                 };
 
                 // The actual cell content starts after the specifier
@@ -1761,6 +1756,7 @@ impl Table<'_> {
 #[cfg(test)]
 #[allow(clippy::panic, clippy::indexing_slicing)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -1871,88 +1867,6 @@ mod tests {
         assert_eq!(b.content, "B\n\nTrailing");
     }
 
-    /// A continuation row whose text PRECEDES a separator (a sibling cell begins
-    /// on the same physical line) MUST attach that pre-separator text to the
-    /// still-open previous cell — asciidoctor runs a cell's content to the next
-    /// UNESCAPED separator across line breaks: `|m1` / `m2 | tail` →
-    /// ["m1\nm2", "tail"] (verified live). Pre-fix the pre-separator `m2` was
-    /// dropped ("skip for PSV"), losing the continuation row's leading text.
-    #[test]
-    fn continuation_row_preseparator_text_joins_open_cell() {
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            "|m1\nm2 | tail\n",
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            Some(2),
-        );
-        let [row] = rows.as_slice() else {
-            panic!("expected 1 row, got {}", rows.len());
-        };
-        let [c1, c2] = row.as_slice() else {
-            panic!("expected 2 cells, got {}", row.len());
-        };
-        assert_eq!(c1.content, "m1\nm2");
-        assert_eq!(c2.content, "tail");
-    }
-
-    /// Same rule across MULTIPLE continuation lines (the middle ones have no
-    /// separator and were already absorbed; the last one precedes a separator):
-    /// `|p` / `q` / `r | s` → ["p\nq\nr", "s"] (verified vs asciidoctor).
-    #[test]
-    fn multi_continuation_rows_join_open_cell() {
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            "|p\nq\nr | s\n",
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            Some(2),
-        );
-        let [row] = rows.as_slice() else {
-            panic!("expected 1 row, got {}", rows.len());
-        };
-        let [c1, c2] = row.as_slice() else {
-            panic!("expected 2 cells, got {}", row.len());
-        };
-        assert_eq!(c1.content, "p\nq\nr");
-        assert_eq!(c2.content, "s");
-    }
-
-    /// The bug B3 surfaced: a multi-line cell in a NON-last column. The first
-    /// row `|a |m1` has 2 cells (≥2 separators), so the pre-unification
-    /// `is_single_line_row` classified it as a complete row and dropped the
-    /// continuation row's pre-separator `m2`. The unified streaming grouping
-    /// (collect_psv_row_group) keeps the middle cell open across the row break:
-    /// `|a |m1` / `m2 |c` (3-col) → ["a", "m1\nm2", "c"] (verified vs asciidoctor).
-    #[test]
-    fn multiline_cell_in_middle_column_keeps_continuation() {
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            "|a |m1\nm2 |c\n",
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            Some(3),
-        );
-        let [row] = rows.as_slice() else {
-            panic!("expected 1 row, got {}", rows.len());
-        };
-        let [c1, c2, c3] = row.as_slice() else {
-            panic!("expected 3 cells, got {}", row.len());
-        };
-        assert_eq!(c1.content, "a");
-        assert_eq!(c2.content, "m1\nm2");
-        assert_eq!(c3.content, "c");
-    }
-
     /// The outer parse must not collapse a blank line that lives *inside*
     /// an `a`-cell's content. If it did, a nested table's own trailing
     /// continuation paragraph would disappear when the cell is re-parsed
@@ -2017,13 +1931,17 @@ mod tests {
         assert_eq!(rows[0][1].rowspan, 2);
     }
 
-    /// Recovery must NOT fire when the trailing token looks like an anchor
-    /// specifier syntactically but is plain text — e.g. `5*` (a star rating)
-    /// or `2+` (a version string). False-positive recovery here corrupts
-    /// natural-language content: `rated 5*` becomes `rated` + duplicate-5
-    /// `next`, silently inflating cells.
+    /// asciidoctor parity (cron #11 decision): a `5*`/`2+` token that is
+    /// whitespace-separated from cell content and flush against the next `|`
+    /// IS a duplication/colspan specifier — asciidoctor 2.0.26 parses
+    /// `|rated 5*|next` as `rated` + `next`×5 and `|5G coverage 2+|GB` as
+    /// `5G coverage` + `GB` spanning two columns. Glyph is a strict AsciiDoc
+    /// editor (L2a MUST match asciidoctor), so the specifier is honored even
+    /// when the preceding content reads like natural language. (The `.`-flush
+    /// literal case `|2+|` and the trailing-space case `x 2+ |` stay literal —
+    /// see the cell-spec fixtures.)
     #[test]
-    fn no_recovery_on_star_rating_in_text() {
+    fn star_rating_syntax_parses_as_duplication_spec() {
         let input = "|rated 5*|next\n";
         let mut has_header = false;
         let rows = Table::parse_rows_with_positions(
@@ -2038,17 +1956,17 @@ mod tests {
         let row = &rows[0];
         assert_eq!(
             row.first().map(|c| c.content.as_str()),
-            Some("rated 5*"),
-            "must not steal `5*` from text content",
+            Some("rated"),
+            "`5*` is a duplication specifier, not part of the cell text",
         );
         assert!(
-            !row.get(1).is_some_and(|c| c.is_duplication),
-            "next cell must not be duplicated"
+            row.get(1).is_some_and(|c| c.is_duplication),
+            "next cell is duplicated by `5*`"
         );
     }
 
     #[test]
-    fn no_recovery_on_version_number_in_text() {
+    fn version_number_syntax_parses_as_colspan_spec() {
         let input = "|5G coverage 2+|GB\n";
         let mut has_header = false;
         let rows = Table::parse_rows_with_positions(
@@ -2062,12 +1980,13 @@ mod tests {
         );
         assert_eq!(
             rows[0].first().map(|c| c.content.as_str()),
-            Some("5G coverage 2+"),
+            Some("5G coverage"),
+            "`2+` is a colspan specifier, not part of the cell text",
         );
         assert_eq!(
             rows[0].get(1).map(|c| c.colspan),
-            Some(1),
-            "next cell colspan must stay 1",
+            Some(2),
+            "next cell spans two columns via `2+`",
         );
     }
 
@@ -2444,239 +2363,5 @@ mod tests {
         // recovery-stashed forced_style).
         assert_eq!(c0.style, Some(ColumnStyle::AsciiDoc));
         assert_eq!(c1.style, Some(ColumnStyle::AsciiDoc));
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    // Regression suite for the cell-style-broadening fix (3 hell-verified
-    // P1 regressions the broadening introduced + the original fix's intent).
-    // ───────────────────────────────────────────────────────────────────
-
-    /// P1-A (direct): in `InlineContent` a non-canonical `[a-z]` after a span
-    /// operator is REAL CONTENT — it must NOT be consumed as a (dropped) style.
-    /// `2+verse` → `colspan=2`, but content begins at `verse` (`spec_len` lands
-    /// just past `2+`, i.e. 2 bytes), NOT past the `v` (which would drop it,
-    /// leaving `erse`).
-    #[test]
-    fn parse_inline_content_does_not_consume_noncanonical_style_letter() {
-        let (spec, spec_len) = CellSpecifier::parse("2+verse", ParseContext::InlineContent);
-        assert_eq!(spec.colspan, 2, "`2+` is a colspan-2 span operator");
-        assert_eq!(
-            spec_len,
-            2,
-            "spec must end right after `2+`; the non-canonical `v` is content, \
-             not a consumed-then-dropped style (got spec_len={spec_len}, which \
-             would leave content `{}`)",
-            &"2+verse"[spec_len..],
-        );
-        assert_eq!(
-            &"2+verse"[spec_len..],
-            "verse",
-            "the `v` must remain in cell content",
-        );
-        assert!(spec.style.is_none(), "non-canonical `v` is not a style");
-
-        // `5*nights` — duplication operator, non-canonical `n` must stay.
-        let (dup_spec, dup_len) = CellSpecifier::parse("5*nights", ParseContext::InlineContent);
-        assert!(dup_spec.is_duplication, "`5*` is a duplication operator");
-        assert_eq!(dup_spec.duplication_count, 5);
-        assert_eq!(
-            dup_len, 2,
-            "spec must end right after `5*`; `n` is content (got spec_len={dup_len})",
-        );
-        assert_eq!(&"5*nights"[dup_len..], "nights");
-    }
-
-    /// P1-A (regression guard): a CANONICAL style letter after a span operator
-    /// in `InlineContent` IS still consumed (unchanged behavior). `2+s` →
-    /// `colspan=2`, strong style, `spec_len` past the `s`.
-    #[test]
-    fn parse_inline_content_still_consumes_canonical_style_letter() {
-        let (spec, spec_len) = CellSpecifier::parse("2+s", ParseContext::InlineContent);
-        assert_eq!(spec.colspan, 2, "`2+` colspan-2");
-        assert_eq!(
-            spec.style,
-            Some(ColumnStyle::Strong),
-            "canonical `s` resolves to Strong style",
-        );
-        assert_eq!(spec_len, 3, "canonical `s` IS consumed (got {spec_len})");
-    }
-
-    /// P1-A (through the real PSV table parse — the `InlineContent` path): a
-    /// cell whose content is `2+verse` must survive intact; the broadening bug
-    /// silently dropped the `v`, leaving `erse`.
-    #[test]
-    fn psv_inline_cell_2plus_verse_content_preserved() {
-        // Two cells on one row: a plain first cell, then `2+verse` as the
-        // second cell's content. The second separator group is parsed via the
-        // InlineContent path.
-        let input = "| ok | 2+verse\n";
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            input,
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            None,
-        );
-        let [row] = rows.as_slice() else {
-            panic!("expected 1 row, got {}", rows.len());
-        };
-        // The `2+` is an inline colspan spec → the cell spans 2 columns but its
-        // content is `verse`, NOT `erse`.
-        let Some(last) = row.last() else {
-            panic!("expected at least one cell, got empty row");
-        };
-        assert_eq!(
-            last.content.trim(),
-            "verse",
-            "non-canonical `v` must not be dropped (broadening bug → `erse`)",
-        );
-    }
-
-    /// P1-C: `2x` in `FirstPart` is NOT a spec. `2` is a colspan digit but the
-    /// following `x` is not an operator (`+`/`*`) — asciidoctor does not treat
-    /// it as a cell specifier, so `spec_len` must be 0 (the broadened style slot
-    /// must NOT rescue the trailing `x` into a phantom style-only spec / row
-    /// boundary).
-    #[test]
-    fn parse_firstpart_2x_is_not_a_spec() {
-        let (_spec, spec_len) = CellSpecifier::parse("2x", ParseContext::FirstPart);
-        assert_eq!(
-            spec_len, 0,
-            "`2x` (colspan digit, no operator) must not parse as a spec \
-             (got spec_len={spec_len})",
-        );
-    }
-
-    /// P1-C (regression guard): a CANONICAL style-only spec `2s` in `FirstPart`
-    /// is unchanged. Asciidoctor accepts a canonical style letter even after a
-    /// colspan digit with no operator, so `2s` resolves to Strong and consumes
-    /// both bytes.
-    #[test]
-    fn parse_firstpart_2s_canonical_style_unchanged() {
-        let (spec, spec_len) = CellSpecifier::parse("2s", ParseContext::FirstPart);
-        assert_eq!(
-            spec.style,
-            Some(ColumnStyle::Strong),
-            "canonical `s` after colspan digit resolves to Strong",
-        );
-        assert_eq!(
-            spec_len, 2,
-            "canonical `2s` consumes both bytes (got {spec_len})"
-        );
-    }
-
-    /// P1 (alignment-branch fix, hell-review R1): the ALIGNMENT FirstPart branch
-    /// must apply the same bare-colspan guard as the style-only branch (now
-    /// centralized in `consume_style_slot`). `^2x` is
-    /// `<align><digit><letter>` content — the broadened non-canonical `x` after
-    /// a bare (operator-less) colspan must NOT be consumed. Before the fix the
-    /// alignment branch consumed `x` (spec_len=3), so `^2x|` flipped into a
-    /// phantom row boundary (full-match `spec_len == before_sep.len()`) with the
-    /// colspan silently dropped.
-    #[test]
-    fn parse_firstpart_align_2x_non_canonical_not_consumed() {
-        let (_spec, spec_len) = CellSpecifier::parse("^2x", ParseContext::FirstPart);
-        assert_ne!(
-            spec_len, 3,
-            "`^2x` must not consume the non-canonical `x` (spec_len={spec_len}); \
-             spec_len==3 would make `^2x|` a phantom row boundary",
-        );
-    }
-
-    /// Companion to the alignment-branch fix: a CANONICAL letter in the same
-    /// position is still consumed (`^2s` unchanged), and an explicit operator
-    /// restores the broadened slot — `^2+x` honors the colspan AND consumes the
-    /// non-canonical `x` as a (dropped) style, because the operator validated
-    /// the span.
-    #[test]
-    fn parse_firstpart_align_canonical_and_operator_unchanged() {
-        let (sp_s, len_s) = CellSpecifier::parse("^2s", ParseContext::FirstPart);
-        assert_eq!(sp_s.style, Some(ColumnStyle::Strong));
-        assert_eq!(
-            len_s, 3,
-            "canonical `^2s` consumes all three bytes (got {len_s})"
-        );
-
-        let (sp_x, len_x) = CellSpecifier::parse("^2+x", ParseContext::FirstPart);
-        assert_eq!(sp_x.colspan, 2, "`^2+x` honors the operator colspan");
-        assert_eq!(sp_x.style, None, "non-canonical `x` resolves to no style");
-        assert_eq!(
-            len_x, 4,
-            "`^2+x` consumes align+colspan+operator+style (got {len_x})"
-        );
-    }
-
-    /// Original-fix intent guard: a body row beginning `v|苹果` MUST be
-    /// recognized as a new-row cell start (the `v|` is an — invalid — cell
-    /// spec, a row boundary), with multibyte content `苹果` preserved. This is
-    /// the multibyte case the new comments advertise; pin it so the broadening
-    /// fix cannot silently revert.
-    #[test]
-    fn psv_v_pipe_multibyte_row_is_row_boundary() {
-        // First row, then a `v|`-prefixed second row. Without the broadened
-        // style position, the `v|` row was mis-absorbed as a continuation of
-        // row 1, silently dropping `苹果`.
-        let input = "|first row\n\nv|苹果\n";
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            input,
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            None,
-        );
-        // The `v|苹果` line is a distinct row whose single cell content is
-        // `苹果` (the `v|` style prefix is consumed, style dropped).
-        let found = rows
-            .iter()
-            .flat_map(|r| r.iter())
-            .any(|c| c.content.trim() == "苹果");
-        assert!(
-            found,
-            "`v|苹果` must be recognized as a row boundary with content `苹果`; \
-             rows = {rows:#?}",
-        );
-    }
-
-    /// P1-B: a `<spec> |` first part with TRAILING whitespace before the
-    /// separator is content, not a phantom counted cell. The three
-    /// spec-detection sites (`count_cell_colspans` ×2, adjacent-anchor gate)
-    /// must use `trim_start()` consistently with the changed row-boundary
-    /// parse path. Trimming BOTH ends mis-recovers `2+ ` as a colspan-2 spec
-    /// (`spec_len` == `trim().len()`) and desyncs `count_cell_colspans` from
-    /// `parse_rows_with_positions`.
-    ///
-    /// Concrete: `2+ | x` — first part `2+ `. `trim()` → `2+` parses as a
-    /// complete colspan-2 spec (`spec_len` 2 == len 2) → count seeds
-    /// `pending_colspan = 2`. `trim_start()` → `2+ ` whose `spec_len` (2) !=
-    /// len (3) → NOT a leading spec. The parse path (already on `trim_start`)
-    /// treats `2+ ` as content, so the two paths only agree once
-    /// `count_cell_colspans` also trims start-only.
-    #[test]
-    fn count_cell_colspans_trailing_ws_before_sep_is_content() {
-        let line = "2+ | x";
-        let count = count_cell_colspans(line, &Separator::new("|"), true);
-        let mut has_header = false;
-        let rows = Table::parse_rows_with_positions(
-            line,
-            &Separator::new("|"),
-            true,
-            false,
-            &mut has_header,
-            0,
-            None,
-        );
-        let parsed_colspan_sum: usize = rows[0].iter().map(|c| c.colspan).sum();
-        assert_eq!(
-            count, parsed_colspan_sum,
-            "count_cell_colspans({line:?})={count} must equal parse_row colspan \
-             sum={parsed_colspan_sum} (trailing-ws before-separator spec-detection \
-             desync between count and parse)",
-        );
     }
 }

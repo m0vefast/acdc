@@ -16,6 +16,7 @@ Usage: acdc <COMMAND>
 Commands:
   convert  Convert AsciiDoc documents to various output formats
   inspect  Inspect AST structure of AsciiDoc documents
+  lint     Lint AsciiDoc documents
   tck      Run TCK compliance tests (reads JSON from stdin)
   help     Print this message or the help of the given subcommand(s)
 
@@ -43,6 +44,66 @@ Inspect the AST structure of `AsciiDoc` documents. Useful for debugging and unde
 ....
 acdc inspect [OPTIONS] <FILE>
 ....
+
+=== lint
+
+Lint `AsciiDoc` documents. The command renders full colored diagnostics by
+default, including source snippets, lint IDs, labels, help text, and an
+end-of-run lint statistics summary.
+Use `--output-style=compact` for compact `line:column` diagnostics without
+colors or source snippets.
+
+[source,console]
+....
+acdc lint [OPTIONS] [FILES]...
+....
+
+Lint levels follow the same command-line shape as Clippy and rustc:
+
+* `--allow` / `-A` suppresses a lint or lint group
+* `--warn` / `-W` emits warnings for a lint or lint group
+* `--deny` / `-D` treats a lint or lint group as an error
+* `--forbid` / `-F` treats a lint or lint group as an error and prevents later flags from lowering it
+
+The `recommended-practices` group starts with lint names that have clear
+detection, clear remediation, and low expected style noise:
+
+* `document-extension`
+* `one-sentence-per-line`
+* `section-title-symmetric-marker`
+* `section-title-setext-style`
+* `delimited-block-minimal-delimiter`
+* `attribute-url-prefix`
+* `imagesdir`
+* `nested-unordered-list-marker`
+* `adjacent-list-separator`
+
+The `document-title-author` and `document-title-revision` lints are available
+by name but are not part of `recommended-practices`; they are intended for
+projects that want stricter document-header policy.
+
+The Asciidoctor draft also recommends prefixed counter names. acdc does not
+currently support counters; the parser already warns on `{counter:...}` and
+`{counter2:...}` and removes them from output, so there is no separate
+`counter-prefix` lint.
+
+The available groups are `all`, `recommended-practices`, `document-structure`,
+`source-format`, `semantic-asciidoc`, and `resources`.
+
+Level flags can be scoped to one source location for an individual lint ID:
+
+[source,console]
+....
+acdc lint -A section-title-capitalization@37 docs/architecture.adoc
+acdc lint -D image-alt-text@10:1-10:80 docs/architecture.adoc
+acdc lint -A delimited-block-minimal-delimiter@977,968 docs/architecture.adoc
+....
+
+Supported scopes are `LINE`, `START-END`, `LINE:COLUMN`, and `LINE:COLUMN-LINE:COLUMN`.
+Multiple scopes for the same lint ID can be separated with commas after one `@`.
+Line-only scopes match any diagnostic on that line.
+Scoped overrides apply to lint IDs, not groups.
+When the selected location no longer matches any diagnostic, `acdc lint` reports the stale override.
 
 === tck
 
@@ -84,16 +145,23 @@ cargo build --all-features
 * `markdown` - Markdown converter with CommonMark and GitHub Flavored Markdown support
 * `terminal` - Terminal converter with ANSI color support
 
+=== Document Tools
+
+* `lint` (default) - AsciiDoc lint command harness
+
 === Parser Options
 
 * `setext` - Enable setext-style (two-line underlined) section headers
+* `network` - Enable remote include parsing
 
 === Syntax Highlighting
 
 * `highlighting` - Enable syntax highlighting for source blocks in HTML output (uses syntect)
-* `terminal-preview` - Enable acdc-only selectable terminal previews in HTML output
-  for terminal-like source blocks. This is not an Asciidoctor feature;
-  Asciidoctor does not provide a `:terminal-preview:` attribute or equivalent
+* `html-terminal` - Enable acdc-only terminal-styled HTML rendering. This
+  includes `[terminal]` blocks and `:acdc-terminal:` source-block previews.
+  It enables the html converter's `terminal` feature; see the converters/html
+  README for what it renders. Asciidoctor does not provide a
+  `:acdc-terminal:` attribute, `[terminal]` block style, or equivalent
   built-in terminal preview support.
 
 === Development Tools
@@ -125,11 +193,11 @@ Build with all backends:
 cargo build --features all-backends
 ....
 
-Build with HTML terminal previews:
+Build with HTML terminal rendering:
 
 [source,console]
 ....
-cargo build --features terminal-preview
+cargo build --features html-terminal
 ....
 
 Build with development tools:
@@ -146,9 +214,14 @@ Build with everything:
 cargo build --all-features
 ....
 
-=== Built-in Dependencies
+=== Built-in dependencies
 
-Parser dependencies (ureq for remote includes, evalexpr for expressions, encoding_rs for encoding detection) are built-in and always available. They're core to AsciiDoc processing and don't require feature flags.
+The parser bundles `evalexpr` (conditional expressions) and `encoding_rs`
+(encoding detection) — always available, no feature flag needed.
+
+Remote includes (`include::https://...[]`) require the parser's `network`
+feature, which pulls in `ureq`. It's off by default; build with
+`--features acdc-parser/network` to enable it.
 
 == Examples
 
@@ -178,15 +251,35 @@ Render acdc-only terminal previews in HTML:
 
 [source,console]
 ....
-cargo build --features terminal-preview
-acdc convert --backend html -a terminal-preview document.adoc
+cargo build --features html-terminal
+acdc convert --backend html -a acdc-terminal document.adoc
 ....
 
-When enabled, terminal-like source blocks such as `[source,console]`,
-`[source,terminal]`, or `[source,bash]` render as selectable terminal previews
-in both standard and semantic HTML output. The `:terminal-preview:` document
-attribute is an acdc extension and is intentionally not Asciidoctor-compatible
-syntax.
+The `html-terminal` Cargo feature enables two terminal-looking HTML render
+paths.
+
+* `:acdc-terminal:` is a document attribute that opts terminal-like
+  source blocks such as `[source,console]`, `[source,terminal]`, and
+  `[source,bash]` into selectable terminal preview rendering.
+* `[terminal]` is an explicit block style for terminal session content. It
+  always renders as terminal output when `html-terminal` is enabled and does
+  not require `:acdc-terminal:`.
+
+Use `[terminal]` for terminal session transcripts or captured terminal output:
+
+[source,asciidoc]
+....
+[terminal,cols=80,rows=24]
+----
+$ acdc --version
+acdc 0.2.0
+----
+....
+
+Both `:acdc-terminal:` and `[terminal]` are acdc extensions and are
+intentionally not Asciidoctor-compatible syntax. Asciidoctor renders
+`[terminal]` as a plain listing or literal block with the raw text (ANSI
+escapes included) left as-is.
 
 Terminal preview attributes:
 
@@ -194,23 +287,23 @@ Terminal preview attributes:
 |===
 | Attribute | Effect
 
-| `:terminal-preview:`
-| Enables terminal previews for terminal-like source blocks when the CLI is built with the `terminal-preview` Cargo feature.
+| `:acdc-terminal:`
+| Enables terminal preview rendering for terminal-like source blocks only.
 
-| `:terminal-preview-cols: N`
-| Sets the terminal grid width used to render previews. Defaults to `80`.
+| `:acdc-terminal-cols: N`
+| Sets the terminal grid width used to render source-block previews and `[terminal]` blocks. Defaults to `80`.
 
-| `:terminal-preview-rows: N`
-| Sets a fixed terminal grid height. When unset, acdc derives the height from the rendered terminal text plus a small padding row.
-
-| `:terminal-cols: N`
-| Alias for `:terminal-preview-cols:` when rendering HTML terminal previews.
-
-| `:terminal-rows: N`
-| Alias for `:terminal-preview-rows:` when rendering HTML terminal previews.
+| `:acdc-terminal-rows: N`
+| Sets a fixed terminal grid height for source-block previews and `[terminal]` blocks. When unset, acdc derives the height from the rendered terminal text plus a small padding row.
 
 | `:dark-mode:`
-| Uses the dark terminal preview shell colors, matching the HTML converter's dark stylesheet mode.
+| Uses dark terminal shell colors for both source-block previews and `[terminal]` blocks, matching the HTML converter's dark stylesheet mode.
+
+| `[terminal,cols=N]`
+| Overrides the terminal grid width for one explicit terminal session block.
+
+| `[terminal,rows=N]`
+| Overrides the terminal grid height for one explicit terminal session block. When unset, acdc derives the height from the content.
 |===
 
 Terminal output with pager disabled:
@@ -227,6 +320,35 @@ Convert to embeddable HTML (no DOCTYPE, html, head, body):
 acdc convert --embedded document.adoc
 # or short form
 acdc convert -e document.adoc
+....
+
+Write to a specific file (or stdout with `-`):
+
+[source,console]
+....
+acdc convert -o out.html document.adoc
+acdc convert -o - document.adoc
+....
+
+Open the result in the default app after converting:
+
+[source,console]
+....
+acdc convert --open document.adoc
+....
+
+Fail instead of falling back on non-conforming input (e.g. bad manpage titles):
+
+[source,console]
+....
+acdc convert --backend manpage --strict mycommand.adoc
+....
+
+Enable legacy Setext (two-line underlined) headers:
+
+[source,console]
+....
+acdc convert --setext document.adoc
 ....
 
 Inspect document AST:

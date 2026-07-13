@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CLI subcommand errors now exit with a non-zero status after rendering the
+  error message. This includes `acdc lint` runs with denied diagnostics.
+- A warning that points into an `include::`d file (or any content shifted by the
+  preprocessor) now renders its source snippet against the correct file instead of
+  aborting with `Failed to read contents … OutOfBounds`.
 - `--no-default-features` builds no longer re-enable parser default features
   through internal workspace dependencies.
 - Peak memory during multi-file conversion no longer grows linearly with
@@ -25,10 +30,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The `terminal-preview` feature forwards optional terminal preview support to
-  the HTML converter. This is an acdc-only extension for selectable terminal
-  previews in HTML output; Asciidoctor does not provide a `:terminal-preview:`
-  attribute or equivalent built-in feature.
+- A new `lint` command is available by default. It accepts files or `--stdin`
+  and Clippy-style lint level flags (`--allow`/`-A`, `--warn`/`-W`,
+  `--deny`/`-D`, `--forbid`/`-F`) for the initial Asciidoctor recommended
+  practices lint names. The `document-title-author` and
+  `document-title-revision` lints are available by name but are not part of
+  the `recommended-practices` group. Counter naming is not exposed as a lint
+  because acdc already warns that counters are unsupported and removes them
+  from output.
+- `acdc lint` now renders full colored diagnostics by default, including source
+  snippets, lint IDs, labels, and help text. Use `--output-style=compact` for
+  compact `line:column` diagnostics without colors or snippets.
+- Full `acdc lint` output now ends with lint statistics that count diagnostics
+  by lint ID for the run.
+- `acdc lint` level flags now accept location-scoped overrides for individual
+  lint IDs, such as `-A section-title-capitalization@37` or
+  `-D image-alt-text@10:1-10:80`. Multiple locations can be comma-separated in
+  one flag, such as `-A delimited-block-minimal-delimiter@977,968`. If a scoped
+  override no longer matches any diagnostic, the lint run reports the stale
+  location.
+- The `terminal-emulator` build feature renders `[terminal]` session blocks
+  through `libghostty-vt` on the `--backend terminal` path. Requires a Zig
+  toolchain to build the bundled library, which is statically linked so the
+  binary stays self-contained.
+- The `html-terminal` feature forwards terminal-styled HTML rendering to the
+  HTML converter. The `:acdc-terminal:` document attribute opts terminal-like
+  source blocks into selectable preview rendering; Asciidoctor does not provide
+  this attribute or an equivalent built-in feature.
+- Explicit `[terminal]` blocks now render in HTML output when the
+  `html-terminal` feature is enabled. `[terminal]` is the terminal-session
+  path: it renders transcripts through `libghostty-vt` as selectable styled
+  HTML and does not require the `:acdc-terminal:` source-block opt-in. It
+  supports per-block `cols=` and `rows=` attributes and follows the document
+  `:dark-mode:` setting. `[terminal]` is an acdc-only block style: Asciidoctor
+  renders it as a plain listing or literal block with the raw text (ANSI
+  escapes included) left as-is.
 - Converter warnings are now rendered on stderr with the same miette warning
   styling used for parser warnings.
 - `convert --open` now opens converter-reported output files, including

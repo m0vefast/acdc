@@ -184,14 +184,14 @@ struct WarningJson {
 
 fn warning_to_json(w: &acdc_parser::Warning) -> WarningJson {
     let (line, column, file) = if let Some(loc) = w.source_location() {
-        let (l, c) = match &loc.positioning {
-            acdc_parser::Positioning::Position(p) => (Some(p.line), Some(p.column)),
-            acdc_parser::Positioning::Location(loc_range) => {
-                (Some(loc_range.start.line), Some(loc_range.start.column))
-            }
-        };
+        // Post-0ad5c19: `SourceLocation` holds a single `Location` (a point
+        // diagnostic is a zero-width span). `Position.line`/`.column` are `u32`.
         let f = loc.file.as_ref().map(|p| p.to_string_lossy().to_string());
-        (l, c, f)
+        (
+            Some(loc.location.start.line as usize),
+            Some(loc.location.start.column as usize),
+            f,
+        )
     } else {
         (None, None, None)
     };
@@ -234,39 +234,6 @@ fn build_options(safe_mode: Option<String>) -> Options<'static> {
     Options::builder().with_safe_mode(mode).build()
 }
 
-/// Build the wasm envelope's `includeExpansions` array — the JS-side
-/// source-line translator's input. Merges acdc's two preprocessor
-/// accounting fields:
-///   1. `include_expansions` — one entry per root-level `include::`
-///      (`{sourceLine, expandedLines: N}`, where N is the post-filter line
-///      count from acdc, including 0 for missing/optional includes).
-///   2. `conditional_drops` — one entry per source line consumed by
-///      `ifdef`/`ifndef`/`ifeval`/`endif` that produced no output
-///      (`{sourceLine, expandedLines: 0}`).
-///
-/// Entries are sorted by `sourceLine` so the translator's left-to-right
-/// fold (delta accumulator) sees the same source order acdc processed.
-/// Single uniform field name keeps the JS consumer path identical to the
-/// resolver-mode case — no branching on whether a resolver was wired.
-fn build_preprocessor_line_map(result: &acdc_parser::ParseResult) -> Vec<serde_json::Value> {
-    let mut entries: Vec<(usize, usize)> = result
-        .include_expansions()
-        .iter()
-        .map(|e| (e.source_line, e.expanded_lines))
-        .chain(result.conditional_drops().iter().map(|&line| (line, 0)))
-        .collect();
-    entries.sort_by_key(|&(line, _)| line);
-    entries
-        .into_iter()
-        .map(|(source_line, expanded_lines)| {
-            serde_json::json!({
-                "sourceLine": source_line,
-                "expandedLines": expanded_lines,
-            })
-        })
-        .collect()
-}
-
 /// Parse a full AsciiDoc document.
 ///
 /// Returns a JS object:
@@ -284,16 +251,6 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
         Ok(result) => {
             let doc = result.document();
             let warnings: Vec<WarningJson> = collect_all_warnings(&result);
-            // No `FileResolver` here, so every `include::` directive is
-            // dropped by the preprocessor (resolved as missing file). The
-            // directive line itself disappears from the output, shifting
-            // every subsequent block up by 1; embedders that map
-            // post-expansion positions back to original source still need
-            // the metadata so the translator can compensate. Same envelope
-            // shape as `parse_block_with_resolver` (with
-            // `expanded_lines: 0` for every dropped directive) so the
-            // consumer path stays uniform.
-            let include_expansions = build_preprocessor_line_map(&result);
             // Serialize via serde_json::Value to a JS-friendly intermediate
             // (avoids serde-wasm-bindgen lifetime issues with bumpalo arenas).
             let json = serde_json::to_value(doc)
@@ -302,7 +259,6 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
                 "ok": true,
                 "value": json,
                 "warnings": warnings,
-                "includeExpansions": include_expansions,
             });
             envelope
                 .serialize(&js_serializer())
@@ -396,22 +352,12 @@ pub fn parse_block_with_resolver(
         Ok(result) => {
             let doc = result.document();
             let warnings: Vec<WarningJson> = collect_all_warnings(&result);
-            // Per-include expansion metadata — embedders (e.g. Glyph) use
-            // this to translate post-expansion block positions back to the
-            // original root-source line number, so editor cursor / scroll
-            // sync stays aligned with the user's buffer. acdc handles the
-            // attribute filtering (lines=, tag=, tags=, leveloffset=, …) so
-            // consumers don't replicate that logic. Merged with conditional
-            // (ifdef/ifndef/ifeval/endif) line drops so the translator
-            // compensates for EVERY preprocessor-induced shift in one pass.
-            let include_expansions = build_preprocessor_line_map(&result);
             let json = serde_json::to_value(doc)
                 .map_err(|e| JsValue::from_str(&format!("serialize document: {e}")))?;
             let envelope = serde_json::json!({
                 "ok": true,
                 "value": json,
                 "warnings": warnings,
-                "includeExpansions": include_expansions,
             });
             envelope
                 .serialize(&js_serializer())
@@ -432,7 +378,7 @@ pub fn parse_block_with_resolver(
 /// Parse a full AsciiDoc document and render it to HTML in one call.
 ///
 /// Returns a JS object:
-/// - `{ ok: true, html: "<...>", warnings: [...], includeExpansions: [...] }` on success
+/// - `{ ok: true, html: "<...>", warnings: [...] }` on success
 /// - `{ ok: false, error: <message> }` on parse or render failure
 ///
 /// `safe_mode` accepts `"unsafe"` (default), `"safe"`, `"server"`, `"secure"`.
@@ -517,14 +463,13 @@ pub fn render_html_with_resolver(
 }
 
 /// Shared body for the two render entry points — converts a `ParseResult` to
-/// the JS envelope shape `{ ok: true, html, warnings, includeExpansions }`.
+/// the JS envelope shape `{ ok: true, html, warnings }`.
 fn render_envelope(
     result: &acdc_parser::ParseResult,
     emit_source_positions: bool,
 ) -> Result<JsValue, JsValue> {
     let doc = result.document();
     let warnings: Vec<WarningJson> = result.warnings().iter().map(warning_to_json).collect();
-    let include_expansions = build_preprocessor_line_map(result);
 
     let processor = acdc_converters_html::Processor::new(
         acdc_converters_core::Options::default(),
@@ -543,7 +488,6 @@ fn render_envelope(
         "ok": true,
         "html": html,
         "warnings": warnings,
-        "includeExpansions": include_expansions,
     });
     envelope
         .serialize(&js_serializer())
@@ -556,82 +500,65 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-#[cfg(test)]
-#[allow(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::panic,
-    clippy::missing_panics_doc
-)]
-mod tests {
-    //! Pin the wasm envelope key names at the Rust layer. The JS-side
-    //! `asciidoc.ts` consumer accesses `entry.sourceLine` /
-    //! `entry.expandedLines` in a tight loop; a `serde_json::json!` typo
-    //! here (e.g. `"source_line"` or `"includeExpansion"` singular) would
-    //! surface only as a Glyph cursor-jump bug in production — these
-    //! tests catch it at the wasm boundary instead.
-    use super::{Options, SafeMode, build_preprocessor_line_map};
+/// One `acdc-lint` diagnostic, flattened for the JS envelope. `lint` is the
+/// stable rule id (kebab-case, e.g. `one-sentence-per-line`) used both as the
+/// diagnostic category and to look up `help`. `level` is `error`/`warning`/…
+#[derive(serde::Serialize)]
+struct LintJson {
+    lint: String,
+    level: String,
+    message: String,
+    help: Option<String>,
+    line: Option<usize>,
+    column: Option<usize>,
+}
 
-    /// `build_preprocessor_line_map` emits camelCase keys for every
-    /// entry, including the conditional-drop case (`expandedLines: 0`).
-    #[test]
-    fn preprocessor_line_map_uses_camelcase_keys() {
-        // 3 source lines consumed by ifdef-false / endif → 3 conditional_drops
-        // entries, each with `expandedLines: 0`.
-        let source = "ifdef::nonexistent_attr[]\nbody\nendif::[]\n";
-        let opts = Options::builder().with_safe_mode(SafeMode::Unsafe).build();
-        let result = acdc_parser::parse(source, &opts).expect("parse succeeds");
-        let entries = build_preprocessor_line_map(&result);
-        assert!(
-            !entries.is_empty(),
-            "expected at least one conditional_drops entry, got none"
-        );
-        for (i, entry) in entries.iter().enumerate() {
-            let obj = entry.as_object().expect("entry is JSON object");
-            assert!(
-                obj.contains_key("sourceLine"),
-                "entry {i}: missing camelCase key `sourceLine`, got keys = {:?}",
-                obj.keys().collect::<Vec<_>>()
-            );
-            assert!(
-                obj.contains_key("expandedLines"),
-                "entry {i}: missing camelCase key `expandedLines`, got keys = {:?}",
-                obj.keys().collect::<Vec<_>>()
-            );
-            // Defend against accidental snake_case re-introduction
-            // (the source-side fields on `IncludeExpansion` are
-            // `source_line` / `expanded_lines`; the bridge MUST rename).
-            assert!(
-                !obj.contains_key("source_line"),
-                "entry {i}: snake_case `source_line` leaked through bridge"
-            );
-            assert!(
-                !obj.contains_key("expanded_lines"),
-                "entry {i}: snake_case `expanded_lines` leaked through bridge"
-            );
-        }
+fn lint_diag_to_json(d: &acdc_lint::LintDiagnostic) -> LintJson {
+    let (line, column) = d.location().map_or((None, None), |loc| {
+        (
+            Some(loc.location.start.line as usize),
+            Some(loc.location.start.column as usize),
+        )
+    });
+    LintJson {
+        lint: d.lint().name().to_string(),
+        level: d.level().to_string(),
+        message: d.message().to_string(),
+        help: d.help().map(str::to_string),
+        line,
+        column,
     }
+}
 
-    /// Conditional-drop entries carry `expandedLines: 0` per the wire
-    /// contract (the JS translator's left-fold relies on this — any
-    /// other sentinel would shift the position math by one).
-    #[test]
-    fn conditional_drop_entries_have_zero_expanded_lines() {
-        let source = "ifdef::nonexistent_attr[]\nbody\nendif::[]\n";
-        let opts = Options::builder().with_safe_mode(SafeMode::Unsafe).build();
-        let result = acdc_parser::parse(source, &opts).expect("parse succeeds");
-        let entries = build_preprocessor_line_map(&result);
-        // All entries here originate from conditional_drops (no real
-        // includes in this source), so each must have expandedLines == 0.
-        for entry in &entries {
-            let expanded = entry
-                .get("expandedLines")
-                .and_then(serde_json::Value::as_u64)
-                .expect("expandedLines is unsigned int");
-            assert_eq!(
-                expanded, 0,
-                "conditional_drops entry must have expandedLines:0, got {entry:?}"
-            );
+/// Lint an AsciiDoc document with `acdc-lint`'s full default rule set.
+///
+/// Returns a JS object `{ ok: true, diagnostics: [{ lint, level, message,
+/// help, line, column }, …] }` on success, or `{ ok: false, error }` when the
+/// source cannot be parsed. Separate from `parse_block` so Glyph can run
+/// linting on its own cadence (e.g. debounced) and merge the results into the
+/// same diagnostics sidebar as parser warnings.
+#[wasm_bindgen]
+pub fn lint_block(source: &str) -> Result<JsValue, JsValue> {
+    ensure_panic_hook();
+    // Empty overrides = every lint at its default level.
+    let options = acdc_lint::LintOptions::new(Vec::new());
+    match acdc_lint::Lintable::lint(source, &options) {
+        Ok(report) => {
+            let diagnostics: Vec<LintJson> =
+                report.diagnostics().iter().map(lint_diag_to_json).collect();
+            let envelope = serde_json::json!({
+                "ok": true,
+                "diagnostics": diagnostics,
+            });
+            envelope
+                .serialize(&js_serializer())
+                .map_err(|e| JsValue::from_str(&format!("to_value: {e}")))
+        }
+        Err(e) => {
+            let envelope = serde_json::json!({ "ok": false, "error": e.to_string() });
+            envelope
+                .serialize(&js_serializer())
+                .map_err(|e| JsValue::from_str(&format!("to_value: {e}")))
         }
     }
 }

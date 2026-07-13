@@ -29,22 +29,17 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             .ok_or(Error::InvalidAdmonitionCaption(caption_attr.to_string()))?;
 
         if processor.variant() == HtmlVariant::Semantic {
-            let src_attrs = self.data_src_attrs(&admon.location);
-            return visit_admonition_semantic(
-                self,
-                admon,
-                caption,
-                processor.is_font_icons_mode(),
-                &src_attrs,
-            );
+            return visit_admonition_semantic(self, admon, caption, processor.is_font_icons_mode());
         }
 
-        let src_attrs = self.data_src_attrs(&admon.location);
-        let mut writer = self.writer_mut();
-        writeln!(writer, "<div class=\"admonitionblock {}\"{src_attrs}>", admon.variant)?;
-        writeln!(writer, "<table>")?;
-        writeln!(writer, "<tr>")?;
-        writeln!(writer, "<td class=\"icon\">")?;
+        writeln!(
+            self.writer,
+            "<div class=\"admonitionblock {}\">",
+            admon.variant
+        )?;
+        writeln!(self.writer, "<table>")?;
+        writeln!(self.writer, "<tr>")?;
+        writeln!(self.writer, "<td class=\"icon\">")?;
 
         // Output icon based on `:icons:` document attribute
         // - Font mode (`icons=font`): Use Font Awesome <i> element
@@ -58,36 +53,30 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                 AdmonitionVariant::Caution => "fa-fire",
             };
             writeln!(
-                writer,
+                self.writer,
                 "<i class=\"fa-solid {fa_icon}\" title=\"{caption}\"></i>",
             )?;
         } else {
-            writeln!(writer, "<div class=\"title\">{caption}</div>")?;
+            writeln!(self.writer, "<div class=\"title\">{caption}</div>")?;
         }
-        writeln!(writer, "</td>")?;
-        writeln!(writer, "<td class=\"content\">")?;
+        writeln!(self.writer, "</td>")?;
+        writeln!(self.writer, "<td class=\"content\">")?;
         if !admon.title.is_empty() {
-            write!(writer, "<div class=\"title\">")?;
-            let _ = writer;
+            write!(self.writer, "<div class=\"title\">")?;
             self.visit_inline_nodes(&admon.title)?;
-            writer = self.writer_mut();
-            writeln!(writer, "</div>")?;
+            writeln!(self.writer, "</div>")?;
         }
-        let _ = writer;
 
         // Handle paragraph rendering based on block count
         // Single paragraph: wrap in <div class="paragraph"><p>...</p></div>
         // Multiple blocks: render each with normal wrapper
         match admon.blocks.as_slice() {
             [acdc_parser::Block::Paragraph(para)] => {
-                let writer = self.writer_mut();
-                writeln!(writer, "<div class=\"paragraph\">")?;
-                write!(writer, "<p>")?;
-                let _ = writer;
+                writeln!(self.writer, "<div class=\"paragraph\">")?;
+                write!(self.writer, "<p>")?;
                 self.visit_inline_nodes(&para.content)?;
-                let writer = self.writer_mut();
-                writeln!(writer, "</p>")?;
-                writeln!(writer, "</div>")?;
+                writeln!(self.writer, "</p>")?;
+                writeln!(self.writer, "</div>")?;
             }
             [block] => {
                 // Single non-paragraph block: use normal rendering
@@ -101,11 +90,10 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             }
         }
 
-        let writer = self.writer_mut();
-        writeln!(writer, "</td>")?;
-        writeln!(writer, "</tr>")?;
-        writeln!(writer, "</table>")?;
-        writeln!(writer, "</div>")?;
+        writeln!(self.writer, "</td>")?;
+        writeln!(self.writer, "</tr>")?;
+        writeln!(self.writer, "</table>")?;
+        writeln!(self.writer, "</div>")?;
         Ok(())
     }
 }
@@ -116,7 +104,6 @@ fn visit_admonition_semantic<V: WritableVisitor<Error = Error>>(
     admon: &Admonition,
     caption: &str,
     font_icons: bool,
-    src_attrs: &str,
 ) -> Result<(), Error> {
     // Note/Tip use <aside> with role="note"/"doc-tip"
     // Warning/Important/Caution use <section> with role="doc-notice"
@@ -139,7 +126,7 @@ fn visit_admonition_semantic<V: WritableVisitor<Error = Error>>(
     } else if let Some(anchor) = admon.metadata.anchors.first() {
         write!(writer, " id=\"{}\"", anchor.id)?;
     }
-    writeln!(writer, " role=\"{role}\"{src_attrs}>")?;
+    writeln!(writer, " role=\"{role}\">")?;
 
     if font_icons {
         let fa_icon = match admon.variant {
