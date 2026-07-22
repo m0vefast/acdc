@@ -886,6 +886,16 @@ struct TableParseParams<'a> {
     closing: TableClosing<'a>,
 }
 
+/// Upper bound on a table's declared column count. `[cols=N]` / `cols="N*"`
+/// materialize N `ColumnFormat`s eagerly, and the KEEP-OURS pad model
+/// materializes up to N empty cells per incomplete row, so an unbounded N (typo
+/// or hostile pasted `.adoc`, e.g. `[cols=100000000]`) would OOM-crash before any
+/// body row is read. asciidoctor never materializes N columns, so this cap only
+/// diverges on pathologically-wide declarations; authored cells are always
+/// preserved (grid_reflow re-splits by the capped width). Chosen far above any
+/// real table (widest human-authored tables are a few dozen columns).
+const MAX_TABLE_COLS: usize = 1000;
+
 /// Parse a table block from pre-extracted positions and content.
 ///
 /// This helper function contains the common table parsing logic used by all
@@ -1138,127 +1148,175 @@ fn parse_table_block_impl<'input>(
     let (ncols, column_formats) = if let Some(AttributeValue::String(cols)) =
         block_metadata.metadata.attributes.get("cols")
     {
-        // Parse cols attribute
-        // Full syntax: [multiplier*][halign][valign][width][style]
-        // Examples: "3*", "^.>2a", "2*>.^1m", "<,^,>", "15%,30%,55%"
-        let mut specs = Vec::new();
+        // asciidoctor shorthand: a `cols` value that is a single bare positive
+        // integer (no comma, no `*`, no spec chars) is the COLUMN COUNT —
+        // `cols=3` ≡ `cols="3*"` = 3 default-width columns. Without this special
+        // case a bare `3` fell through to the width branch below and produced ONE
+        // column of proportional-width 3 (whole-table structural corruption vs
+        // asciidoctor, which renders 3 columns).
+        let cols_trimmed = strip_quotes(cols.trim());
+        // A bare integer (incl. `0`) takes this branch; `0` yields `Some(0)`, which
+        // the zero-count normalization below turns into implicit derivation (as
+        // asciidoctor does) instead of the width branch's bogus 1-column table.
+        let bare_count = if !cols_trimmed.is_empty()
+            && cols_trimmed.bytes().all(|b| b.is_ascii_digit())
+            && let Ok(n) = cols_trimmed.parse::<usize>()
+        {
+            Some(n)
+        } else {
+            None
+        };
+        if let Some(n) = bare_count {
+            // Bound the eager column materialization. A bare `[cols=N]` with an
+            // absurd N (typo / hostile pasted `.adoc`) would otherwise
+            // `vec!`-allocate N `ColumnFormat`s (N=1e8 ≈ GBs, crashing before any
+            // body row is even read) and the KEEP-OURS pad model would materialize
+            // N empty cells per incomplete row. asciidoctor stays bounded (it never
+            // materializes N columns). Real tables are far below MAX_TABLE_COLS;
+            // beyond it, authored cells are still preserved (grid_reflow re-splits
+            // by the capped width) — only empty padding is bounded.
+            let n = n.min(MAX_TABLE_COLS);
+            (Some(n), vec![crate::ColumnFormat::default(); n])
+        } else {
+            // Parse cols attribute
+            // Full syntax: [multiplier*][halign][valign][width][style]
+            // Examples: "3*", "^.>2a", "2*>.^1m", "<,^,>", "15%,30%,55%"
+            let mut specs = Vec::new();
 
-        for part in cols.split(',') {
-            let s = strip_quotes(part.trim());
+            for part in cols.split(',') {
+                let s = strip_quotes(part.trim());
 
-            // Check for "N*" notation (e.g., "3*" means 3 columns with same spec)
-            let (multiplier, spec_str) = if let Some(pos) = s.find('*') {
-                let mult_str = &s[..pos];
-                let mult = mult_str.parse::<usize>().unwrap_or(1);
-                (mult, &s[pos + 1..])
-            } else {
-                (1, s)
-            };
-
-            let mut halign = crate::HorizontalAlignment::default();
-            let mut valign = crate::VerticalAlignment::default();
-            let mut width = crate::ColumnWidth::default();
-            let mut style = crate::ColumnStyle::default();
-
-            // Parse style (last character if it's a letter: a, d, e, h, l, m, s)
-            let spec_str = if let Some(last_char) = spec_str.chars().last() {
-                match last_char {
-                    'a' => {
-                        style = crate::ColumnStyle::AsciiDoc;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    'd' => {
-                        style = crate::ColumnStyle::Default;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    'e' => {
-                        style = crate::ColumnStyle::Emphasis;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    'h' => {
-                        style = crate::ColumnStyle::Header;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    'l' => {
-                        style = crate::ColumnStyle::Literal;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    'm' => {
-                        style = crate::ColumnStyle::Monospace;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    's' => {
-                        style = crate::ColumnStyle::Strong;
-                        &spec_str[..spec_str.len() - 1]
-                    }
-                    _ => spec_str,
-                }
-            } else {
-                spec_str
-            };
-
-            // Parse vertical alignment markers: .<, .^, .>
-            if spec_str.contains(".<") {
-                valign = crate::VerticalAlignment::Top;
-            } else if spec_str.contains(".^") {
-                valign = crate::VerticalAlignment::Middle;
-            } else if spec_str.contains(".>") {
-                valign = crate::VerticalAlignment::Bottom;
-            }
-
-            // Parse horizontal alignment markers: <, ^, > (not preceded by .)
-            for (i, c) in spec_str.char_indices() {
-                let prev_char = if i > 0 {
-                    spec_str.chars().nth(i - 1)
+                // Check for "N*" notation (e.g., "3*" means 3 columns with same spec)
+                let (multiplier, spec_str) = if let Some(pos) = s.find('*') {
+                    let mult_str = &s[..pos];
+                    let mult = mult_str.parse::<usize>().unwrap_or(1);
+                    (mult, &s[pos + 1..])
                 } else {
-                    None
+                    (1, s)
                 };
-                if prev_char == Some('.') {
-                    continue; // This is a vertical alignment marker
-                }
-                match c {
-                    '<' => halign = crate::HorizontalAlignment::Left,
-                    '^' => halign = crate::HorizontalAlignment::Center,
-                    '>' => halign = crate::HorizontalAlignment::Right,
-                    _ => {}
-                }
-            }
 
-            // Parse width: integer (proportional), percentage, or ~ (auto)
-            // The ~ (tilde) for auto-width was added in Asciidoctor 1.5.7
-            // See: https://github.com/asciidoctor/asciidoctor/issues/1844
-            // Remove alignment markers to find the width
-            let width_str: String = spec_str
-                .chars()
-                .filter(|c| !matches!(c, '<' | '^' | '>' | '.'))
-                .collect();
-            if !width_str.is_empty() {
-                if width_str == "~" {
-                    width = crate::ColumnWidth::Auto;
-                } else if width_str.ends_with('%') {
-                    if let Ok(pct) = width_str.trim_end_matches('%').parse::<u32>() {
-                        width = crate::ColumnWidth::Percentage(pct);
+                let mut halign = crate::HorizontalAlignment::default();
+                let mut valign = crate::VerticalAlignment::default();
+                let mut width = crate::ColumnWidth::default();
+                let mut style = crate::ColumnStyle::default();
+
+                // Parse style (last character if it's a letter: a, d, e, h, l, m, s)
+                let spec_str = if let Some(last_char) = spec_str.chars().last() {
+                    match last_char {
+                        'a' => {
+                            style = crate::ColumnStyle::AsciiDoc;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        'd' => {
+                            style = crate::ColumnStyle::Default;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        'e' => {
+                            style = crate::ColumnStyle::Emphasis;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        'h' => {
+                            style = crate::ColumnStyle::Header;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        'l' => {
+                            style = crate::ColumnStyle::Literal;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        'm' => {
+                            style = crate::ColumnStyle::Monospace;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        's' => {
+                            style = crate::ColumnStyle::Strong;
+                            &spec_str[..spec_str.len() - 1]
+                        }
+                        _ => spec_str,
                     }
-                } else if let Ok(prop) = width_str.parse::<u32>() {
-                    width = crate::ColumnWidth::Proportional(prop);
+                } else {
+                    spec_str
+                };
+
+                // Parse vertical alignment markers: .<, .^, .>
+                if spec_str.contains(".<") {
+                    valign = crate::VerticalAlignment::Top;
+                } else if spec_str.contains(".^") {
+                    valign = crate::VerticalAlignment::Middle;
+                } else if spec_str.contains(".>") {
+                    valign = crate::VerticalAlignment::Bottom;
+                }
+
+                // Parse horizontal alignment markers: <, ^, > (not preceded by .)
+                for (i, c) in spec_str.char_indices() {
+                    let prev_char = if i > 0 {
+                        spec_str.chars().nth(i - 1)
+                    } else {
+                        None
+                    };
+                    if prev_char == Some('.') {
+                        continue; // This is a vertical alignment marker
+                    }
+                    match c {
+                        '<' => halign = crate::HorizontalAlignment::Left,
+                        '^' => halign = crate::HorizontalAlignment::Center,
+                        '>' => halign = crate::HorizontalAlignment::Right,
+                        _ => {}
+                    }
+                }
+
+                // Parse width: integer (proportional), percentage, or ~ (auto)
+                // The ~ (tilde) for auto-width was added in Asciidoctor 1.5.7
+                // See: https://github.com/asciidoctor/asciidoctor/issues/1844
+                // Remove alignment markers to find the width
+                let width_str: String = spec_str
+                    .chars()
+                    .filter(|c| !matches!(c, '<' | '^' | '>' | '.'))
+                    .collect();
+                if !width_str.is_empty() {
+                    if width_str == "~" {
+                        width = crate::ColumnWidth::Auto;
+                    } else if width_str.ends_with('%') {
+                        if let Ok(pct) = width_str.trim_end_matches('%').parse::<u32>() {
+                            width = crate::ColumnWidth::Percentage(pct);
+                        }
+                    } else if let Ok(prop) = width_str.parse::<u32>() {
+                        width = crate::ColumnWidth::Proportional(prop);
+                    }
+                }
+
+                // Add the spec for each column in the multiplier (including defaults)
+                let spec = crate::ColumnFormat {
+                    halign,
+                    valign,
+                    width,
+                    style,
+                };
+                // Bound the eager expansion (same OOM guard as the bare-`N` path):
+                // `cols="100000000*"` would otherwise push N specs. Cap at the
+                // remaining budget so total columns never exceed MAX_TABLE_COLS.
+                let remaining = MAX_TABLE_COLS.saturating_sub(specs.len());
+                for _ in 0..multiplier.min(remaining) {
+                    specs.push(spec.clone());
                 }
             }
 
-            // Add the spec for each column in the multiplier (including defaults)
-            let spec = crate::ColumnFormat {
-                halign,
-                valign,
-                width,
-                style,
-            };
-            for _ in 0..multiplier {
-                specs.push(spec.clone());
-            }
+            (Some(specs.len()), specs)
         }
-
-        (Some(specs.len()), specs)
     } else {
         (None, Vec::new())
+    };
+
+    // A declared ZERO column count is not a real 0-column grid — asciidoctor
+    // IGNORES it and falls back to the implicit column count (the first row's
+    // width). It reaches here as `ncols == Some(0)` from either a bare `cols=0`
+    // (Some(0) via the bare-integer branch) or `cols="0*"` (an empty spec list).
+    // Without this, over-counting every row against 0 free columns makes the
+    // builder DROP the whole body (`cols="0*"`) or a width-0 branch corrupts the
+    // grid shape (`cols=0`). Normalize to `None` → implicit derivation.
+    let (ncols, column_formats) = if ncols == Some(0) {
+        (None, Vec::new())
+    } else {
+        (ncols, column_formats)
     };
 
     // Set this to true if the user mandates it!
@@ -1299,15 +1357,25 @@ fn parse_table_block_impl<'input>(
     // Each entry: (column_position, remaining_rows, colspan_width)
     let mut active_rowspans: Vec<(usize, usize, usize)> = Vec::new();
 
-    for (i, row) in raw_rows.iter().enumerate() {
+    for row in &raw_rows {
         // Each raw cell produces at least one `columns` entry; duplication
         // produces more but is rare. `row.len()` is a tight lower bound and
         // sizes the common case exactly.
         let mut columns = Vec::with_capacity(row.len());
         let mut col_idx = 0; // Track current column index for column format lookup
         for cell in row {
-            // Apply column format style if cell doesn't have explicit style
-            let effective_cell = if cell.style.is_none()
+            // Apply column format STYLE to BODY cells only (asciidoctor parity):
+            // per-column style (`m`/`s`/`e`/`l`/`a`/`d`) is baked onto body cells
+            // but NEVER onto HEADER cells — a `[cols="m,s"]` header renders plain,
+            // not `<code>`/`<strong>`. Per-column ALIGNMENT still applies to header
+            // cells, but that is not baked here (it flows through the column
+            // format), so gating only the STYLE baking is sufficient. `has_header`
+            // is still true while the first surviving (header) row is processed and
+            // is consumed the moment it becomes the header (below), so `!has_header`
+            // precisely selects body rows — including when a malformed leading row
+            // is dropped and a later row becomes the header.
+            let effective_cell = if !has_header
+                && cell.style.is_none()
                 && let Some(col_format) = column_formats.get(col_idx)
                 && col_format.style != crate::ColumnStyle::Default
             {
@@ -1328,15 +1396,20 @@ fn parse_table_block_impl<'input>(
                 block_metadata.parent_section_level,
                 &effective_cell,
             )?;
+            // Per-column format is looked up by the cell's ORDINAL in the row
+            // (asciidoctor assigns `columns[n]`'s style to the n-th cell),
+            // regardless of a preceding cell's colspan. Advance `col_idx` by ONE
+            // per emitted cell, NOT by colspan — else a cell after a colspan cell
+            // reads the wrong `[cols="1m,1s,1e,..."]` per-column style.
             if effective_cell.is_duplication && effective_cell.duplication_count > 1 {
-                // Duplicate the cell N times
+                // Duplicate the cell N times (each copy is its own ordinal cell).
                 for _ in 0..effective_cell.duplication_count {
                     columns.push(parsed.clone());
                 }
-                col_idx += effective_cell.duplication_count * effective_cell.colspan;
+                col_idx += effective_cell.duplication_count;
             } else {
                 columns.push(parsed);
-                col_idx += effective_cell.colspan;
+                col_idx += 1;
             }
         }
 
@@ -1354,6 +1427,24 @@ fn parse_table_block_impl<'input>(
             .map(|(_pos, _remaining, width)| *width)
             .sum();
 
+        // A fully-phantom grid row: grid_reflow emits an EMPTY row when every
+        // column of a grid row is covered by a rowspan declared above. It carries
+        // no authored cells and exists ONLY so the two rowspan trackers stay in
+        // lockstep — grid_reflow ages its `active` on this grid row, so this
+        // builder must age `active_rowspans` on it too. Age and DROP it from
+        // output: the covering `rowspan` attribute overlaps the next real row,
+        // which is exactly asciidoctor's rendering (no <tr> emitted for the
+        // covered row). Skipping the aging was the dual-tracker desync — the
+        // builder aged one grid row LATE, so the row after a full-width rowspan
+        // was falsely over-counted and its real cells dropped.
+        if columns.is_empty() {
+            active_rowspans.retain_mut(|(_pos, remaining, _width)| {
+                *remaining -= 1;
+                *remaining > 0
+            });
+            continue;
+        }
+
         // Logical column count = columns occupied by rowspans + colspans of new cells
         let logical_col_count: usize =
             occupied_from_rowspans + columns.iter().map(|c| c.colspan).sum::<usize>();
@@ -1361,12 +1452,19 @@ fn parse_table_block_impl<'input>(
         if let Some(ncols) = ncols
             && logical_col_count != ncols
         {
-            // Check if any cell's colspan exceeds the table width
-            let has_overflow = columns.iter().any(|c| c.colspan > ncols);
+            // Columns still FREE in this grid row (not covered by a rowspan from
+            // above). A cell whose colspan exceeds the free columns cannot fit —
+            // that is the true overflow boundary, not `colspan > ncols` (a
+            // colspan-3 cell fits a 3-col table only when all 3 columns are free;
+            // under a rowspan covering one column it overflows the remaining 2).
+            let free = ncols.saturating_sub(occupied_from_rowspans);
+            let has_overflow = columns.iter().any(|c| c.colspan > free);
             if has_overflow {
-                // Overflow case: drop the row (asciidoctor reference also
-                // drops — the cell can't fit and wrapping into the next row
-                // would produce surprising layouts).
+                // Overflow: a cell can't fit the free columns. asciidoctor drops
+                // the row (wrapping it would shift every following row). A dropped
+                // row still consumes one grid row → age existing rowspans so they
+                // don't cascade-drop the rest of the body. The dropped cells' own
+                // rowspans are intentionally NOT added.
                 state.add_warning(crate::Warning::new(
                     crate::WarningKind::TableCellOverflow {
                         actual: logical_col_count,
@@ -1374,6 +1472,10 @@ fn parse_table_block_impl<'input>(
                     },
                     Some(state.create_error_source_location(row_location)),
                 ));
+                active_rowspans.retain_mut(|(_pos, remaining, _width)| {
+                    *remaining -= 1;
+                    *remaining > 0
+                });
                 continue;
             } else if logical_col_count < ncols {
                 // Under-count (incomplete row). asciidoctor DROPS the trailing
@@ -1400,9 +1502,16 @@ fn parse_table_block_impl<'input>(
                 }
                 // Fall through — row now has the right column count.
             } else {
-                // Over-count without overflow (e.g. extra cells beyond ncols
-                // via colspan combinations). Drop the row — accepting it
-                // would shift subsequent rows' column alignment.
+                // Over-count (logical > ncols, no single-cell overflow): the row's
+                // cells overflow the free columns as a GROUP — an over-WIDE row
+                // (e.g. a stray colspan whose sum exceeds ncols). asciidoctor DROPS
+                // these. Because the two trackers are now synchronized (the
+                // phantom-row aging above keeps `occupied_from_rowspans` exact), a
+                // genuine rowspan-OVERLAP row is never over-counted here — its
+                // physical cells tile to ncols and it lands in the normal path
+                // (the covering rowspan simply overlaps it). So reaching this
+                // branch means a real over-wide row, and dropping matches
+                // asciidoctor. A dropped row still consumes one grid row → age.
                 state.add_warning(crate::Warning::new(
                     crate::WarningKind::TableColumnCount {
                         actual: logical_col_count,
@@ -1411,6 +1520,10 @@ fn parse_table_block_impl<'input>(
                     },
                     Some(state.create_error_source_location(row_location)),
                 ));
+                active_rowspans.retain_mut(|(_pos, remaining, _width)| {
+                    *remaining -= 1;
+                    *remaining > 0
+                });
                 continue;
             }
         }
@@ -1457,14 +1570,20 @@ fn parse_table_block_impl<'input>(
             continue;
         }
 
-        // if we have a footer, we need to add the columns we have to the footer
-        if has_footer && i == raw_rows.len() - 1 {
-            footer = Some(TableRow { columns });
-            continue;
-        }
-
-        // if we get here, these columns are a row
+        // Everything that reaches here is a body row for now — including the
+        // eventual footer row. The footer is designated AFTER the loop as the
+        // LAST row that actually survived (mirroring the header's "flag consumed
+        // by the first surviving row" model). Designating it here on a fixed
+        // `raw_rows.len()-1` index broke whenever grid_reflow's trailing rows
+        // were skipped/dropped/padded (phantom rows, over-count/overflow drops,
+        // incomplete pads) — the footer vanished or landed on a junk row while
+        // asciidoctor promotes the last surviving row to `<tfoot>`.
         rows.push(TableRow { columns });
+    }
+
+    // Footer = the last surviving body row (asciidoctor promotes it to <tfoot>).
+    if has_footer {
+        footer = rows.pop();
     }
 
     let table = Table {

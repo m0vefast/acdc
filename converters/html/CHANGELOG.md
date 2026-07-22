@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Table header cells no longer receive a per-column or explicit cell style
+  (`m`/`s`/`e`/`l`/`a`): a `[%header,cols="m,s"]` header now renders plain `<th>`
+  text (only its alignment applies), matching `asciidoctor`. Body cells are
+  unaffected.
+
 ### Performance
 
 - **Streaming output.** Rendering writes directly to the caller's `Write`
