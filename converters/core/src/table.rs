@@ -143,6 +143,30 @@ pub fn build_grid<'a>(table: &'a Table<'a>, num_cols: usize) -> Vec<GridRow<'a>>
     let mut rowspan_remaining = vec![0usize; num_cols];
 
     for (ast_row, is_header, is_footer) in &all_rows {
+        // Re-insert the fully-covered PHANTOM grid rows the count-model parser
+        // dropped. `grammar/document.rs` drops a grid row every column of which is
+        // covered by a rowspan from above (it carries no authored cells), so the
+        // parser emits FEWER ast rows than there are grid rows. Without replaying
+        // those phantom rows here, THIS ast row would be mapped onto the covered
+        // grid row: the `while col < num_cols` loop fills VSpan for every column,
+        // never advances `cell_cursor`, and the ast row's cells (the overlap row
+        // after a full-coverage rowspan — `Gamma`, `Cee`/`Dee`) silently vanish.
+        // Emit all-VSpan rows and age the rowspans until at least one column is
+        // free for this ast row. Bounded: `num_cols` decremented each iteration.
+        while num_cols > 0
+            && (0..num_cols).all(|c| rowspan_remaining.get(c).is_some_and(|&r| r > 0))
+        {
+            for r in &mut rowspan_remaining {
+                *r = r.saturating_sub(1);
+            }
+            grid.push(GridRow {
+                cells: (0..num_cols).map(|_| CellKind::VSpan).collect(),
+                ast_row,
+                is_header: false,
+                is_footer: false,
+            });
+        }
+
         let mut row_cells = Vec::with_capacity(num_cols);
         let mut cell_cursor = 0;
         let mut col = 0;

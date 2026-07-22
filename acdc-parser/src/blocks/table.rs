@@ -422,7 +422,12 @@ impl CellSpecifier {
     /// Parse a cell specifier from the beginning of cell content.
     ///
     /// Returns the specifier and the offset where actual content begins.
-    /// Full pattern: `[halign][valign][colspan][.rowspan][+|*][style]`
+    ///
+    /// Alignment is accepted in EITHER position relative to the span:
+    /// - asciidoctor-standard SPAN-FIRST: `[colspan][.rowspan][+|*][halign][valign][style]`
+    ///   (e.g. `2+^`, `.3+^.^`) — the only form asciidoctor emits/parses.
+    /// - acdc-historical ALIGN-FIRST: `[halign][valign][colspan][.rowspan][+|*][style]`
+    ///   (e.g. `^2+`, `^.^.3+`) — still accepted for back-compat.
     ///
     /// The `mode` parameter controls whether style-only specifiers
     /// (e.g., `s|` for strong without any alignment or span) are accepted:
@@ -454,7 +459,9 @@ impl CellSpecifier {
         pos = rowspan_end;
 
         // Phase 4: Check for operator and build result
-        Self::build_result(bytes, pos, colspan, rowspan, halign, valign, mode)
+        Self::build_result(
+            bytes, pos, align_end, colspan, rowspan, halign, valign, mode,
+        )
     }
 
     /// Parse alignment markers at the current position.
@@ -470,39 +477,43 @@ impl CellSpecifier {
         let mut halign: Option<HorizontalAlignment> = None;
         let mut valign: Option<VerticalAlignment> = None;
 
-        loop {
-            match bytes.get(pos) {
+        // asciidoctor grammar accepts AT MOST ONE halign then AT MOST ONE valign
+        // (`[<^>]?(\.[<^>])?`). A repeated run (`<<`, `^^`, `<>`) is NOT alignment
+        // — it stays literal content. Parsing each at most once (no loop) keeps
+        // e.g. `|foo <<|bar` with `<<` as content, matching asciidoctor, instead
+        // of over-consuming the run and deleting it from the cell.
+        match bytes.get(pos) {
+            Some(b'<') => {
+                halign = Some(HorizontalAlignment::Left);
+                pos += 1;
+            }
+            Some(b'^') => {
+                halign = Some(HorizontalAlignment::Center);
+                pos += 1;
+            }
+            Some(b'>') => {
+                halign = Some(HorizontalAlignment::Right);
+                pos += 1;
+            }
+            _ => {}
+        }
+        // Optional vertical alignment: `.` followed by an align char (`.<`, `.^`,
+        // `.>`). A bare `.` or `.<digits>` is a rowspan, not valign — leave it.
+        if bytes.get(pos) == Some(&b'.') {
+            match bytes.get(pos + 1) {
                 Some(b'<') => {
-                    halign = Some(HorizontalAlignment::Left);
-                    pos += 1;
+                    valign = Some(VerticalAlignment::Top);
+                    pos += 2;
                 }
                 Some(b'^') => {
-                    halign = Some(HorizontalAlignment::Center);
-                    pos += 1;
+                    valign = Some(VerticalAlignment::Middle);
+                    pos += 2;
                 }
                 Some(b'>') => {
-                    halign = Some(HorizontalAlignment::Right);
-                    pos += 1;
+                    valign = Some(VerticalAlignment::Bottom);
+                    pos += 2;
                 }
-                Some(b'.') => {
-                    // Could be vertical alignment (.< .^ .>) or rowspan (.N)
-                    match bytes.get(pos + 1) {
-                        Some(b'<') => {
-                            valign = Some(VerticalAlignment::Top);
-                            pos += 2;
-                        }
-                        Some(b'^') => {
-                            valign = Some(VerticalAlignment::Middle);
-                            pos += 2;
-                        }
-                        Some(b'>') => {
-                            valign = Some(VerticalAlignment::Bottom);
-                            pos += 2;
-                        }
-                        _ => break, // Not vertical alignment, might be rowspan
-                    }
-                }
-                _ => break,
+                _ => {}
             }
         }
 
@@ -555,6 +566,7 @@ impl CellSpecifier {
     fn build_result(
         bytes: &[u8],
         mut pos: usize,
+        align_end: usize,
         colspan: Option<usize>,
         rowspan: Option<usize>,
         halign: Option<HorizontalAlignment>,
@@ -565,10 +577,31 @@ impl CellSpecifier {
         let is_duplication = bytes.get(pos) == Some(&b'*');
         let is_span = bytes.get(pos) == Some(&b'+');
 
-        if (is_span || is_duplication) && has_span_or_dup {
+        // A span/dup spec (`2+`, `3*`, `.2+`, `2.3+`) is ONLY recognized in
+        // FirstPart context. asciidoctor NEVER reads a cell specifier from text
+        // that follows a `|` — a spec lives before the delimiter (captured here
+        // via FirstPart at line-start, or stashed on `forced_spec` by the
+        // flush-against-`|` mid-row recovery, which also validates under
+        // FirstPart). Parsing it from a cell's OWN interior content
+        // (InlineContent) silently deleted a leading `N+`/`N*`/`.N+` from real
+        // text — `| 2+2 |` became `2` (data loss on well-formed input like a
+        // `2+2` math cell). Gating on FirstPart keeps such content intact and
+        // also fixes the mirrored colspan over-count in `count_cell_colspans`
+        // (its InlineContent probe now reports spec_len 0 → colspan 1).
+        if (is_span || is_duplication) && has_span_or_dup && context == ParseContext::FirstPart {
             pos += 1;
 
-            // Parse optional style letter after operator
+            // asciidoctor-standard SPAN-FIRST order allows alignment AFTER the
+            // span operator (`2+^`, `.3+^.^`, `2.3+>.<`). Parse it here and merge
+            // with any leading alignment (`^2+`, acdc's historical order) so BOTH
+            // orders are accepted. asciidoctor only emits/accepts the span-first
+            // form, so this is what makes acdc read standard tables.
+            let (h, v, align_end) = Self::parse_alignments(bytes, pos);
+            pos = align_end;
+            let halign = halign.or(h);
+            let valign = valign.or(v);
+
+            // Parse optional style letter after operator (and trailing alignment)
             let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
             if style.is_some() {
                 pos += 1;
@@ -597,7 +630,17 @@ impl CellSpecifier {
             };
             (spec, pos)
         } else if (halign.is_some() || valign.is_some()) && context == ParseContext::FirstPart {
-            // Alignment without span operator - still valid (only in FirstPart context)
+            // Alignment without a span operator. The colspan/rowspan DIGITS
+            // parsed above are NOT part of the spec — a number is only a span
+            // when an operator (`+`/`*`) follows it. Restart from `align_end`
+            // (just past the alignment) so a token like `<5` / `^100` / `>50`
+            // reports a spec_len covering ONLY the alignment; the caller's
+            // full-consume gate then rejects the whole token and it stays
+            // literal content, matching asciidoctor (span-first grammar never
+            // reads align-then-digit as a spec). Without this the discarded
+            // digit was still counted as consumed, so mid-row recovery stole
+            // `<5`/`^100` and deleted it from the cell.
+            let mut pos = align_end;
             let style = bytes.get(pos).and_then(|&b| parse_style_byte(b));
             if style.is_some() {
                 pos += 1;
@@ -746,34 +789,46 @@ fn validate_table_limits(rows: &[Vec<ParsedCell>]) -> Result<(), TableLimitViola
                 end,
             ));
         }
-        for cell in row {
-            if cell.colspan > MAX_TABLE_COLUMNS {
-                return Err(TableLimitViolation::new(
-                    "column span",
-                    cell.colspan,
-                    MAX_TABLE_COLUMNS,
-                    cell.start,
-                    cell.end,
-                ));
-            }
-            if cell.rowspan > MAX_TABLE_ROWS {
-                return Err(TableLimitViolation::new(
-                    "row span",
-                    cell.rowspan,
-                    MAX_TABLE_ROWS,
-                    cell.start,
-                    cell.end,
-                ));
-            }
-            if cell.duplication_count > MAX_TABLE_COLUMNS {
-                return Err(TableLimitViolation::new(
-                    "cell duplication",
-                    cell.duplication_count,
-                    MAX_TABLE_COLUMNS,
-                    cell.start,
-                    cell.end,
-                ));
-            }
+        validate_cell_specifiers(row)?;
+    }
+    Ok(())
+}
+
+/// Per-cell specifier bounds: span and duplication counts.
+///
+/// Split out of `validate_table_limits` so it can run BEFORE an implicit column
+/// count is derived from the first row. `101*| x` in a table with no `[cols=]`
+/// must report "cell duplication", which is what the author actually typed; a
+/// derived width of 101 would otherwise trip the column-count bound first and
+/// report a number that appears nowhere in the source.
+fn validate_cell_specifiers(cells: &[ParsedCell]) -> Result<(), TableLimitViolation> {
+    for cell in cells {
+        if cell.colspan > MAX_TABLE_COLUMNS {
+            return Err(TableLimitViolation::new(
+                "column span",
+                cell.colspan,
+                MAX_TABLE_COLUMNS,
+                cell.start,
+                cell.end,
+            ));
+        }
+        if cell.rowspan > MAX_TABLE_ROWS {
+            return Err(TableLimitViolation::new(
+                "row span",
+                cell.rowspan,
+                MAX_TABLE_ROWS,
+                cell.start,
+                cell.end,
+            ));
+        }
+        if cell.duplication_count > MAX_TABLE_COLUMNS {
+            return Err(TableLimitViolation::new(
+                "cell duplication",
+                cell.duplication_count,
+                MAX_TABLE_COLUMNS,
+                cell.start,
+                cell.end,
+            ));
         }
     }
     Ok(())
@@ -936,6 +991,15 @@ fn count_cell_colspans(line: &str, separator: &Separator<'_>, is_psv: bool) -> u
 /// line collapsed into a single logical row that then expanded to
 /// 100 x line-count columns. `count_cell_colspans` performs the same
 /// multiplication on the pre-parse side; the two are a pair.
+///
+/// MEASURED (2026-08-02): at the one call site below, `duplication_count` is
+/// always 1 — `parse_rows_with_positions` expands a `k*` cell into k separate
+/// cells before returning, so the factor is unreachable there today and no test
+/// can exercise it. It is kept because this function states what a cell
+/// OCCUPIES, and the expansion point has already moved once; a future move back
+/// would silently reintroduce the under-count if this said `colspan` alone. The
+/// factor that does real work is the matching one in `count_cell_colspans`,
+/// which `column_accounting_sites_agree_for_every_spec_shape` pins.
 const fn occupied_columns(cell: &ParsedCell) -> usize {
     cell.colspan * cell.duplication_count
 }
@@ -1028,7 +1092,19 @@ fn is_new_row_start(line: &str, separator: &Separator<'_>, is_psv: bool) -> bool
 /// cell specifier. Extracted so both single-codepoint (escape-aware) and
 /// multi-codepoint (literal find) paths share the same validation.
 fn validate_row_start_at(line: &str, sep_pos: usize) -> bool {
-    let before_sep = line[..sep_pos].trim();
+    let raw_before = &line[..sep_pos];
+    // asciidoctor: a cell specifier must be FLUSH against the separator — ANY
+    // whitespace between the spec and `|` makes the token literal cell CONTENT,
+    // not a spec, so the line CONTINUES the current row rather than starting a new
+    // one. `d |e` / `2+ |x` (space before `|`) are continuations (`d`/`2+` join
+    // the previous cell); `d|e` / `2+|x` (flush) are spec-led new rows. The old
+    // `.trim()` stripped the trailing space and mis-read `d ` / `2+ ` as flush
+    // specs, which dropped the pre-`|` content of such continuation lines. Leading
+    // indent is still allowed (only the char immediately before `|` matters).
+    if raw_before.ends_with(char::is_whitespace) {
+        return false;
+    }
+    let before_sep = raw_before.trim_start();
     if before_sep.is_empty() {
         return false;
     }
@@ -1052,6 +1128,37 @@ fn validate_row_start_at(line: &str, sep_pos: usize) -> bool {
 /// to know whether the prior blank line was an intra-cell paragraph break
 /// (consumed = yes, the "blank" was inside a cell's content) vs an actual
 /// row terminator (consumed = no, the blank cleanly separated rows).
+/// Peeking from `from`, is the next NON-blank line a row CONTINUATION rather than
+/// the start of a new row? asciidoctor's rule: a blank line inside a table only
+/// terminates the current row when what follows STARTS a new row (a
+/// separator-led `|cell` line or a spec-led `2+|`/`a|` line). If the next
+/// non-blank line instead begins with content (no leading separator, not a
+/// spec), it CONTINUES the current row — the blank is an intra-cell paragraph
+/// break, and the continuation's leading text joins the row's last (open) cell
+/// while a mid-line `|` opens new cells in the SAME row. Returns false at
+/// end-of-input (nothing to continue → the blank terminates). This replaces the
+/// old line-structure heuristic (every blank terminates the row), which silently
+/// dropped the post-blank leading content of any unfilled row.
+fn next_nonblank_is_row_continuation(
+    lines: &[&str],
+    from: usize,
+    separator: &Separator<'_>,
+    is_psv: bool,
+) -> bool {
+    if !is_psv {
+        return false;
+    }
+    for line in lines.iter().skip(from) {
+        let t = line.trim_end();
+        if t.trim().is_empty() {
+            continue;
+        }
+        return !t.trim_start().starts_with(separator.raw)
+            && !is_new_row_start(t, separator, is_psv);
+    }
+    false
+}
+
 fn handle_cross_row_continuation(
     lines: &[&str],
     i: &mut usize,
@@ -1096,6 +1203,113 @@ fn handle_cross_row_continuation(
         *i += 1;
     }
     consumed_any
+}
+
+/// Re-flow a PSV table's cells into rows of exactly `ncols`, honoring colspan,
+/// cell-duplication (`N*`) width, and rowspan grid occupancy — asciidoctor's
+/// row model: cells stream left-to-right / top-to-bottom into an `ncols`-wide
+/// grid; source line breaks and blank lines carry NO row-boundary meaning
+/// (only the cell COUNT does). This replaces the historical line-structure
+/// heuristic's row GROUPING (which mis-split rows like an `a|` block sitting in
+/// a non-last column, spilling the row's remaining inline cells onto their own
+/// row). The cells themselves are untouched — only their grouping into rows —
+/// so byte offsets / content / specs are preserved exactly.
+fn grid_reflow(rows: Vec<Vec<ParsedCell>>, ncols: usize) -> Vec<Vec<ParsedCell>> {
+    if ncols == 0 {
+        return rows;
+    }
+    // Expand `N*` cell-duplication into N INDEPENDENT copies up front so the
+    // copies stream/wrap across grid rows exactly like asciidoctor: a dup cell
+    // straddling a smaller `[cols=N]` (`|a 3*|b` in a 2-col table) wraps into
+    // `[a,b]` / `[b,b]` instead of forming one over-wide 4-column row. (colspan
+    // stays ATOMIC — asciidoctor drops an over-wide colspan cell, and the width
+    // math below honors that.) Each copy carries duplication_count 1 so the
+    // downstream builder does not expand it a second time.
+    let mut cells = rows
+        .into_iter()
+        .flatten()
+        .flat_map(|cell| {
+            let n = cell.duplication_count.max(1);
+            (0..n).map(move |_| {
+                let mut copy = cell.clone();
+                copy.duplication_count = 1;
+                copy.is_duplication = false;
+                copy
+            })
+        })
+        .peekable();
+    if cells.peek().is_none() {
+        return Vec::new();
+    }
+    let mut out: Vec<Vec<ParsedCell>> = Vec::new();
+    // Rowspans declared in an EARLIER row that still cover part of this row:
+    // (covered_width, remaining_rows_below). This is asciidoctor's COUNT model
+    // (`table.rb` closes a row when column_visits + active_rowspan_width ==
+    // colcount) — a pure width count, NOT column positions. A positional
+    // skip-model diverges when a colspan cell's WIDTH crosses a rowspan-covered
+    // column: it packs cells past the covered column into one over-wide row that
+    // the builder then drops, silently losing cells asciidoctor keeps (a
+    // mid-column rowspan with colspan cells in the covered rows). Counting width
+    // — the covered columns consume the row's budget — closes the row exactly
+    // where asciidoctor does.
+    let mut active: Vec<(usize, usize)> = Vec::new();
+    while cells.peek().is_some() {
+        // Saturating throughout so a pathological line (many ~19-digit colspans)
+        // can't integer-overflow / panic under debug overflow-checks; a giant
+        // width just keeps everything on one row (release already wrapped).
+        let occupied: usize = active
+            .iter()
+            .map(|&(w, _)| w)
+            .fold(0, usize::saturating_add);
+        let mut cur: Vec<ParsedCell> = Vec::new();
+        let mut placed = 0usize; // sum of this row's own cell widths
+        while occupied.saturating_add(placed) < ncols {
+            let Some(cell) = cells.next() else {
+                break; // out of cells — this row is the (partial) last row
+            };
+            let width = cell
+                .duplication_count
+                .max(1)
+                .saturating_mul(cell.colspan.max(1));
+            if cell.rowspan > 1 {
+                active.push((width, cell.rowspan - 1));
+            }
+            cur.push(cell);
+            placed = placed.saturating_add(width);
+        }
+        if cur.is_empty() {
+            // Fully-phantom grid row: every column is covered by a rowspan from
+            // an EARLIER row. asciidoctor's model consumes+DISCARDS exactly ONE
+            // filler cell here (the cell "falls into" the covered row and is
+            // lost). This is BOUNDED — every phantom row consumes one cell, so
+            // total rows <= cell count; an oversized rowspan (`.9999999+`) can no
+            // longer amplify into millions of empty rows (that was an O(rowspan)
+            // OOM/hang on ~20 bytes of user-pasted input). When no filler cell
+            // remains, the table ends here (a trailing rowspan just widens its
+            // `rowspan` attribute, matching asciidoctor).
+            if cells.next().is_none() {
+                break;
+            }
+            // Fall through: EMIT the (empty) phantom row + age. Emitting — not
+            // silently dropping — is what keeps the two rowspan trackers in
+            // lockstep: the downstream builder (document.rs) must SEE this grid
+            // row to age its own tracker on it. The builder then drops the empty
+            // row from output; the covering `rowspan` attribute overlaps the next
+            // real row, matching asciidoctor. Silently discarding it desynced the
+            // trackers → the builder aged one grid row late → false over-counts
+            // (dropping real cells) on the row after a full-width rowspan.
+        }
+        out.push(cur); // empty for a phantom row, real cells otherwise
+        active.retain_mut(|(_, rem)| {
+            if *rem == 0 {
+                false
+            } else {
+                *rem -= 1;
+                true
+            }
+        });
+    }
+    out
 }
 
 impl Table<'_> {
@@ -1170,6 +1384,27 @@ impl Table<'_> {
         // layout — a blank terminates it and the next group starts a new row.
         let mut prior_row_blank_terminated = false;
         let mut prior_row_last_cell_multiline = false;
+
+        // asciidoctor implicit-header rule: the header fires iff the FIRST
+        // PHYSICAL (non-empty) line of the table body is IMMEDIATELY followed by
+        // a blank line AND the next non-blank line STARTS A NEW ROW (not a
+        // continuation of the first row's last cell). This is a first-PHYSICAL-
+        // LINE test, NOT a first-collected-ROW test: the collector can MERGE
+        // several physical lines into one logical first row (`|x`⏎`l|lit`⏎⏎`|c |d`
+        // → merged `[x,lit]`), and a blank after that merged row's LAST line must
+        // NOT promote it to a header — asciidoctor only inspects the line right
+        // after the first. And a blank the first row ABSORBS as an intra-cell
+        // paragraph break (`|a |b`⏎⏎`c |d`, where `c |d` continues cell `b`) is
+        // not a header trigger either. Computed once here, independent of the
+        // collector's row-merging, so neither interaction corrupts it.
+        if !*has_header
+            && let Some(f) = lines.iter().position(|l| !l.trim().is_empty())
+            && lines.get(f + 1).is_some_and(|l| l.trim_end().is_empty())
+            && detect_header_after_first_row(&lines, f + 1, separator)
+            && !next_nonblank_is_row_continuation(&lines, f + 1, separator, is_psv)
+        {
+            *has_header = true;
+        }
 
         tracing::debug!(
             ?has_header,
@@ -1287,12 +1522,16 @@ impl Table<'_> {
                     // asciidoctor flows cell CONTENT across such continuation
                     // lines; classifying the current line single-line splits the
                     // flow and drops the continuation.
-                    let next_is_continuation = lines.get(i + 1).is_some_and(|nl| {
-                        let t = nl.trim_end();
-                        !t.is_empty()
-                            && !is_new_row_start(t, separator, is_psv)
-                            && !t.trim_start().starts_with(separator.raw)
-                    });
+                    // Peek PAST blank lines (not just the immediate next line): a
+                    // blank followed by a CONTINUATION means the row's last cell
+                    // stays open across the blank (asciidoctor's cell model), so this
+                    // line is a MULTI-LINE cell-flow start, not a single-line row.
+                    // `|a |b`⏎⏎`c |d` → the `c |d` continues cell `b`; classifying
+                    // `|a |b` single-line would split the flow and drop `c`. A blank
+                    // followed by a separator-led/spec-led line (or EOF) keeps this
+                    // line single-line (`|a |b`⏎⏎`|c |d` → header / new row).
+                    let next_is_continuation =
+                        next_nonblank_is_row_continuation(&lines, i + 1, separator, is_psv);
                     single_by_shape && !next_is_continuation
                 } else {
                     false
@@ -1335,6 +1574,22 @@ impl Table<'_> {
                 while let Some(&current_line) = lines.get(i) {
                     let trimmed = current_line.trim_end();
                     if trimmed.is_empty() {
+                        // A blank line terminates the row ONLY when what follows
+                        // STARTS a new row (a separator-led or spec-led line). If the
+                        // next non-blank line is a CONTINUATION (leading content, no
+                        // leading separator, not a spec), the blank is an intra-cell
+                        // paragraph break: keep the row open so the continuation's
+                        // leading text joins the row's last (open) cell and a mid-line
+                        // `|` opens new cells in the SAME row (asciidoctor's cell
+                        // model). This covers ANY unfilled row — simple cells as well
+                        // as `a|`/`l|` — not the old line-structure heuristic that
+                        // dropped the post-blank leading content of an unfilled row.
+                        if next_nonblank_is_row_continuation(&lines, i + 1, separator, is_psv) {
+                            row_lines.push(trimmed);
+                            current_offset += current_line.len() + 1;
+                            i += 1;
+                            continue;
+                        }
                         break;
                     }
                     // If we already have content and this line starts a new row, break
@@ -1425,22 +1680,12 @@ impl Table<'_> {
                 let _ = merged_this_iter;
             }
 
-            // After processing the first row, check if blank line indicates header.
-            // Only check when ncols is not specified (no merge needed) or when
-            // the row is complete (has enough columns).
-            let first_row_col_count: usize = rows
-                .first()
-                .map_or(0, |r| r.iter().map(|c| c.colspan).sum());
-            let first_row_complete = ncols.is_none_or(|n| first_row_col_count >= n);
-            if rows.len() == 1
-                && first_row_complete
-                && let Some(&next_line) = lines.get(i)
-                && next_line.trim_end().is_empty()
-                && detect_header_after_first_row(&lines, i, separator)
-            {
-                tracing::debug!("Detected table header via blank line after first row");
-                *has_header = true;
-            }
+            // (Implicit-header detection is done once, up front, from the FIRST
+            // PHYSICAL LINE — see the `implicit-header rule` block near the top of
+            // this function. It is deliberately NOT re-evaluated here per collected
+            // row: the collector's row-merging would otherwise fire it on the blank
+            // after a merged multi-line first row, promoting a non-header to a
+            // header, diverging from asciidoctor.)
 
             // Skip empty lines and track if we skipped any
             let mut skipped_blank_line = false;
@@ -1479,6 +1724,94 @@ impl Table<'_> {
                 .and_then(|r| r.last())
                 .map(|c| c.content.contains('\n'))
                 .unwrap_or(false);
+        }
+
+        // PSV row model is cell-count-driven (asciidoctor): re-flow the cells
+        // into an `ncols`-wide grid so source line structure never dictates row
+        // boundaries. When `[cols=]` is absent, `ncols` is the FIRST LINE's grid
+        // width. DSV/TSV keep one-line-per-row semantics (no re-flow).
+        if is_psv && !rows.is_empty() {
+            // Implicit column count (no `[cols=]`) = the FIRST LOGICAL ROW's grid
+            // WIDTH (asciidoctor's rule), summing each cell's duplication *
+            // colspan. The first logical row is the first non-empty line PLUS
+            // every following line that does NOT start a new row — a wrapped cell
+            // continues onto a non-separator-led / non-spec-led line. It stops at
+            // the first separator-led or spec-led line, a blank line, or EOF.
+            //
+            // It must NOT come from the post-collection `rows[0]` (the collector
+            // merges bare-`|` lines like `|b`/`|X|Y|Z` into `rows[0]`, inflating
+            // the width: `|a`/`|b`/`|c` is 3 one-col rows, not one 3-col row). And
+            // it must NOT come from just the first PHYSICAL line (a wrapped first
+            // cell — `|a |b is` / `long |c` — is one 3-col logical row, not 2).
+            // grid_reflow then re-splits the merged cells by this width,
+            // reproducing asciidoctor's row shape.
+            let mut first_cell_violation: Option<TableLimitViolation> = None;
+            let n = ncols.unwrap_or_else(|| {
+                let all: Vec<&str> = text.lines().collect();
+                let start = all
+                    .iter()
+                    .position(|l| !l.trim().is_empty())
+                    .unwrap_or(all.len());
+                let mut logical_row: Vec<&str> = Vec::new();
+                let mut j = start;
+                while j < all.len() {
+                    let t = all[j].trim_end();
+                    if t.trim().is_empty() {
+                        // A blank continues the first logical row only when the next
+                        // non-blank line is a CONTINUATION (the same peek rule the
+                        // collector uses), so a wrapped first cell — `a|`/`l|` OR a
+                        // simple cell — doesn't prematurely stop the width count.
+                        if j > start
+                            && next_nonblank_is_row_continuation(&all, j + 1, separator, is_psv)
+                        {
+                            logical_row.push(all[j]);
+                            j += 1;
+                            continue;
+                        }
+                        break;
+                    }
+                    if j > start
+                        && (t.trim_start().starts_with(separator.raw)
+                            || is_new_row_start(t, separator, is_psv))
+                    {
+                        break;
+                    }
+                    logical_row.push(all[j]);
+                    j += 1;
+                }
+                let first_cells =
+                    Self::parse_row_with_positions(&logical_row, separator, is_psv, 0);
+                // Report what the author typed, before a derived width can
+                // trip the column-count bound with a number they never wrote.
+                first_cell_violation = validate_cell_specifiers(&first_cells).err();
+                if first_cell_violation.is_some() {
+                    return 1;
+                }
+                // Saturating so a pathological first line (multiple ~19-digit
+                // colspans) can't integer-overflow / panic; a giant ncols just
+                // makes grid_reflow keep everything on one row.
+                first_cells
+                    .iter()
+                    .map(|c| c.duplication_count.max(1).saturating_mul(c.colspan.max(1)))
+                    .fold(0usize, usize::saturating_add)
+                    .max(1)
+            });
+            if let Some(violation) = first_cell_violation {
+                return Err(violation);
+            }
+            // MUST precede `grid_reflow`: that function materializes one copy
+            // per `duplication_count` with no bound of its own, so a hostile
+            // `999999999*| x` allocates ~1e9 cells and the process is OOM-killed
+            // before the exit check below ever runs. Upstream validated the cell
+            // stream BEFORE grouping for exactly this reason; Glyph's row model
+            // moved the exit check after grouping, which reopened the hole for
+            // any table carrying an explicit `[cols=N]` (the implicit-width path
+            // is already covered by `first_cell_violation` above). Measured: the
+            // 999999999 case went from SIGKILL to a rejection in microseconds.
+            for row in &rows {
+                validate_cell_specifiers(row)?;
+            }
+            rows = grid_reflow(rows, n);
         }
 
         validate_table_limits(&rows)?;
@@ -1676,8 +2009,17 @@ impl Table<'_> {
                 let (_, spec_len) = CellSpecifier::parse(p0_trimmed, ParseContext::FirstPart);
                 spec_len > 0 && spec_len == p0_trimmed.len()
             };
-            let multi_line_continuation = is_psv && p0_trimmed.is_empty();
-            if is_psv && parts.len() > 1 && (line_starts_with_spec || multi_line_continuation) {
+            // Any PSV line that is NOT a spec-led new-row is a CONTINUATION —
+            // whether bare-`|`-led (`|a |b`) OR carrying wrapped content before a
+            // mid-row cell (`wraps here 2+|Wide`). Its mid-row FLUSH span/dup/align
+            // specs must be recovered (asciidoctor does — the `2+` there is a
+            // colspan for `Wide`, well-formed, 0 warnings), while its bare trailing
+            // STYLE letters must NOT be stolen (natural-text safety). The old
+            // `parts[0].is_empty()` definition missed the content-bearing case, so
+            // `2+`/`3*` on a wrapped continuation line leaked into the previous
+            // cell and mis-counted implicit ncols.
+            let multi_line_continuation = is_psv && !line_starts_with_spec;
+            if is_psv && parts.len() > 1 {
                 for i in 1..parts.len() {
                     let (left_slice, right_slice) = parts.split_at_mut(i);
                     let prev = &mut left_slice[i - 1];
@@ -1705,30 +2047,45 @@ impl Table<'_> {
                     let candidate_start = last_ws + ws_char_len;
                     let candidate = &trimmed_end[candidate_start..];
                     // Defensive filters for natural-text false positives apply
-                    // ONLY in multi_line_continuation mode (parts[0] empty —
-                    // line starts with bare `|`). There, requiring `+`/`*`
-                    // AND `.` rules out things like "rated 5*", "5G coverage
-                    // 2+", "version 1.5" being misread as cell specifiers.
+                    // Recover a trailing mid-row spec when it carries an
+                    // UNAMBIGUOUS marker: a span/dup operator (`+`/`*`) OR a
+                    // halign/valign char (`<`/`^`/`>`, incl. `.^` etc.). Those
+                    // chars before a FLUSH `|` are vanishingly rare in prose, so
+                    // `|apple ^|red` correctly centers `red` (the Glyph mid-row-
+                    // alignment bug — previously only `+`/`*` were accepted, so
+                    // `^` leaked into the previous cell).
                     //
-                    // In line_starts_with_spec mode (this row's first part
-                    // IS already a recognized spec, e.g. `a|`, `2+|`,
-                    // `.2+|`), the row's intent is cell-spec usage already
-                    // established. Bare style letters as inline candidates
-                    // are legitimate per Asciidoctor's PSV inline-spec
-                    // grammar — e.g., `a| cell1 a| cell2 a| cell3`. The
-                    // CellSpecifier::parse(..., FirstPart) check below is
-                    // strict enough on its own.
+                    // A BARE style letter (`a`, `m`, …) is deliberately NOT stolen
+                    // in `multi_line_continuation` mode: it's indistinguishable
+                    // from a natural word ending (`...ending in a|next`). asciidoctor
+                    // steals it (mangling the prose); acdc keeps the safer read —
+                    // see `no_recovery_on_trailing_a_in_multiline_continuation_text`.
                     if multi_line_continuation
                         && !candidate.contains('+')
                         && !candidate.contains('*')
+                        && !candidate.contains('<')
+                        && !candidate.contains('^')
+                        && !candidate.contains('>')
                     {
-                        // Candidate must carry a span/dup operator (`+`/`*`) to be
-                        // a trailing cell spec. The extra `.`-required filter was
-                        // removed: it rejected legitimate `N*` / `N+` trailing
-                        // specs (`|rated 5*|next`, `|5G coverage 2+|GB`) that
-                        // asciidoctor DOES parse as duplication/colspan. The
-                        // `CellSpecifier::parse` FULL-consume check below is the
-                        // authoritative gate against natural-text false positives.
+                        continue;
+                    }
+                    // asciidoctor's trailing-spec grammar is strictly SPAN-FIRST:
+                    // span digits/operator come BEFORE any alignment. A candidate
+                    // whose LEADING alignment is followed by a span/dup operator
+                    // (`>2*`, `^2+`, `.^3+`) is align-FIRST — asciidoctor never
+                    // reads it as a spec, so it stays literal content. acdc honors
+                    // align-first only as a documented LINE-START back-compat; a
+                    // mid-row token RECOVERED FROM CONTENT must not (else
+                    // `Speedup was >2*|x` loses `>2*` and mis-spans / drops the row).
+                    // Align-ONLY (`^`, `.^`) and span-first (`2+`, `2+^`) are
+                    // unaffected (no leading align, or no trailing operator).
+                    let (_, _, align_end) =
+                        CellSpecifier::parse_alignments(candidate.as_bytes(), 0);
+                    if align_end > 0
+                        && candidate
+                            .get(align_end..)
+                            .is_some_and(|rest| rest.contains('+') || rest.contains('*'))
+                    {
                         continue;
                     }
                     let (spec, spec_len) = CellSpecifier::parse(candidate, ParseContext::FirstPart);
@@ -1738,17 +2095,17 @@ impl Table<'_> {
                     // Bare style letters (no span operator, no halign/valign)
                     // can't survive a prepend-then-reparse round trip because
                     // the per-part pass uses InlineContent grammar (which
-                    // rejects style-only specifiers to avoid "another" → 'a'
-                    // false positives). Stash the recognized style on the
-                    // CellPart so the per-part pass applies it directly.
+                    // rejects style-only AND span/dup specifiers to avoid
+                    // "another" → 'a' / "2+2" → colspan-2 false positives).
+                    // Stash the recognized spec on the CellPart so the per-part
+                    // pass applies it directly instead of re-parsing it.
                     //
-                    // Span/duplication specs (`2+`, `3*`, etc.) still go via
-                    // prepend because InlineContent grammar DOES accept them
-                    // (has_span_or_dup branch in CellSpecifier::parse).
                     // Recovery applies to BOTH style-only (`a|`) AND span/dup
-                    // (`2+|`, `.2+|`, `2*|`) candidates uniformly: the
-                    // recognized CellSpecifier is stashed on CUR.forced_spec
-                    // and PREV's tail is trimmed to excise the candidate.
+                    // (`2+|`, `.2+|`, `2*|`) candidates uniformly: the candidate
+                    // is validated under FirstPart grammar (which DOES accept
+                    // span/dup), the recognized CellSpecifier is stashed on
+                    // CUR.forced_spec, and PREV's tail is trimmed to excise the
+                    // candidate.
                     // CUR.content + CUR.start are LEFT ALONE — preserves the
                     // contiguous byte-position mapping that downstream
                     // cell_start math depends on.
@@ -1784,10 +2141,16 @@ impl Table<'_> {
                     let trimmed = part.content.trim();
                     if !trimmed.is_empty() {
                         // Check if this looks like a specifier (e.g., "2+", "3*", "^.>", "s")
-                        // Style-only specifiers (e.g., "s" for strong) are valid here
+                        // Style-only specifiers (e.g., "s" for strong) are valid here.
+                        // asciidoctor requires the spec to be FLUSH against the first
+                        // `|`: a trailing space (`d |e`, `2+ |x`) makes the token
+                        // literal CONTENT that continues the previous cell, NOT a
+                        // spec for the next one. Without the flush guard, `.trim()`
+                        // read `d ` as the style spec `d` and dropped the content.
+                        let flush = !part.content.trim_start().ends_with(char::is_whitespace);
                         let (spec, spec_len) =
                             CellSpecifier::parse(trimmed, ParseContext::FirstPart);
-                        if spec_len > 0 && spec_len == trimmed.len() {
+                        if flush && spec_len > 0 && spec_len == trimmed.len() {
                             // Entire first part is a specifier, apply to next cell
                             pending_spec = Some(spec);
                         } else if let Some(last_cell) = columns.last_mut() {
@@ -2118,9 +2481,14 @@ mod tests {
             Some("rated"),
             "`5*` is a duplication specifier, not part of the cell text",
         );
+        // The `5*` dup is recognized and expanded into 5 independent `next`
+        // cells (grid_reflow expands duplication up front so copies can wrap
+        // across grid rows). Implicit ncols = 1 + 5 = 6, so all land in one row.
+        let next_copies = row.iter().filter(|c| c.content == "next").count();
+        assert_eq!(next_copies, 5, "`5*` duplicates `next` into 5 cells");
         assert!(
-            row.get(1).is_some_and(|c| c.is_duplication),
-            "next cell is duplicated by `5*`"
+            row.iter().all(|c| c.duplication_count == 1),
+            "expanded copies carry duplication_count 1"
         );
     }
 
@@ -2230,6 +2598,405 @@ mod tests {
         // Row 1: just banana (col 1; col 0 and col 2 are phantoms).
         assert_eq!(rows[1].len(), 1, "row 1 should have 1 cell: banana");
         assert_eq!(rows[1][0].content, "banana");
+    }
+
+    /// An `a|` block cell in a NON-last column must not split the row — inline
+    /// cells that follow it on later lines flow into the SAME row until `ncols`
+    /// (asciidoctor's cell-accumulation model). Regression: the Glyph pricing
+    /// table `|Format |A |B` / `a|`⏎`- x`⏎`- y` / `|D |E` rendered as 3 rows
+    /// (D/E spilled onto their own row) instead of one row.
+    #[test]
+    fn a_block_cell_in_non_last_column_keeps_row_intact() {
+        let input = "|F |A\na|\n- x\n- y\n|D\n";
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            input,
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            Some(4),
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(rows.len(), 1, "expected one 4-col row, got shape {shape:?}");
+        assert_eq!(rows[0].len(), 4, "row should have 4 cells: F, A, a|, D");
+        assert_eq!(rows[0][0].content, "F");
+        assert_eq!(rows[0][1].content, "A");
+        assert!(
+            rows[0][2].content.contains('x') && rows[0][2].content.contains('y'),
+            "col2 is the a| list, got {:?}",
+            rows[0][2].content
+        );
+        assert_eq!(rows[0][3].content, "D");
+    }
+
+    /// An alignment-only cell spec (`^`, `<`, `>`) mid-row — flush against the
+    /// `|` — must be recognized as the NEXT cell's spec (asciidoctor grammar),
+    /// not leaked into the previous cell's content. Regression: `|a ^|b |c`
+    /// dropped the `^` (Glyph mid-row alignment bug) because the trailing-spec
+    /// recovery required a `+`/`*` span operator.
+    #[test]
+    fn mid_row_alignment_only_spec_recognized() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "|a ^|b |c\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            Some(3),
+        )
+            .expect("table should parse");
+        assert_eq!(rows.len(), 1, "one 3-col row");
+        assert_eq!(rows[0].len(), 3);
+        assert_eq!(rows[0][0].content, "a");
+        assert_eq!(rows[0][1].content, "b");
+        assert_eq!(
+            rows[0][1].halign,
+            Some(HorizontalAlignment::Center),
+            "cell b centered via mid-row `^`"
+        );
+        assert_eq!(rows[0][2].content, "c");
+    }
+
+    /// Implicit column count (no `[cols=]`) must use the first row's grid WIDTH
+    /// including duplication (`N*`), not a bare colspan sum. `3*|Same` is a
+    /// 3-column-wide first row → the table is 2 rows, not re-chunked to 4. The
+    /// `3*` is expanded up front into 3 independent `Same` cells (so a dup cell
+    /// can wrap across grid rows); each expanded copy has duplication_count 1.
+    #[test]
+    fn grid_reflow_ncols_honors_duplication_width() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "3*|Same\n|X |Y |Z\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None, // implicit ncols — derived from row 0's width
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(rows.len(), 2, "2 rows (Same×3, then X/Y/Z); got {shape:?}");
+        assert_eq!(
+            rows[0]
+                .iter()
+                .map(|c| c.content.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Same", "Same", "Same"],
+            "the `3*` dup is expanded into 3 independent Same cells"
+        );
+        assert!(rows[0].iter().all(|c| c.duplication_count == 1));
+        assert_eq!(
+            rows[1]
+                .iter()
+                .map(|c| c.content.as_str())
+                .collect::<Vec<_>>(),
+            vec!["X", "Y", "Z"]
+        );
+    }
+
+    /// A grid row wholly covered by a rowspan from above: asciidoctor consumes
+    /// EXACTLY ONE cell as the phantom filler and DISCARDS it. grid_reflow does
+    /// the same AND emits the (now empty) phantom row — the emit is what lets the
+    /// downstream builder age its own rowspan tracker on this grid row (it drops
+    /// the empty row from output; the covering `rowspan` then overlaps the next
+    /// real row, matching asciidoctor). `2.2+|Big` (colspan==ncols, rowspan 2) +
+    /// `a|b` → `[[Big],[],[b]]`: `a` is the discarded filler, `[]` is the phantom
+    /// row Big spans, `b` lands after. BOUNDED (one cell consumed per phantom row)
+    /// — see `grid_reflow_oversized_rowspan_is_bounded`.
+    #[test]
+    fn grid_reflow_full_width_rowspan_discards_one_phantom_filler() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "2.2+|Big\n|a |b\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            Some(2),
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(rows.len(), 3, "Big row, phantom row, b row; got {shape:?}");
+        assert_eq!(rows[0][0].content, "Big");
+        assert!(
+            rows[1].is_empty(),
+            "grid row 1 is the emitted phantom Big spans"
+        );
+        // `a` (the filler for Big's covered row) is discarded; `b` survives.
+        let contents: Vec<&str> = rows.iter().flatten().map(|c| c.content.as_str()).collect();
+        assert!(contents.contains(&"Big") && contents.contains(&"b"));
+        assert!(!contents.contains(&"a"), "phantom filler `a` is discarded");
+    }
+
+    /// P0 REGRESSION PIN — an oversized rowspan must NOT amplify into O(rowspan)
+    /// phantom rows. `.999+|X` in a 1-col table followed by one trailing cell used
+    /// to emit ~998 empty rows (unbounded — a ~10-byte OOM/hang, exploitable via a
+    /// pasted table). grid_reflow now consumes+discards one filler cell per fully
+    /// covered row, so the row count is bounded by the CELL count, not the rowspan.
+    #[test]
+    fn grid_reflow_oversized_rowspan_is_bounded() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            ".999+|X\n|Y\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            Some(1),
+        )
+            .expect("table should parse");
+        assert!(
+            rows.len() <= 2,
+            "row count bounded by cells (2), not rowspan (999); got {}",
+            rows.len()
+        );
+        assert_eq!(rows[0][0].content, "X");
+    }
+
+    /// Implicit `ncols` (no `[cols=]`) is the FIRST LOGICAL ROW's width, which
+    /// includes a wrapped first cell's continuation line. `|a |b is` / `long |c`
+    /// is one 3-column logical row (asciidoctor ncols=3), NOT `|a |b` (ncols 2)
+    /// from just the first physical line.
+    #[test]
+    fn implicit_ncols_uses_first_logical_row_not_physical_line() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "|a |b is\nlong |c\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None, // implicit — derived from the first LOGICAL row
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(rows.len(), 1, "one 3-col logical row; got {shape:?}");
+        assert_eq!(rows[0].len(), 3, "cells a / (b is long) / c");
+        assert_eq!(rows[0][0].content, "a");
+        assert_eq!(rows[0][2].content, "c");
+    }
+
+    /// A wrapped FIRST cell whose continuation carries the row's other cells must
+    /// still count toward implicit `ncols`. `| header\nmore | Col2` → 2 columns.
+    #[test]
+    fn implicit_ncols_wrapped_first_cell_counts_continuation() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "| header\nmore | Col2\n\n| x | y\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None,
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(
+            rows.len(),
+            2,
+            "2 rows of 2 cols (ncols=2), not 4×1; got {shape:?}"
+        );
+        assert_eq!(
+            rows[1]
+                .iter()
+                .map(|c| c.content.as_str())
+                .collect::<Vec<_>>(),
+            vec!["x", "y"]
+        );
+    }
+
+    /// A wrapped first cell whose CONTINUATION line carries a flush colspan spec
+    /// must have that spec recovered — `|Long desc\nwraps here 2+|Wide` →
+    /// asciidoctor gives `[desc wraps here, Wide:c2]`, ncols=3 (well-formed). The
+    /// `2+` must NOT leak into the wrapped cell content, and implicit ncols is 3.
+    #[test]
+    fn continuation_line_flush_span_spec_is_recovered() {
+        let mut has_header = false;
+        let rows = Table::parse_rows_with_positions(
+            "|Long desc\nwraps here 2+|Wide\n|a |b |c\n",
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            None,
+        )
+            .expect("table should parse");
+        let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
+        assert_eq!(rows.len(), 2, "2 rows (ncols=3); got {shape:?}");
+        assert_eq!(rows[0].len(), 2, "wrapped desc + Wide");
+        assert!(
+            !rows[0][0].content.contains("2+"),
+            "the `2+` spec must not leak into the wrapped cell content: {:?}",
+            rows[0][0].content
+        );
+        assert_eq!(rows[0][1].content, "Wide");
+        assert_eq!(
+            rows[0][1].colspan, 2,
+            "Wide gets colspan 2 from the recovered `2+`"
+        );
+        assert_eq!(
+            rows[1]
+                .iter()
+                .map(|c| c.content.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a", "b", "c"]
+        );
+    }
+
+    /// asciidoctor is span-first ONLY: an align-FIRST token (`>2*`, `^2+` — align
+    /// before the span operator) is literal content, never a spec. The mid-row
+    /// recovery must NOT steal it — from a `|`-led line OR a content-bearing
+    /// continuation line — else `Speedup was >2*|x` loses `>2*` and the next cell
+    /// is spuriously spanned/duplicated (dropping the row when it over-counts).
+    #[test]
+    fn align_first_with_span_not_stolen_mid_row() {
+        for (src, marker, next) in [
+            // content-bearing continuation line (the broadened-gate regression)
+            ("|base\nmore ^2+|exp\n", "^2+", "exp"),
+            // `|`-led single line (the pre-existing steal — same root)
+            ("|Speedup was >2*|confirmed\n", ">2*", "confirmed"),
+        ] {
+            let mut has_header = false;
+            let rows = Table::parse_rows_with_positions(
+                src,
+                &Separator::new("|"),
+                true,
+                false,
+                &mut has_header,
+                0,
+                Some(2),
+            )
+                .expect("table should parse");
+            assert!(
+                rows[0][0].content.contains(marker),
+                "align-first `{marker}` must stay content in {src:?}: got {:?}",
+                rows[0][0].content
+            );
+            assert_eq!(rows[0][1].content, next);
+            assert_eq!(
+                rows[0][1].colspan, 1,
+                "`{marker}` must not span the next cell"
+            );
+            assert_eq!(
+                rows[0][1].duplication_count, 1,
+                "`{marker}` must not duplicate the next cell"
+            );
+        }
+    }
+
+    /// A repeated alignment run flush against `|` (`<<`, `^^`, `<>`) is NOT a
+    /// cell spec — it stays literal content (asciidoctor keeps `foo <<`). Only a
+    /// SINGLE halign/valign is a spec, so mid-row recovery must not steal the run.
+    #[test]
+    fn mid_row_repeated_align_run_stays_content() {
+        for run in ["<<", "^^", ">>", "<>"] {
+            let mut has_header = false;
+            let src = format!("|foo {run}|bar\n");
+            let rows = Table::parse_rows_with_positions(
+                &src,
+                &Separator::new("|"),
+                true,
+                false,
+                &mut has_header,
+                0,
+                Some(2),
+            )
+                .expect("table should parse");
+            assert_eq!(
+                rows[0][0].content,
+                format!("foo {run}"),
+                "run `{run}` must stay in cell content, not be deleted"
+            );
+            assert_eq!(rows[0][1].content, "bar");
+            assert!(
+                rows[0][1].halign.is_none(),
+                "cell 2 gets no spurious alignment from `{run}`"
+            );
+        }
+    }
+
+    /// An align char followed by DIGITS (`<5`, `^100`, `>50`) flush against `|`
+    /// is NOT a cell spec — the digits are only a span when an operator follows.
+    /// Mid-row recovery must keep the whole token as content (asciidoctor does),
+    /// not delete it and mis-align the next cell.
+    #[test]
+    fn mid_row_align_then_digit_stays_content() {
+        for tok in ["<5", "^100", ">50"] {
+            let mut has_header = false;
+            let src = format!("|latency {tok}|ms\n");
+            let rows = Table::parse_rows_with_positions(
+                &src,
+                &Separator::new("|"),
+                true,
+                false,
+                &mut has_header,
+                0,
+                Some(2),
+            )
+                .expect("table should parse");
+            assert_eq!(
+                rows[0][0].content,
+                format!("latency {tok}"),
+                "`{tok}` must stay in cell content, not be deleted"
+            );
+            assert_eq!(rows[0][1].content, "ms");
+            assert!(
+                rows[0][1].halign.is_none(),
+                "cell 2 gets no spurious alignment from `{tok}`"
+            );
+        }
+    }
+
+    /// A span/dup token in a cell's INTERIOR content (after the `|`) is literal
+    /// text, never a specifier — asciidoctor only reads a spec BEFORE the `|`.
+    /// `| 2+2 | z` keeps `2+2`; pre-fix acdc's InlineContent parse stripped the
+    /// leading `2+` prefix, silently deleting bytes → cell content `2` (data loss
+    /// on well-formed input such as a `2+2` math cell). Also covers `3*n` (dup),
+    /// `.2+r` (rowspan), `2.3+w` (both).
+    #[test]
+    fn cell_interior_span_dup_prefix_is_literal_content() {
+        for (src, kept, colspan, rowspan) in [
+            ("| 2+2 | z\n", "2+2", 1, 1),
+            ("| 3*n | z\n", "3*n", 1, 1),
+            ("| .2+r | z\n", ".2+r", 1, 1),
+            ("| 2.3+w | z\n", "2.3+w", 1, 1),
+        ] {
+            let mut has_header = false;
+            let rows = Table::parse_rows_with_positions(
+                src,
+                &Separator::new("|"),
+                true,
+                false,
+                &mut has_header,
+                0,
+                Some(2),
+            )
+                .expect("table should parse");
+            assert_eq!(
+                rows[0][0].content, kept,
+                "interior `{kept}` must stay intact, not be parsed as a spec"
+            );
+            assert_eq!(
+                rows[0][0].colspan, colspan,
+                "no phantom colspan from `{kept}`"
+            );
+            assert_eq!(
+                rows[0][0].rowspan, rowspan,
+                "no phantom rowspan from `{kept}`"
+            );
+            assert_eq!(rows[0][1].content, "z");
+        }
     }
 
     /// Inline `a|` cell-style after first cell on a row.
@@ -2380,17 +3147,19 @@ mod tests {
         assert_eq!(n, 1, "standalone `a|` is a continuation cell (got {n})");
     }
 
-    /// Sanity baseline — `|2+ a|` (inline span+style spec, standalone)
-    /// counts as colspan-weighted 2 + 1 trailing continuation = 3,
-    /// MATCHING `parse_row_with_positions` which produces 2 cells with
-    /// `colspan=2` and `colspan=1` (total columns spanned = 3).
+    /// count_cell_colspans MUST agree with parse_row_with_positions on the same
+    /// line — the invariant that keeps `accumulated_cols` in sync. `|2+ a|`: the
+    /// `2+` sits AFTER the `|`, so it is literal content (asciidoctor never reads
+    /// a spec from cell-interior text — verified `|2+ a|` → cells `['2+', '_']`,
+    /// colspan sum 2), and the trailing ` a|` is a style-`a` cell. So parse_row
+    /// produces 2 cells `[colspan=1 "2+", colspan=1 empty]` = 2, and the counter
+    /// must also report 2. (Pre-fix acdc wrongly parsed the interior `2+` as a
+    /// colspan-2 spec and both reported 3 — a self-baselined divergence from
+    /// asciidoctor, closed by gating span/dup parsing on FirstPart.)
     #[test]
     fn count_cell_colspans_matches_parse_row_for_inline_span_style() {
         let line = "|2+ a|";
         let count = count_cell_colspans(line, &Separator::new("|"), true);
-        // parse_row produces 2 cells: [colspan=2 empty content, colspan=1
-        // empty content]. Sum of colspans = 3 → count_cell_colspans must
-        // also report 3 to keep accumulated_cols in sync with parse_row.
         let mut has_header = false;
         let rows = Table::parse_rows_with_positions(
             line,
@@ -2408,8 +3177,85 @@ mod tests {
             "count_cell_colspans({line:?}) must equal sum of parse_row colspans \
              (got count={count}, parse_row sum={parsed_colspan_sum})"
         );
-        assert_eq!(count, 3);
+        assert_eq!(
+            count, 2,
+            "interior `2+` is content (colspan 1) + style-`a` cell"
+        );
     }
+
+    /// The two column-accounting sites must agree for EVERY cell-spec shape.
+    ///
+    /// `count_cell_colspans` drives the ncols-aware row break while collecting
+    /// lines; `occupied_columns` drives the merge-into-incomplete-row decision
+    /// after parsing. If they disagree, a row is split or merged against a width
+    /// the other half of the code never agreed to — the failure that let
+    /// `[cols="100*"]` with `100*| x` per line collapse 100 SOURCE LINES into one
+    /// logical row and then expand it to 10 000 columns.
+    ///
+    /// The sibling test above pins one span case with bare `colspan`, which is
+    /// exactly the accounting that is WRONG for duplication: `k*` parses to
+    /// `colspan: 1, duplication_count: k` (the two are mutually exclusive — one
+    /// is always 1), so summing `colspan` alone reports 1 for a cell that
+    /// occupies k columns. Enumerating the shapes here keeps that hole closed.
+    #[test]
+    fn column_accounting_sites_agree_for_every_spec_shape() {
+        let sep = Separator::new("|");
+        // (line, expected occupied columns)
+        let cases: &[(&str, usize)] = &[
+            ("| a | b", 2),          // plain cells
+            ("2+| a | b", 3),        // colspan 2 + 1
+            ("3*| same", 3),         // duplication 3
+            ("2*| a | b", 3),        // duplication 2 + 1
+            ("100*| same", 100),     // the boundary the resource limit sits on
+            (".2+| a | b", 2),       // rowspan does not widen the row
+            ("^2+| a", 2),           // alignment + colspan
+            ("3*s| a", 3),           // duplication + style letter
+            ("2.3+| a", 2),          // colspan 2, rowspan 3
+        ];
+        for (line, expected) in cases {
+            let counted = count_cell_colspans(line, &sep, true);
+            let mut has_header = false;
+            let rows =
+                Table::parse_rows_with_positions(line, &sep, true, false, &mut has_header, 0, None)
+                    .expect("table should parse");
+            let occupied: usize = rows[0].iter().map(occupied_columns).sum();
+            assert_eq!(
+                counted, occupied,
+                "{line:?}: the pre-parse count ({counted}) and the post-parse \
+                 occupancy ({occupied}) must agree"
+            );
+            assert_eq!(
+                occupied, *expected,
+                "{line:?}: expected {expected} occupied columns, got {occupied}"
+            );
+        }
+    }
+
+    /// A `k*` cell must not make the collector swallow the following source
+    /// lines. Pins the row SHAPE, not just the accounting: with `[cols="4*"]`
+    /// each `4*| x` line is a complete row of its own, so three lines are three
+    /// rows — the under-count merged them into one.
+    #[test]
+    fn duplication_cells_do_not_merge_following_rows() {
+        let mut has_header = false;
+        let input = "4*| a\n4*| b\n4*| c\n";
+        let rows = Table::parse_rows_with_positions(
+            input,
+            &Separator::new("|"),
+            true,
+            false,
+            &mut has_header,
+            0,
+            Some(4),
+        )
+        .expect("table should parse");
+        assert_eq!(rows.len(), 3, "three `4*` lines are three rows, got {rows:?}");
+        for row in &rows {
+            let occupied: usize = row.iter().map(occupied_columns).sum();
+            assert_eq!(occupied, 4, "each row fills the declared 4 columns");
+        }
+    }
+
 
     /// Inline-spec recovery SPAN/DUP branch byte-offset correctness.
     ///
@@ -2530,6 +3376,43 @@ mod tests {
         // recovery-stashed forced_style).
         assert_eq!(c0.style, Some(ColumnStyle::AsciiDoc));
         assert_eq!(c1.style, Some(ColumnStyle::AsciiDoc));
+    }
+
+    // asciidoctor-standard SPAN-FIRST cell specifiers (`2+^`, `.3+^.^`) — the
+    // form asciidoctor emits. acdc historically only parsed ALIGN-FIRST
+    // (`^2+`); both orders must now round-trip to the same specifier.
+    #[test]
+    fn cell_specifier_accepts_span_first_alignment() {
+        // colspan + halign, span-first vs align-first
+        let (sf, _) = CellSpecifier::parse("2+^", ParseContext::FirstPart);
+        assert_eq!(sf.colspan, 2);
+        assert_eq!(sf.halign, Some(HorizontalAlignment::Center));
+        let (af, _) = CellSpecifier::parse("^2+", ParseContext::FirstPart);
+        assert_eq!((af.colspan, af.halign), (sf.colspan, sf.halign));
+
+        // rowspan + halign + valign, span-first (`.3+^.^`)
+        let (sf, _) = CellSpecifier::parse(".3+^.^", ParseContext::FirstPart);
+        assert_eq!(sf.rowspan, 3);
+        assert_eq!(sf.halign, Some(HorizontalAlignment::Center));
+        assert_eq!(sf.valign, Some(VerticalAlignment::Middle));
+        let (af, _) = CellSpecifier::parse("^.^.3+", ParseContext::FirstPart);
+        assert_eq!(
+            (af.rowspan, af.halign, af.valign),
+            (sf.rowspan, sf.halign, sf.valign)
+        );
+
+        // colspan.rowspan + right/top, span-first (`2.3+>.<`)
+        let (sf, _) = CellSpecifier::parse("2.3+>.<", ParseContext::FirstPart);
+        assert_eq!((sf.colspan, sf.rowspan), (2, 3));
+        assert_eq!(sf.halign, Some(HorizontalAlignment::Right));
+        assert_eq!(sf.valign, Some(VerticalAlignment::Top));
+
+        // span-first alignment followed by a style letter (`2+^m`)
+        let (sf, len) = CellSpecifier::parse("2+^m", ParseContext::FirstPart);
+        assert_eq!(sf.colspan, 2);
+        assert_eq!(sf.halign, Some(HorizontalAlignment::Center));
+        assert!(sf.style.is_some());
+        assert_eq!(len, 4);
     }
 }
 

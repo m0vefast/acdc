@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- PSV table rows are now assembled by asciidoctor's cell-count model: cells
+  stream left-to-right / top-to-bottom into an `ncols`-wide grid, and source
+  line breaks / blank lines no longer dictate row boundaries. Fixes rows that
+  were mis-split when an `a|` block cell sat in a non-last column (its row's
+  remaining inline cells spilled onto their own row) and aligns incomplete-row
+  handling with asciidoctor (a short row's cells flow into the next row).
+- A cell's content is now kept when the row continues onto a following line —
+  including across a blank line — whose leading text precedes a mid-line `|`.
+  `|a |b`⏎`c |d` (and `|a |b`⏎⏎`c |d`) now yield `[a, "b\nc", d]` as asciidoctor
+  does, instead of dropping the leading `c`. A blank line only ends the row when
+  the next non-blank line starts a new one (a `|`-led or spec-led line); a blank
+  followed by continuation text is an intra-cell paragraph break.
+- A cell specifier is now recognized only when **flush** against the `|`
+  (asciidoctor's rule). A space before the separator (`d |x`, `2+ |x`) makes the
+  token literal content that continues the current row, so its leading text is no
+  longer mis-read as a style/colspan spec and dropped.
+- An implicit (unspecified) table header is now detected from the FIRST physical
+  line being immediately followed by a blank line, matching asciidoctor. A blank
+  after a row that merely *spans* several source lines (e.g. `|x`⏎`l|lit`⏎⏎…) no
+  longer promotes it to a header.
+- Per-column styles from a `cols=` spec (`m`, `s`, `e`, `l`, `a`, …) are no
+  longer applied to **header** cells — only their alignment is, as asciidoctor
+  does. A `[%header,cols="m,s"]` header now renders plain, not monospace/strong.
+- A `cols=` value declaring an absurd column count (`[cols=100000000]`,
+  `cols="100000000*"`) is now bounded to a sane maximum instead of eagerly
+  allocating that many column formats / padding cells, which could exhaust memory
+  on a typo or hostile pasted document. Authored cells are still preserved.
+- A `cols=` value that declares ZERO columns (`cols="0*"`) is now ignored — the
+  table falls back to the implicit column count (its first row's width) as
+  asciidoctor does, instead of dropping the entire table body.
+- A mid-row alignment cell spec (`^`, `<`, `>`, and vertical `.^` etc.) placed
+  flush against the `|` is now recognized as the next cell's spec instead of
+  leaking into the previous cell's content — e.g. `|apple ^|red` centers `red`.
+  (Bare style letters like `a`/`m` are still left as content mid-row to avoid
+  stealing a natural word ending such as `…ending in a|next`.)
+- Table cell specifiers now accept alignment placed **after** the span operator
+  (`2+^`, `.3+^.^`, `2.3+>.<`), the order the AsciiDoc spec defines and
+  `asciidoctor` emits. Previously only the reversed align-first form (`^2+`,
+  `^.^.3+`) parsed, so standard span-first tables from other tools lost their
+  cell alignment (and, with vertical alignment present, their span). The
+  align-first form is still accepted, so no existing document regresses.
+
 ### Added
 
 - `Options::builder().with_base_dir(path)` now controls entry include resolution

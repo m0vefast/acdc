@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `build_grid` now re-inserts the fully-covered phantom grid rows that the
+  parser's cell-count row model drops, so grid consumers (e.g. the manpage
+  converter) no longer lose the overlap-row cells that follow a rowspan which
+  fully covers a grid row.
+
 ### Performance
 
 - **Typography replacements skip the replace chain on plain prose.** Text

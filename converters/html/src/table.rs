@@ -471,7 +471,11 @@ where
         for (col_index, cell) in header.columns.iter().enumerate() {
             let halign = halign_class(get_effective_halign(&table.columns, col_index, cell));
             let valign = valign_class(get_effective_valign(&table.columns, col_index, cell));
-            let style = get_effective_style(&table.columns, col_index, cell);
+            // asciidoctor renders HEADER cells PLAIN: it ignores BOTH the
+            // per-column style and any explicit cell style (`m|`/`a|` on a header
+            // cell are dropped) — only alignment applies. Do NOT call
+            // get_effective_style here (which would fall back to the column style).
+            let style = None;
             let span_attrs = format_span_attrs(cell);
             let writer = visitor.writer_mut();
             write!(

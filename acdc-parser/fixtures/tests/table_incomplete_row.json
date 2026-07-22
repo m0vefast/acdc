@@ -301,16 +301,6 @@
                 ]
               },
               {
-                "content": []
-              },
-              {
-                "content": []
-              }
-            ]
-          },
-          {
-            "columns": [
-              {
                 "content": [
                   {
                     "name": "paragraph",
@@ -379,7 +369,11 @@
                     ]
                   }
                 ]
-              },
+              }
+            ]
+          },
+          {
+            "columns": [
               {
                 "content": [
                   {
@@ -414,6 +408,12 @@
                     ]
                   }
                 ]
+              },
+              {
+                "content": []
+              },
+              {
+                "content": []
               }
             ]
           }
