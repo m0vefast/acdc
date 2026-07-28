@@ -32,7 +32,29 @@ bitflags = "2.11"
 bumpalo = { version = "3", features = ["collections"] }
 csv = "1.4"
 encoding_rs = "0.8"
-evalexpr = "13"
+# PINNED, AND PINNED EXACTLY (`=`), because this is a LICENCE constraint rather
+# than a version preference.
+#
+# evalexpr relicensed to AGPL-3.0-only at v12.0.0 (2024-10-17). Everything up to
+# and including 11.3.1 (2024-10-13) is MIT. AGPL requires anyone who DISTRIBUTES
+# the combined work to publish its complete source; this crate is statically
+# linked into glyph-core, which ships inside the Mac, Windows, iOS and Android
+# apps, so shipping v12+ is incompatible with a closed-source product.
+#
+# `=` and not `^`: a caret requirement would silently accept a hypothetical
+# 11.3.2 published under the new licence, which is exactly the failure this pin
+# exists to prevent.
+#
+# Used in ONE place — `preprocessor/conditional.rs`, the arithmetic fallback of
+# `ifeval::[...]`, reached only when the value is neither a plain bool nor a
+# plain number. `eval_float` / `eval_int` behave identically on 11.3.1
+# (verified: `2 + 3.5` -> 5.5, `7 * 6` -> 42).
+#
+# Cost of the pin: no upstream fixes past 2024-10. If that ever matters, the
+# replacement candidates measured at the time were rsc (MIT, maintained),
+# fasteval (MIT, unmaintained since 2020) and rhai (MIT/Apache, maintained, but a
+# whole scripting engine for what is a four-operator expression).
+evalexpr = "=11.3.1"
 peg = "0.8.6"
 rustc-hash.workspace = true
 self_cell = "1"
