@@ -111,6 +111,101 @@ const MAX_REMOTE_INCLUDE_BYTES: usize = 10 * 1024 * 1024;
 /// parse-wide expansion budget remains a separate concern.
 const MAX_INCLUDE_INDENT: usize = 4 * 1024;
 
+/// Lexically normalize a path: collapse `.` and `..` components without
+/// consulting the filesystem. Required for wasm builds (no real fs) and
+/// also a robustness win on native — a JS-resolver fixture keyed by
+/// `"/abs/dir/sib/x.adoc"` won't match `"/abs/dir/../sib/x.adoc"` even
+/// though they refer to the same file. Mirrors Go's `path.Clean` semantics.
+///
+/// Preserves the leading `/` on absolute paths. A leading `..` on a
+/// relative path is preserved (escapes the parent). A path that collapses
+/// to nothing returns `.`.
+pub(crate) fn normalize_lexical(path: &std::path::Path) -> PathBuf {
+    // POSIX-style lexical normalization with manual string-level slash
+    // detection. Two reasons we don't rely on `Path::is_absolute` /
+    // `Path::components`:
+    //   1. On `wasm32-unknown-unknown` `std::path` falls back to Windows
+    //      semantics (no `unix`/`wasi` cfg), so `/Users/x.adoc` is NOT
+    //      absolute (needs a drive prefix) and `path.components()` yields
+    //      surprising results. acdc include paths are always POSIX.
+    //   2. The output is consumed by a JS resolver keyed on a POSIX
+    //      forward-slash string anyway.
+    let raw = path.to_string_lossy();
+    let is_absolute = raw.starts_with('/');
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in raw.split('/') {
+        match seg {
+            "" | "." => {} // empty (leading/trailing slash) or current-dir
+            ".." => {
+                if matches!(parts.last(), Some(&last) if last != "..") {
+                    parts.pop();
+                } else if !is_absolute {
+                    parts.push("..");
+                }
+                // Absolute `..` past root is a no-op (POSIX).
+            }
+            _ => parts.push(seg),
+        }
+    }
+    if parts.is_empty() {
+        return PathBuf::from(if is_absolute { "/" } else { "." });
+    }
+    let body = parts.join("/");
+    if is_absolute {
+        PathBuf::from(format!("/{body}"))
+    } else {
+        PathBuf::from(body)
+    }
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::normalize_lexical;
+    use std::path::Path;
+
+    #[test]
+    fn absolute_path_preserves_leading_slash() {
+        let out = normalize_lexical(Path::new("/Users/me/vault/adoc/ch1.adoc"));
+        assert_eq!(out.to_string_lossy(), "/Users/me/vault/adoc/ch1.adoc");
+    }
+
+    #[test]
+    fn dotdot_collapses_in_absolute_path() {
+        let out = normalize_lexical(Path::new("/a/b/../c"));
+        assert_eq!(out.to_string_lossy(), "/a/c");
+    }
+
+    #[test]
+    fn dot_drops_in_relative_path() {
+        let out = normalize_lexical(Path::new("a/./b"));
+        assert_eq!(out.to_string_lossy(), "a/b");
+    }
+
+    #[test]
+    fn leading_dotdot_in_relative_path_preserved() {
+        let out = normalize_lexical(Path::new("../sib/x.adoc"));
+        assert_eq!(out.to_string_lossy(), "../sib/x.adoc");
+    }
+
+    #[test]
+    fn dotdot_past_root_clamped() {
+        let out = normalize_lexical(Path::new("/a/../../b"));
+        assert_eq!(out.to_string_lossy(), "/b");
+    }
+
+    #[test]
+    fn empty_relative_returns_dot() {
+        let out = normalize_lexical(Path::new(""));
+        assert_eq!(out.to_string_lossy(), ".");
+    }
+
+    #[test]
+    fn root_only_returns_root() {
+        let out = normalize_lexical(Path::new("/"));
+        assert_eq!(out.to_string_lossy(), "/");
+    }
+}
+
 #[cfg(feature = "network")]
 fn read_remote_include(reader: impl Read) -> Result<Vec<u8>, Error> {
     let read_limit = u64::try_from(MAX_REMOTE_INCLUDE_BYTES + 1)?;
@@ -342,8 +437,14 @@ peg::parser! {
             }
 
         rule attribute_key() -> String
-            // Note: "tags" must come before "tag" due to PEG's ordered choice
-            = k:$("leveloffset" / "lines" / "tags" / "tag" / "indent" / "encoding" / "opts") {
+            // G4 (Asciidoctor reference compat): accept any identifier-like key.
+            // Real-world docs use `role`, `title`, `id`, `align`, and
+            // vendor-specific keys; Asciidoctor silently ignores anything it
+            // doesn't recognise, while a hard reject here bricks the whole
+            // directive. The recognised keys (leveloffset / lines / tag / tags
+            // / indent / encoding / opts) are matched in the dispatch handler —
+            // unknowns warn and fall through.
+            = k:$(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']*) {
                 k.to_string()
             }
 
@@ -612,17 +713,15 @@ impl<'a> Include<'a> {
                     self.opts.extend(value.split(',').map(str::to_string));
                 }
                 unknown => {
-                    tracing::error!(?unknown, "unknown attribute key in include directive");
-                    return Err(Error::InvalidIncludeDirective(
-                        Box::new(SourceLocation {
-                            file: self.current_file.clone(),
-                            location: crate::Location::point(Position::from_line_col(
-                                self.line_number,
-                                1,
-                            )),
-                        }),
-                        unknown.to_string(),
-                    ));
+                    // G4 (Asciidoctor reference compat): unknown include
+                    // attributes warn and are ignored. Hard-rejecting bricked
+                    // real-world docs that use `role`, `title`, `id`, vendor
+                    // extensions, etc. Asciidoctor accepts and discards them.
+                    tracing::warn!(
+                        ?unknown,
+                        "unknown attribute key in include directive; ignored"
+                    );
+                    self.warn_unlocated(format!("Unknown include attribute '{unknown}'; ignored"));
                 }
             }
         }
@@ -867,7 +966,12 @@ impl<'a> Include<'a> {
         target: &Path,
     ) -> Result<PathBuf, Error> {
         if self.options.safe_mode < SafeMode::Safe {
-            return Ok(current_parent.join(target));
+            // Glyph addition: collapse `.` / `..` lexically before handing the
+            // path on. A resolver is keyed by the path STRING, so
+            // `part1/sub/../sib.adoc` has to become `part1/sib.adoc` or the
+            // lookup misses a file that is present. A native filesystem
+            // tolerates the uncollapsed form; a map does not.
+            return Ok(normalize_lexical(&current_parent.join(target)));
         }
 
         if target.is_absolute() {
@@ -1050,12 +1154,53 @@ impl<'a> Include<'a> {
         path: &Path,
         optional: bool,
     ) -> Result<Option<String>, Error> {
-        let decoded = match super::read_and_decode_file(path, self.encoding.as_deref()) {
+        let decoded = match super::read_and_decode_file(
+            path,
+            self.encoding.as_deref(),
+            self.options.file_resolver.as_ref(),
+        ) {
             Ok(content) => content,
-            Err(Error::Io(_)) if !optional => {
-                self.warn_located(format!("include file not readable: {}", path.display()));
+            // `optional` reaches this arm only on the resolver path: without a
+            // resolver the `!path.is_file()` probe upstream of here already
+            // returned for a missing file, so upstream never had to answer what
+            // an unreadable OPTIONAL include means and let the error propagate.
+            // With a resolver that probe is skipped — the resolver is the
+            // authority on existence — so the question is live, and propagating
+            // would fail the whole parse over an include the author explicitly
+            // marked as allowed to be absent. Report nothing and move on.
+            Err(Error::Io(_)) if optional => return Ok(None),
+            Err(Error::Io(io_err)) if !optional => {
+                // Glyph addition, scoped to the resolver path ONLY. A resolver
+                // failure is opaque to the reader — "not readable" says nothing
+                // about a JS callback that threw or a backend that timed out —
+                // so `read_and_decode_file` keeps the `FileResolverError` as
+                // the io error's source and it is rendered here. The native
+                // filesystem path keeps upstream's exact wording, which its own
+                // tests pin; there is no reason for Glyph to diverge where the
+                // extra detail does not exist.
+                if self.options.file_resolver.is_some() {
+                    if io_err.kind() == std::io::ErrorKind::NotFound {
+                        self.warn_located(format!(
+                            "file is missing — include directive won't be processed: {}",
+                            path.display()
+                        ));
+                    } else {
+                        let cause = std::error::Error::source(&io_err)
+                            .map_or_else(|| io_err.to_string(), std::string::ToString::to_string);
+                        self.warn_located(format!(
+                            "include read failed for {}: {cause}",
+                            path.display()
+                        ));
+                    }
+                } else {
+                    self.warn_located(format!("include file not readable: {}", path.display()));
+                }
                 return Ok(None);
             }
+            // Same reasoning as the `Io` arm above: an OPTIONAL include the
+            // author allowed to be absent must never fail the whole parse,
+            // whatever the read failed on.
+            Err(Error::UnrecognizedEncodingInFile(_)) if optional => return Ok(None),
             Err(Error::UnrecognizedEncodingInFile(_))
                 if self.encoding.as_deref().is_some_and(|label| {
                     encoding_rs::Encoding::for_label(label.as_bytes())
@@ -1095,6 +1240,20 @@ impl<'a> Include<'a> {
                         (parent, base_dir.as_path())
                     }
                     SourceOrigin::Memory { base_dir } => {
+                        // Glyph addition: a wired resolver with neither a
+                        // `base_dir` nor a `virtual_current_file` has NO
+                        // document location to resolve against. Falling back
+                        // to `.` would absolutize against the process CWD —
+                        // a prefix the resolver has never seen, so every
+                        // include misses and the reader is told the file is
+                        // "missing" when the real fault is a misconfigured
+                        // embedding. Say what is actually wrong instead.
+                        if self.options.file_resolver.is_some() && base_dir.is_none() {
+                            self.warn_located(
+                                "include directive cannot be processed: no file context (set `virtual_current_file` or use `parse_file`)",
+                            );
+                            return Ok(IncludeResult::empty());
+                        }
                         memory_base = super::absolute_normalized(
                             base_dir.as_deref().unwrap_or_else(|| Path::new(".")),
                         )?;
@@ -1107,7 +1266,16 @@ impl<'a> Include<'a> {
                 };
                 let path = self.resolve_file_target(parent, base_dir, target)?;
                 let optional = self.opts.iter().any(|option| option == "optional");
-                if !path.is_file() {
+                // Glyph addition: `is_file()` is a filesystem probe, and the
+                // wasm build has no filesystem — it answers `false` for EVERY
+                // path, so this gate alone would report every include in the
+                // document as missing. When a resolver is wired it is the
+                // authority on existence: skip the probe and let its `read`
+                // decide. A NotFound there lands in
+                // `read_existing_local_content` and yields the same warning
+                // plus unresolved-directive recovery this branch produces.
+                let probe_filesystem = self.options.file_resolver.is_none();
+                if probe_filesystem && !path.is_file() {
                     if optional {
                         tracing::info!(
                             source_file = ?self.current_file,
@@ -1117,11 +1285,19 @@ impl<'a> Include<'a> {
                         );
                     } else {
                         self.warn_located(format!("include file not found: {}", path.display()));
-                        return Ok(self.unresolved_directive(attribute_list_as_written));
+                        // The warning always reaches the caller; only the
+                        // in-document recovery text is optional. See
+                        // `Options::drop_unresolved_includes`.
+                        if !self.options.drop_unresolved_includes {
+                            return Ok(self.unresolved_directive(attribute_list_as_written));
+                        }
                     }
                     return Ok(IncludeResult::empty());
                 }
                 let Some(content) = self.read_existing_local_content(&path, optional)? else {
+                    if self.options.drop_unresolved_includes {
+                        return Ok(IncludeResult::empty());
+                    }
                     return Ok(self.unresolved_directive(attribute_list_as_written));
                 };
                 let is_asciidoc = Self::has_asciidoc_extension(&path);
@@ -1223,20 +1399,32 @@ impl<'a> Include<'a> {
     }
 
     fn resolve_end_line(end: isize, max_size: usize) -> Option<usize> {
-        match end {
-            n if n < 0 => max_size.checked_sub(1),
-            n if n > 0 => match usize::try_from(n - 1) {
-                Ok(val) => Some(val),
+        // Asciidoctor spec: positive N → 1-based line N (returns index N-1),
+        // CLAMPED to the last line if past EOF; negative N → Nth line from the
+        // end (so -1 = last line = index max_size-1, -2 = second-to-last).
+        // Upstream maps EVERY negative to `max_size - 1`, which silently turns
+        // `lines=1..-2` into "to the end", and does not clamp a positive end,
+        // which made `lines=10..50` on a 30-line file produce ZERO content —
+        // the downstream guard `end_idx < content_lines_count` rejected
+        // end_idx=49 outright instead of reading to line 30.
+        if max_size == 0 {
+            return None;
+        }
+        let last_idx = max_size - 1;
+        if end > 0 {
+            return match usize::try_from(end - 1) {
+                Ok(val) => Some(val.min(last_idx)),
                 Err(e) => {
                     tracing::error!(?end, ?e, "failed to cast end line number to usize");
                     None
                 }
-            },
-            _ => {
-                tracing::error!(?end, "invalid end line number in include directive");
-                None
-            }
+            };
         }
+        if end < 0 {
+            return max_size.checked_sub(end.unsigned_abs());
+        }
+        tracing::error!(?end, "invalid end line number in include directive (0)");
+        None
     }
 
     /// Collects all line indices that would be selected by the line ranges.

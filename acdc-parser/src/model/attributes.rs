@@ -78,6 +78,17 @@ impl<'a> AttributeMap<'a> {
         }
     }
 
+    /// Insert a runtime default (e.g. `safe-mode-level`, `backend`). Visible
+    /// to attribute substitution and conditional evaluation, but not tracked
+    /// as `explicit` — i.e. omitted from `Serialize` output the same way
+    /// `DEFAULT_ATTRIBUTE_ENTRIES` constants are. No-op if the key is
+    /// already present (user attributes win).
+    fn insert_default(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
+        if !self.contains_key(&name) {
+            self.all.insert(name, value);
+        }
+    }
+
     fn set(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
         self.all.insert(name.clone(), value.clone());
         self.explicit.insert(name, value); // Track as explicit
@@ -205,6 +216,15 @@ fn validate_bounded_attribute(key: &str, value: &AttributeValue<'_>) {
 pub struct DocumentAttributes<'a> {
     attributes: AttributeMap<'a>,
     defaults_enabled: bool,
+    /// `Some(mode)` once `Options::with_runtime_builtins` has declared that
+    /// this attribute set belongs to a parse, which is exactly when the
+    /// Asciidoctor runtime built-ins apply; the mode drives the three
+    /// safe-mode-dependent ones. `None` for any attribute set built
+    /// independently — an html converter constructing attributes for its
+    /// `semantic` variant must NOT report `backend-html5`, which is the
+    /// behaviour the previous insert-at-parse-time implementation had and
+    /// which a read-time fallback has to reproduce rather than widen.
+    runtime_builtins: Option<crate::SafeMode>,
 }
 
 impl Default for DocumentAttributes<'_> {
@@ -212,6 +232,7 @@ impl Default for DocumentAttributes<'_> {
         Self {
             attributes: AttributeMap::default(),
             defaults_enabled: true,
+            runtime_builtins: None,
         }
     }
 }
@@ -224,6 +245,7 @@ impl<'a> DocumentAttributes<'a> {
         Self {
             attributes: AttributeMap::empty(),
             defaults_enabled: false,
+            runtime_builtins: None,
         }
     }
 
@@ -247,6 +269,14 @@ impl<'a> DocumentAttributes<'a> {
     pub fn insert(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
         validate_bounded_attribute(&name, &value);
         self.attributes.insert(name, value);
+    }
+
+    /// Insert a runtime default — visible for substitution and conditional
+    /// evaluation, but not serialized as an explicit attribute. No-op if the
+    /// key is already present (user-set values win).
+    pub fn insert_default(&mut self, name: AttributeName<'a>, value: AttributeValue<'a>) {
+        validate_bounded_attribute(&name, &value);
+        self.attributes.insert_default(name, value);
     }
 
     /// Set an attribute, overwriting any existing value.
@@ -277,7 +307,36 @@ impl<'a> DocumentAttributes<'a> {
         if self.defaults_enabled && name == crate::constants::MAX_INCLUDE_DEPTH_ATTR {
             return Some(&crate::constants::DEFAULT_MAX_INCLUDE_DEPTH_VALUE);
         }
+        if stored.is_none()
+            && let Some(builtin) = self.runtime_builtin(name)
+        {
+            return Some(builtin);
+        }
         stored
+    }
+
+    /// Resolve `name` against the Asciidoctor runtime built-ins, deriving the
+    /// backend / doctype families from whatever the caller actually configured.
+    fn runtime_builtin(&self, name: &str) -> Option<&'static AttributeValue<'static>> {
+        let mode = self.runtime_builtins?;
+        let effective = |key: &str, fallback: &'static str| -> &str {
+            match self.attributes.get(key) {
+                Some(AttributeValue::String(value)) if !value.is_empty() => value.as_ref(),
+                _ => fallback,
+            }
+        };
+        crate::constants::runtime_builtin(
+            name,
+            mode,
+            effective("backend", crate::constants::DEFAULT_BACKEND),
+            effective("doctype", crate::constants::DEFAULT_DOCTYPE),
+        )
+    }
+
+    /// Declare that this attribute set belongs to a parse, so the Asciidoctor
+    /// runtime built-ins resolve on read for the given safe mode.
+    pub(crate) fn enable_runtime_builtins(&mut self, safe_mode: crate::SafeMode) {
+        self.runtime_builtins = Some(safe_mode);
     }
 
     /// Check whether an attribute is stored.
@@ -286,7 +345,7 @@ impl<'a> DocumentAttributes<'a> {
     /// [`Self::get`].
     #[must_use]
     pub fn contains_key(&self, name: &str) -> bool {
-        self.attributes.contains_key(name)
+        self.attributes.contains_key(name) || self.runtime_builtin(name).is_some()
     }
 
     /// Remove an attribute by name.
@@ -327,6 +386,7 @@ impl<'a> DocumentAttributes<'a> {
         let Self {
             attributes,
             defaults_enabled,
+            runtime_builtins,
         } = self;
         let convert_map = |map: FxHashMap<AttributeName<'a>, AttributeValue<'a>>| -> FxHashMap<AttributeName<'static>, AttributeValue<'static>> {
             map.into_iter()
@@ -347,6 +407,7 @@ impl<'a> DocumentAttributes<'a> {
                 explicit: convert_map(attributes.explicit),
             },
             defaults_enabled,
+            runtime_builtins,
         }
     }
 }

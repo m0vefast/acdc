@@ -19,6 +19,17 @@ use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 #[global_allocator]
 static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
+/// `Region` reads a PROCESS-GLOBAL allocation counter, so two of these tests
+/// running at the same time measure each other's allocations as well as their
+/// own. libtest runs a binary's tests on parallel threads by default, which
+/// made `parse_inline_does_not_leak_across_iterations` report phantom leaks of
+/// a few hundred bytes per parse — reproducible on an unmodified upstream
+/// checkout, roughly one run in three. Serializing the measured sections
+/// removes the interference without touching a single threshold: the iteration
+/// counts and the slack budget below are unchanged, they are simply now
+/// measured against this test's own allocations.
+static MEASUREMENT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 type TestResult = Result<(), Box<dyn Error>>;
 
 const WARMUP_ITERATIONS: usize = 10;
@@ -46,6 +57,9 @@ fn net_bytes_delta(region: &Region<'_, System>) -> i64 {
 /// return close to baseline. Fails loudly on any `Box::leak`-style escape.
 #[test]
 fn parse_file_does_not_leak_across_iterations() -> TestResult {
+    let _measurement_guard = MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let opts = acdc_parser::Options::builder().build();
     let fixture = Path::new("fixtures/samples/mdbasics/mdbasics.adoc");
     assert!(
@@ -81,6 +95,9 @@ fn parse_file_does_not_leak_across_iterations() -> TestResult {
 /// `parse_inline` entry point, which maintains its own leaked arena today.
 #[test]
 fn parse_inline_does_not_leak_across_iterations() -> TestResult {
+    let _measurement_guard = MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let opts = acdc_parser::Options::builder()
         .with_attribute("name", "World")
         .build();
@@ -116,6 +133,9 @@ fn parse_inline_does_not_leak_across_iterations() -> TestResult {
 /// regresses to a borrowed lifetime.
 #[test]
 fn parse_file_returns_static_document() -> TestResult {
+    let _measurement_guard = MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     fn assert_static<T: 'static>(_: &T) {}
 
     let opts = acdc_parser::Options::builder().build();

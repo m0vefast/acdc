@@ -95,6 +95,7 @@ use tracing::instrument;
 mod blocks;
 mod constants;
 mod error;
+mod file_resolver;
 pub(crate) mod grammar;
 mod model;
 mod options;
@@ -107,15 +108,18 @@ pub(crate) use grammar::{InlinePreprocessorParserState, ProcessedContent, inline
 use preprocessor::Preprocessor;
 
 pub use error::{Error, SourceLocation};
+#[cfg(not(target_arch = "wasm32"))]
+pub use file_resolver::DefaultFileResolver;
+pub use file_resolver::{DynFileResolver, FileResolver, FileResolverError};
 pub use grammar::parse_text_for_quotes;
 pub use model::{
-    Admonition, AdmonitionVariant, Anchor, AttributeName, AttributeValue, Attribution, Audio,
-    Author, Autolink, Block, BlockMetadata, Bold, Button, CalloutList, CalloutListItem, CalloutRef,
-    CalloutRefKind, CiteTitle, ColumnFormat, ColumnStyle, ColumnWidth, Comment, CommentKind,
-    CrossReference, CurvedApostrophe, CurvedQuotation, DelimitedBlock, DelimitedBlockType,
-    DescriptionList, DescriptionListItem, DiscreteHeader, Document, DocumentAttribute,
-    DocumentAttributes, ElementAttributes, Footnote, Form, HEADER, Header, Highlight,
-    HorizontalAlignment, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind, InlineMacro,
+    Admonition, AdmonitionVariant, Anchor, AnchorKind, AttributeName, AttributeValue, Attribution,
+    Audio, Author, Autolink, Block, BlockMetadata, Bold, Button, CalloutList, CalloutListItem,
+    CalloutRef, CalloutRefKind, CiteTitle, ColumnFormat, ColumnStyle, ColumnWidth, Comment,
+    CommentKind, CrossReference, CurvedApostrophe, CurvedQuotation, DelimitedBlock,
+    DelimitedBlockType, DescriptionList, DescriptionListItem, DiscreteHeader, Document,
+    DocumentAttribute, DocumentAttributes, ElementAttributes, Footnote, Form, HEADER, Header,
+    Highlight, HorizontalAlignment, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind, InlineMacro,
     InlineNode, Italic, Keyboard, LineBreak, Link, ListItem, ListItemCheckedStatus, Location,
     MAX_SECTION_LEVELS, MAX_TOC_LEVELS, Mailto, Menu, Monospace, NORMAL, OrderedList, PageBreak,
     Paragraph, Pass, PassthroughKind, Plain, Position, Raw, Reference, Role, Section, SectionKind,
@@ -288,21 +292,24 @@ pub fn parse_from_reader<R: std::io::Read>(
     reader: R,
     options: &Options<'_>,
 ) -> Result<ParseResult, Error> {
+    let options = options.clone().with_runtime_builtins();
     // Shared across the preprocessor and the grammar state so both layers'
     // warnings land in the same `ParseResult::warnings()` slice.
     let warnings_handle: Rc<RefCell<Vec<Warning>>> = Rc::new(RefCell::new(Vec::new()));
     let result = {
         let _span = tracing::info_span!("preprocess").entered();
-        Preprocessor::process_reader(reader, options, Rc::clone(&warnings_handle))?
+        Preprocessor::process_reader(reader, &options, Rc::clone(&warnings_handle))?
     };
     let text: Box<str> = result.text.into_owned().into_boxed_str();
     let _span = tracing::info_span!("grammar_parse", input_len = text.len()).entered();
     parse_input(
         text,
-        options.clone(),
+        options,
         None,
-        result.leveloffset_ranges,
-        result.source_ranges,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+        },
         warnings_handle,
     )
 }
@@ -327,19 +334,22 @@ pub fn parse_from_reader<R: std::io::Read>(
 /// This function returns an error if the content cannot be parsed.
 #[instrument]
 pub fn parse(input: &str, options: &Options<'_>) -> Result<ParseResult, Error> {
+    let options = options.clone().with_runtime_builtins();
     let warnings_handle: Rc<RefCell<Vec<Warning>>> = Rc::new(RefCell::new(Vec::new()));
     let result = {
         let _span = tracing::info_span!("preprocess").entered();
-        Preprocessor::process(input, options, Rc::clone(&warnings_handle))?
+        Preprocessor::process(input, &options, Rc::clone(&warnings_handle))?
     };
     let text: Box<str> = result.text.into_owned().into_boxed_str();
     let _span = tracing::info_span!("grammar_parse", input_len = text.len()).entered();
     parse_input(
         text,
-        options.clone(),
+        options,
         None,
-        result.leveloffset_ranges,
-        result.source_ranges,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+        },
         warnings_handle,
     )
 }
@@ -368,15 +378,20 @@ pub fn parse_file<P: AsRef<Path>>(
     file_path: P,
     options: &Options<'_>,
 ) -> Result<ParseResult, Error> {
+    let options = options.clone().with_runtime_builtins();
     let path = file_path.as_ref().to_path_buf();
-    let raw = preprocessor::read_and_decode_file(file_path.as_ref(), None)?;
+    let raw = preprocessor::read_and_decode_file(
+        file_path.as_ref(),
+        None,
+        options.file_resolver.as_ref(),
+    )?;
     let warnings_handle: Rc<RefCell<Vec<Warning>>> = Rc::new(RefCell::new(Vec::new()));
     let result = {
         let _span = tracing::info_span!("preprocess").entered();
         Preprocessor::process_with_file(
             &raw,
             file_path.as_ref(),
-            options,
+            &options,
             Rc::clone(&warnings_handle),
         )?
     };
@@ -384,10 +399,12 @@ pub fn parse_file<P: AsRef<Path>>(
     let _span = tracing::info_span!("grammar_parse", input_len = text.len()).entered();
     parse_input(
         text,
-        options.clone(),
+        options,
         Some(path),
-        result.leveloffset_ranges,
-        result.source_ranges,
+        PreprocessorMetadata {
+            leveloffset_ranges: result.leveloffset_ranges,
+            source_ranges: result.source_ranges,
+        },
         warnings_handle,
     )
 }
@@ -418,13 +435,21 @@ fn peg_error_to_source_location(
     }
 }
 
+/// Owned metadata produced by the preprocessor and threaded into the
+/// grammar parse stage. Bundled to keep `parse_input`'s arg list under
+/// clippy's `too_many_arguments` threshold; the four fields always travel
+/// together (they all originate from the same `PreprocessorResult`).
+struct PreprocessorMetadata {
+    leveloffset_ranges: Vec<model::LeveloffsetRange>,
+    source_ranges: Vec<model::SourceRange>,
+}
+
 #[instrument(skip_all)]
 fn parse_input(
     input: Box<str>,
     options: Options<'_>,
     file_path: Option<PathBuf>,
-    leveloffset_ranges: Vec<model::LeveloffsetRange>,
-    source_ranges: Vec<model::SourceRange>,
+    meta: PreprocessorMetadata,
     warnings_handle: Rc<RefCell<Vec<Warning>>>,
 ) -> Result<ParseResult, Error> {
     tracing::trace!(?input, "post preprocessor");
@@ -444,13 +469,18 @@ fn parse_input(
     // unwraps it.
     let warnings_for_state = Rc::clone(&warnings_handle);
 
+    // location remap ADOPTED from upstream (0ad5c19): parser now rewrites every
+    // node/diagnostic location to original-source coords, superseding our
+    // IncludeExpansion + conditional_drops JS line-map (dropped — would
+    // double-compensate). meta.include_expansions/conditional_drops no longer
+    // threaded; ParseResult::try_new drops to 3 args (parsed.rs adapts in P2b).
     ParseResult::try_new(owner, warnings_handle, move |owner| {
         let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
         state.document_attributes = Rc::new(options_owned.document_attributes.clone());
         state.options = Rc::new(options_owned);
         state.current_file = file_path.map(std::sync::Arc::new);
-        state.leveloffset_ranges = leveloffset_ranges;
-        state.source_ranges = source_ranges;
+        state.leveloffset_ranges = meta.leveloffset_ranges;
+        state.source_ranges = meta.source_ranges;
         state.warnings = warnings_for_state;
         let result = match grammar::document_parser::document(&owner.source, &mut state) {
             Ok(Ok(mut doc)) => {
@@ -505,7 +535,7 @@ fn parse_input(
 pub fn parse_inline(input: &str, options: &Options<'_>) -> Result<ParseInlineResult, Error> {
     tracing::trace!(?input, "post preprocessor");
     let owner = parsed::OwnedInput::new(input.into());
-    let options_owned = options.clone().into_static();
+    let options_owned = options.clone().with_runtime_builtins().into_static();
     let warnings_handle: Rc<RefCell<Vec<Warning>>> = Rc::new(RefCell::new(Vec::new()));
     let warnings_for_state = Rc::clone(&warnings_handle);
 
@@ -545,6 +575,7 @@ mod proptests;
 #[allow(clippy::panic)]
 #[allow(clippy::expect_used)]
 mod tests {
+
     use std::{fs, path::PathBuf};
 
     use pretty_assertions::assert_eq;

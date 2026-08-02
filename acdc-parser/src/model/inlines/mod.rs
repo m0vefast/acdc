@@ -257,6 +257,14 @@ impl Serialize for InlineNode<'_> {
                 map.serialize_entry("type", "string")?;
                 map.serialize_entry("value", &raw.content)?;
                 map.serialize_entry("location", &raw.location)?;
+                // Expose the passthrough's effective substitution list so
+                // consumers can apply the correct sub semantics. Single/double
+                // `+...+` carry `[special_chars]`; triple `+++` and `pass:[...]`
+                // carry `[]` (raw output, no subs). Empty subs ⇒ render-as-raw,
+                // non-empty containing 'special_chars' ⇒ escape `<`/`>`/`&`
+                // before embedding (XSS-relevant: vault docs can otherwise inject
+                // `<script>` via single-`+` passthrough).
+                map.serialize_entry("subs", &raw.subs)?;
             }
             InlineNode::VerbatimText(verbatim) => {
                 // We use "text" here to make sure the TCK passes, even though this is raw
@@ -306,6 +314,14 @@ impl Serialize for InlineNode<'_> {
                 map.serialize_entry("id", &anchor.id)?;
                 if let Some(xreflabel) = &anchor.xreflabel {
                     map.serialize_entry("xreflabel", xreflabel)?;
+                }
+                // Only emit `kind` for non-default flavors. Bibliography anchors
+                // (`[[[id]]]`) carry `kind: AnchorKind::Bibliography` and need
+                // this field on the wire so downstream renderers (Glyph etc.)
+                // can switch to the visible `[id]` label rendering. Default
+                // `Inline` is omitted to keep existing fixtures byte-equal.
+                if !anchor.kind.is_inline() {
+                    map.serialize_entry("kind", &anchor.kind)?;
                 }
                 map.serialize_entry("location", &anchor.location)?;
             }
@@ -394,6 +410,20 @@ where
     map.serialize_entry("type", "inline")?;
     map.serialize_entry("title", &i.title)?;
     map.serialize_entry("target", &i.source)?;
+    // Emit `attributes` flat (matching `serialize_icon` convention) so named
+    // attrs like `link=`, `window=`, `width=`, `height=`, custom `alt=`
+    // survive. Without this, `image:foo[link=https://x.com]` silently
+    // drops the link target — consumer sees only `target` + `title`.
+    if !i.metadata.attributes.is_empty() {
+        map.serialize_entry("attributes", &i.metadata.attributes)?;
+    }
+    // `role=foo` is parsed into `metadata.roles` (asciidoctor renders it as
+    // a CSS class on the wrapper span). Emit so downstream renderers can
+    // apply role-based styling — `image:icon.png[role=icon]` should produce
+    // `<span class="image icon"><img></span>` not lose the role.
+    if !i.metadata.roles.is_empty() {
+        map.serialize_entry("roles", &i.metadata.roles)?;
+    }
     map.serialize_entry("location", &i.location)
 }
 
@@ -462,6 +492,12 @@ where
     map.serialize_entry("type", "inline")?;
     map.serialize_entry("variant", "autolink")?;
     map.serialize_entry("target", &a.url)?;
+    // `bracketed` (true when source was `<foo@bar.com>` / `<https://…>`).
+    // Asciidoctor preserves the literal `<` and `>` around the link in
+    // rendered HTML; downstream consumers need this flag to match.
+    if a.bracketed {
+        map.serialize_entry("bracketed", &true)?;
+    }
     map.serialize_entry("location", &a.location)
 }
 

@@ -397,6 +397,19 @@ pub struct RenderOptions {
     /// When true, newlines in paragraph text are converted to `<br>` (hard line breaks).
     /// Set by `[%hardbreaks]` option on a paragraph or the document-level `hardbreaks` attribute.
     pub hardbreaks: bool,
+    /// When true, text-emitting renderers wrap their output in
+    /// `<span data-src-start="N" data-src-end="M">…</span>` using the byte offsets
+    /// from `Location::absolute_start` / `absolute_end`. Embedders (Glyph) use
+    /// these spans to map cursor positions between source and rendered DOM
+    /// without maintaining a parallel Segment[] structure on the host side.
+    /// Off by default — only opt-in callers pay the markup overhead.
+    pub emit_source_positions: bool,
+    /// Internal: suppress data-src span emission for sub-nodes whose locations
+    /// originate from `parse_text_for_quotes` re-parsing (relative offsets,
+    /// would corrupt cursor mapping). The outer Plain's wrap already bounds
+    /// the source range; finer precision inside the re-parsed substring is
+    /// not recoverable without parser changes. Not part of the public API.
+    pub skip_src_position: bool,
 }
 
 pub(crate) const COPYCSS_DEFAULT: &str = "";
@@ -2005,6 +2018,139 @@ Content.
             "should use custom appendix caption"
         );
 
+        Ok(())
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // emit_source_positions tests (Glyph data-src cursor mapping)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn default_options_emit_no_data_src() -> TestResult {
+        let content = "Hello world.\n";
+        let parser_options = acdc_parser::Options::default();
+        let parsed = acdc_parser::parse(content, &parser_options)?;
+        let doc = parsed.document();
+
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let html = processor.convert_to_string(doc, &RenderOptions::default())?;
+
+        assert!(
+            !html.contains("data-src-start"),
+            "default RenderOptions must not emit data-src markup, got: {html}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emit_source_positions_wraps_plain_text() -> TestResult {
+        let content = "Hello world.\n";
+        let parser_options = acdc_parser::Options::default();
+        let parsed = acdc_parser::parse(content, &parser_options)?;
+        let doc = parsed.document();
+
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let html = processor.convert_to_string(
+            doc,
+            &RenderOptions {
+                embedded: true,
+                emit_source_positions: true,
+                ..RenderOptions::default()
+            },
+        )?;
+
+        // `Location::absolute_end` is inclusive (matches acdc-editor-wasm convention,
+        // see ast_highlight.rs:672 `last.location().absolute_end + 1; // inclusive → exclusive`).
+        // "Hello world." is 12 chars at byte indices 0..11.
+        assert!(
+            html.contains("<span data-src-start=\"0\" data-src-end=\"11\">Hello world.</span>"),
+            "expected data-src span 0..11 (inclusive end) wrapping 'Hello world.', got: {html}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emit_source_positions_paragraph_block_data_src() -> TestResult {
+        // Block-level data-src goes on the opening tag (e.g.,
+        // `<div class="paragraph" data-src-start="0" data-src-end="11">`), not
+        // on a wrapping span. Glyph's block-index derivation reads this attribute
+        // to map block index → source range without walking descendant spans.
+        let content = "Hello world.\n";
+        let parser_options = acdc_parser::Options::default();
+        let parsed = acdc_parser::parse(content, &parser_options)?;
+        let doc = parsed.document();
+
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let html = processor.convert_to_string(
+            doc,
+            &RenderOptions {
+                embedded: true,
+                emit_source_positions: true,
+                ..RenderOptions::default()
+            },
+        )?;
+
+        assert!(
+            html.contains("<div class=\"paragraph\" data-src-start=")
+                && html.contains("data-src-end="),
+            "expected paragraph div to carry data-src attrs, got: {html}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emit_source_positions_per_top_level_inline() -> TestResult {
+        // Parser extracts `before *bold* after` into 3 top-level inlines:
+        // Plain("before "), Bold([Plain("bold")]), Plain(" after"). Each carries
+        // an absolute Location, so each gets its OWN data-src span (3 total).
+        // The Plain inside Bold is a top-level child of Bold's content vec — not
+        // a re-parse artifact — so its location is also absolute.
+        let content = "before *bold* after\n";
+        let parser_options = acdc_parser::Options::default();
+        let parsed = acdc_parser::parse(content, &parser_options)?;
+        let doc = parsed.document();
+
+        let processor = Processor::new(
+            acdc_converters_core::Options::default(),
+            doc.attributes.clone(),
+        );
+        let html = processor.convert_to_string(
+            doc,
+            &RenderOptions {
+                embedded: true,
+                emit_source_positions: true,
+                ..RenderOptions::default()
+            },
+        )?;
+
+        let span_count = html.matches("<span data-src-start=").count();
+        assert_eq!(
+            span_count, 3,
+            "expected 3 data-src spans (before / bold / after), got {span_count}: {html}"
+        );
+        assert!(
+            html.contains("<span data-src-start=\"0\" data-src-end=\"6\">before </span>"),
+            "leading Plain span missing or wrong offset: {html}"
+        );
+        assert!(
+            html.contains(
+                "<strong><span data-src-start=\"8\" data-src-end=\"11\">bold</span></strong>"
+            ),
+            "bold-wrapped Plain span missing or wrong offset: {html}"
+        );
+        assert!(
+            html.contains("<span data-src-start=\"13\" data-src-end=\"18\"> after</span>"),
+            "trailing Plain span missing or wrong offset: {html}"
+        );
         Ok(())
     }
 

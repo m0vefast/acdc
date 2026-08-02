@@ -301,6 +301,16 @@
                 ]
               },
               {
+                "content": []
+              },
+              {
+                "content": []
+              }
+            ]
+          },
+          {
+            "columns": [
+              {
                 "content": [
                   {
                     "name": "paragraph",
@@ -365,6 +375,41 @@
                       {
                         "line": 11,
                         "col": 25
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "content": [
+                  {
+                    "name": "paragraph",
+                    "type": "block",
+                    "inlines": [
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "Row 3 Col 3",
+                        "location": [
+                          {
+                            "line": 11,
+                            "col": 28
+                          },
+                          {
+                            "line": 11,
+                            "col": 38
+                          }
+                        ]
+                      }
+                    ],
+                    "location": [
+                      {
+                        "line": 11,
+                        "col": 28
+                      },
+                      {
+                        "line": 11,
+                        "col": 38
                       }
                     ]
                   }

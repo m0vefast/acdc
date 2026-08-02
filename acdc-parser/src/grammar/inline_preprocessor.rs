@@ -574,7 +574,19 @@ parser!(
             // Calculate location to advance offset (even for invalid boundaries)
             let location = state.calculate_location(start, content, 2);
 
-            if !valid_boundary || !trailing_valid {
+            // Constrained passthrough also requires that the LAST char of
+            // content is not whitespace — asciidoctor refuses to recognize
+            // `+# +` (trailing space before closing `+`) as passthrough and
+            // renders the source literally. Without this check acdc strips
+            // the `+` markers and renders bare `# `, diverging from spec.
+            // The PEG rule above only enforces leading non-whitespace via
+            // `![(' '|'\t'|'\n'|'\r')]`; mirror that on the trailing side.
+            let trailing_content_valid = content
+                .chars()
+                .last()
+                .is_some_and(|c| !matches!(c, ' ' | '\t' | '\n' | '\r'));
+
+            if !valid_boundary || !trailing_valid || !trailing_content_valid {
                 // Not a valid constrained passthrough - return literal text without creating passthrough
                 return format!("+{content}+");
             }

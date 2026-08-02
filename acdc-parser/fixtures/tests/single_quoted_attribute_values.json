@@ -392,6 +392,10 @@
                 "type": "path",
                 "value": "mountain.png"
               },
+              "attributes": {
+                "height": "300",
+                "width": "500"
+              },
               "location": [
                 {
                   "line": 21,
@@ -732,7 +736,7 @@
           "delimiter": "----",
           "metadata": {
             "attributes": {
-              "ruby": null
+              "language": "ruby"
             },
             "style": "source"
           },
@@ -1227,7 +1231,7 @@
           "delimiter": "----",
           "metadata": {
             "attributes": {
-              "javascript": null
+              "language": "javascript"
             },
             "roles": [
               "primary"

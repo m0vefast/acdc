@@ -5,6 +5,7 @@ use std::{
 
 pub use crate::safe_mode::SafeMode;
 
+use crate::file_resolver::DynFileResolver;
 use crate::{AttributeValue, DocumentAttributes};
 
 #[derive(Debug, Clone, Default)]
@@ -35,6 +36,33 @@ pub struct Options<'a> {
     /// ```
     #[cfg(feature = "setext")]
     pub setext: bool,
+    /// Pluggable file reader for the include preprocessor. `None` falls back
+    /// to `std::fs::read` on native targets; WASM embeddings MUST set one
+    /// (otherwise every `include::` silently no-ops because wasm32-unknown-
+    /// unknown has no `std::fs`). See `crate::file_resolver::FileResolver`.
+    pub file_resolver: Option<DynFileResolver>,
+    /// Virtual current-file path for include resolution when calling `parse`
+    /// (not `parse_file`). Relative include targets (`include::ch1.adoc[]`)
+    /// resolve against this path's parent directory. Required when using a
+    /// `file_resolver` from WASM, where there's no real `std::fs` path.
+    /// Defaults to `None`, which disables include processing for `parse`
+    /// callers without a file path (matches pre-resolver behavior).
+    pub virtual_current_file: Option<std::path::PathBuf>,
+    /// Drop an unresolved LOCAL include instead of emitting Asciidoctor's
+    /// inline `Unresolved directive in FILE - include::target[]` recovery text.
+    ///
+    /// The recovery text is right for a CONVERTER: the reader of the output has
+    /// no other way to learn the include failed. It is wrong for an EDITOR,
+    /// which renders its own placeholder carrying the target and source line so
+    /// the directive stays clickable and editable. Worse, the recovery text is
+    /// ordinary paragraph content, so it MERGES with the author's adjacent
+    /// paragraph — three source lines (two failed includes and a real
+    /// paragraph) collapse into one block, which is precisely the block-boundary
+    /// corruption cursor mapping and write-back must never see.
+    ///
+    /// Off by default: converters keep Asciidoctor parity. Editors turn it on
+    /// and take responsibility for showing the failure themselves.
+    pub drop_unresolved_includes: bool,
 }
 
 impl<'a> Options<'a> {
@@ -95,7 +123,42 @@ impl<'a> Options<'a> {
             strict: self.strict,
             #[cfg(feature = "setext")]
             setext: self.setext,
+            file_resolver: self.file_resolver,
+            virtual_current_file: self.virtual_current_file,
+            drop_unresolved_includes: self.drop_unresolved_includes,
         }
+    }
+
+    /// Inject Asciidoctor-style runtime built-in attributes into
+    /// `document_attributes` based on the current configuration.
+    ///
+    /// Adds:
+    /// - `safe-mode-name`, `safe-mode-level`, and the matching `safe-mode-{name}` marker
+    /// - `asciidoctor`, `asciidoctor-version`
+    /// - `backend`, `backend-html5`, `basebackend`, `basebackend-html`,
+    ///   `filetype`, `filetype-html` (acdc currently only emits HTML5 from this path)
+    /// - `doctype`, `doctype-article` (default doctype)
+    ///
+    /// User-provided attributes (set explicitly via the builder or
+    /// `with_attribute*`) are preserved — built-ins use `insert_default`,
+    /// which is a no-op if the key already exists and never marks the entry
+    /// as `explicit` (so they stay out of serialized ASG output).
+    ///
+    /// Idempotent: calling more than once is harmless.
+    #[must_use]
+    pub fn with_runtime_builtins(mut self) -> Self {
+        // The built-ins are served on READ from `constants::runtime_builtin`,
+        // not stored: measured, every entry materialized into the attribute map
+        // costs ~4.5 allocations per parse because the map is cloned several
+        // times while parsing, so the 13 built-ins put a fixed +61 allocations
+        // on EVERY parse, empty documents included. Recording the safe mode is
+        // all the map needs to derive the three runtime-dependent ones.
+        // Precedence is unchanged: the fallback is consulted only after a
+        // stored lookup misses, so a user-provided value still wins.
+        self.document_attributes
+            .enable_runtime_builtins(self.safe_mode);
+
+        self
     }
 }
 
@@ -125,6 +188,9 @@ pub struct OptionsBuilder<'a> {
     strict: bool,
     #[cfg(feature = "setext")]
     setext: bool,
+    file_resolver: Option<DynFileResolver>,
+    virtual_current_file: Option<std::path::PathBuf>,
+    drop_unresolved_includes: bool,
 }
 
 impl<'a> OptionsBuilder<'a> {
@@ -260,6 +326,66 @@ impl<'a> OptionsBuilder<'a> {
         self
     }
 
+    /// Install a custom file reader for the include preprocessor.
+    ///
+    /// Native targets get `std::fs::read` by default. WASM embeddings MUST
+    /// supply a resolver — `wasm32-unknown-unknown` has no `std::fs`, so
+    /// without one, every `include::file.adoc[]` directive silently no-ops.
+    ///
+    /// When using a resolver, also set [`with_virtual_current_file`] so
+    /// relative include targets have a parent directory to anchor against.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::borrow::Cow;
+    /// use std::collections::HashMap;
+    /// use std::path::{Path, PathBuf};
+    /// use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options};
+    ///
+    /// struct InMemoryFiles(HashMap<PathBuf, Vec<u8>>);
+    /// impl FileResolver for InMemoryFiles {
+    ///     fn read(&self, path: &Path) -> Result<Cow<'_, [u8]>, FileResolverError> {
+    ///         match self.0.get(path) {
+    ///             Some(bytes) => Ok(Cow::Borrowed(bytes)),
+    ///             None => Err(FileResolverError::not_found(path)),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut files = HashMap::new();
+    /// files.insert(PathBuf::from("ch1.adoc"), b"== Chapter 1\n".to_vec());
+    /// let options = Options::builder()
+    ///     .with_file_resolver(DynFileResolver::new(InMemoryFiles(files)))
+    ///     .with_virtual_current_file("main.adoc")
+    ///     .build();
+    /// ```
+    ///
+    /// [`with_virtual_current_file`]: Self::with_virtual_current_file
+    #[must_use]
+    pub fn with_file_resolver(mut self, resolver: DynFileResolver) -> Self {
+        self.file_resolver = Some(resolver);
+        self
+    }
+
+    /// Set a virtual current-file path used to resolve relative `include::`
+    /// targets when calling `parse` (not `parse_file`). Required when using
+    /// a `file_resolver` from WASM. The file doesn't need to physically
+    /// exist — only its parent dir is read, to anchor relative includes.
+    #[must_use]
+    pub fn with_virtual_current_file<P: Into<std::path::PathBuf>>(mut self, path: P) -> Self {
+        self.virtual_current_file = Some(path.into());
+        self
+    }
+
+    /// Drop unresolved local includes instead of emitting Asciidoctor's inline
+    /// recovery text — see [`Options::drop_unresolved_includes`].
+    #[must_use]
+    pub fn with_dropped_unresolved_includes(mut self) -> Self {
+        self.drop_unresolved_includes = true;
+        self
+    }
+
     /// Build the `Options` from this builder.
     ///
     /// # Example
@@ -281,6 +407,9 @@ impl<'a> OptionsBuilder<'a> {
             strict: self.strict,
             #[cfg(feature = "setext")]
             setext: self.setext,
+            file_resolver: self.file_resolver,
+            virtual_current_file: self.virtual_current_file,
+            drop_unresolved_includes: self.drop_unresolved_includes,
         }
     }
 }

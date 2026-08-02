@@ -1,0 +1,272 @@
+{
+  "name": "document",
+  "type": "block",
+  "blocks": [
+    {
+      "name": "paragraph",
+      "type": "block",
+      "inlines": [
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Backslash-escape on a callout marker — drops the backslash and emits\n",
+          "location": [
+            {
+              "line": 1,
+              "col": 1
+            },
+            {
+              "line": 1,
+              "col": 69
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "<N>",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 2
+                },
+                {
+                  "line": 2,
+                  "col": 4
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 2,
+              "col": 1
+            },
+            {
+              "line": 2,
+              "col": 5
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " as literal text only when the unescaped marker would itself\nhave been a valid callout (i.e., chain-to-EOL satisfied). Here the\nescaped ",
+          "location": [
+            {
+              "line": 2,
+              "col": 6
+            },
+            {
+              "line": 4,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\<1>",
+              "location": [
+                {
+                  "line": 4,
+                  "col": 10
+                },
+                {
+                  "line": 4,
+                  "col": 13
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 4,
+              "col": 9
+            },
+            {
+              "line": 4,
+              "col": 14
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " sits at end of line where ",
+          "location": [
+            {
+              "line": 4,
+              "col": 15
+            },
+            {
+              "line": 4,
+              "col": 41
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "<1>",
+              "location": [
+                {
+                  "line": 4,
+                  "col": 43
+                },
+                {
+                  "line": 4,
+                  "col": 45
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 4,
+              "col": 42
+            },
+            {
+              "line": 4,
+              "col": 46
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " would otherwise parse\nas a callout; the backslash is consumed and ",
+          "location": [
+            {
+              "line": 4,
+              "col": 47
+            },
+            {
+              "line": 5,
+              "col": 44
+            }
+          ]
+        },
+        {
+          "name": "span",
+          "type": "inline",
+          "variant": "code",
+          "form": "constrained",
+          "inlines": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "<1>",
+              "location": [
+                {
+                  "line": 5,
+                  "col": 46
+                },
+                {
+                  "line": 5,
+                  "col": 48
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 5,
+              "col": 45
+            },
+            {
+              "line": 5,
+              "col": 49
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " appears as text:",
+          "location": [
+            {
+              "line": 5,
+              "col": 50
+            },
+            {
+              "line": 5,
+              "col": 66
+            }
+          ]
+        }
+      ],
+      "location": [
+        {
+          "line": 1,
+          "col": 1
+        },
+        {
+          "line": 5,
+          "col": 66
+        }
+      ]
+    },
+    {
+      "name": "listing",
+      "type": "block",
+      "form": "delimited",
+      "delimiter": "----",
+      "inlines": [
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Escape an EOL callout: <1>",
+          "location": [
+            {
+              "line": 8,
+              "col": 1
+            },
+            {
+              "line": 8,
+              "col": 27
+            }
+          ]
+        }
+      ],
+      "location": [
+        {
+          "line": 7,
+          "col": 1
+        },
+        {
+          "line": 9,
+          "col": 4
+        }
+      ]
+    }
+  ],
+  "location": [
+    {
+      "line": 1,
+      "col": 1
+    },
+    {
+      "line": 9,
+      "col": 4
+    }
+  ]
+}

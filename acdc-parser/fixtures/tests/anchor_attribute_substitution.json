@@ -569,6 +569,7 @@
                   "name": "anchor",
                   "type": "inline",
                   "id": "doc-ref01",
+                  "kind": "bibliography",
                   "location": [
                     {
                       "line": 31,
@@ -617,6 +618,7 @@
                   "type": "inline",
                   "id": "doc-ref02",
                   "xreflabel": "Introduction Reference",
+                  "kind": "bibliography",
                   "location": [
                     {
                       "line": 32,

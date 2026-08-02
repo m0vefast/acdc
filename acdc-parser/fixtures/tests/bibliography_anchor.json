@@ -69,6 +69,7 @@
                   "name": "anchor",
                   "type": "inline",
                   "id": "ref01",
+                  "kind": "bibliography",
                   "location": [
                     {
                       "line": 5,
@@ -117,6 +118,7 @@
                   "type": "inline",
                   "id": "ref02",
                   "xreflabel": "Custom Label",
+                  "kind": "bibliography",
                   "location": [
                     {
                       "line": 6,

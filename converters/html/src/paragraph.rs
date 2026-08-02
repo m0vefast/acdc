@@ -98,13 +98,17 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
             let has_title = !para.title.is_empty();
             let has_id = para.metadata.id.is_some() || !para.metadata.anchors.is_empty();
             let has_roles = !para.metadata.roles.is_empty();
+            // Glyph: emit source-position attrs on the block-level element (not a
+            // wrapping span) so block-index derivation can map block → source range
+            // without walking descendants. Empty unless `emit_source_positions`.
+            let src_attrs = self.data_src_attrs(&para.location);
 
             if has_title {
                 // Titled paragraphs get a section wrapper
                 let class = build_class("paragraph", &para.metadata.roles);
                 write!(self.writer, "<section")?;
                 write_id(&mut self.writer, &para.metadata)?;
-                writeln!(self.writer, " class=\"{class}\">")?;
+                writeln!(self.writer, " class=\"{class}\"{src_attrs}>")?;
                 self.render_title_with_wrapper(
                     &para.title,
                     "<h6 class=\"block-title\">",
@@ -121,18 +125,21 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
                     write!(self.writer, " class=\"{}\"", para.metadata.roles.join(" "))?;
                 }
                 write_id(&mut self.writer, &para.metadata)?;
-                write!(self.writer, ">")?;
+                write!(self.writer, "{src_attrs}>")?;
                 self.visit_inline_nodes(&para.content)?;
                 writeln!(self.writer, "</p>")?;
             } else {
                 // Bare paragraph — no wrapper
-                write!(self.writer, "<p>")?;
+                write!(self.writer, "<p{src_attrs}>")?;
                 self.visit_inline_nodes(&para.content)?;
                 writeln!(self.writer, "</p>")?;
             }
         } else {
             let class = build_class("paragraph", &para.metadata.roles);
-            writeln!(self.writer, "<div class=\"{class}\">")?;
+            // Glyph: source-position attrs on the paragraph <div> — see the
+            // Semantic branch above; empty unless `emit_source_positions`.
+            let src_attrs = self.data_src_attrs(&para.location);
+            writeln!(self.writer, "<div class=\"{class}\"{src_attrs}>")?;
             self.render_title_with_wrapper(&para.title, "<div class=\"title\">", "</div>\n")?;
             write!(self.writer, "<p>")?;
             self.visit_inline_nodes(&para.content)?;

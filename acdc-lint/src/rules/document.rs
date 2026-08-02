@@ -133,7 +133,13 @@ mod tests {
 
     #[test]
     fn parser_table_warnings_are_linted() -> Result<(), Error> {
-        let report = report_for("[format=psv]\n|===\n|a\n|===\n")?;
+        // The fixture used to be `[format=psv]`, which reached the
+        // unknown-format arm only because the parser had no `psv` case — psv is
+        // the DEFAULT AsciiDoc table format, so warning about it was the bug,
+        // not the behaviour under test. This test checks that a parser table
+        // warning surfaces as a lint, so it now uses a format that really is
+        // unknown; the plumbing it exercises is unchanged.
+        let report = report_for("[format=nonesuch]\n|===\n|a\n|===\n")?;
 
         assert!(has_lint(&report, LintId::TableUnknownFormat));
         Ok(())

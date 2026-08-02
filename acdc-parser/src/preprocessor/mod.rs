@@ -207,10 +207,30 @@ pub(super) enum SourceOrigin {
 }
 
 impl SourceOrigin {
-    fn entry_file(path: &Path, base_override: Option<&Path>) -> Result<Self, Error> {
-        let absolute_path = absolute_normalized(path)?;
+    /// `has_resolver` declares that a [`crate::file_resolver::FileResolver`] is
+    /// wired, which changes the path algebra rather than merely the read call.
+    ///
+    /// A resolver addresses files by the path STRING it was handed — Glyph's is
+    /// a closed map keyed off the virtual current file. Absolutizing against a
+    /// process CWD invents a prefix the resolver has never seen, so every
+    /// lookup misses; and on `wasm32-unknown-unknown` there is no CWD to
+    /// absolutize against in the first place. With a resolver every path stays
+    /// lexical; without one the native filesystem semantics are unchanged.
+    fn entry_file(
+        path: &Path,
+        base_override: Option<&Path>,
+        has_resolver: bool,
+    ) -> Result<Self, Error> {
+        let normalize = |p: &Path| -> Result<PathBuf, Error> {
+            if has_resolver {
+                Ok(include::normalize_lexical(p))
+            } else {
+                absolute_normalized(p)
+            }
+        };
+        let absolute_path = normalize(path)?;
         let default_base = absolute_path.parent().unwrap_or(&absolute_path);
-        let base_dir = absolute_normalized(base_override.unwrap_or(default_base))?;
+        let base_dir = normalize(base_override.unwrap_or(default_base))?;
         Ok(Self::File {
             path: path.to_path_buf(),
             base_dir,
@@ -248,7 +268,23 @@ pub(super) struct InputLineOrigin {
 /// For example, `/workspace/docs/chapters/../shared.adoc` becomes
 /// `/workspace/docs/shared.adoc`, even if `chapters` is a symlink.
 pub(super) fn absolute_normalized(path: &Path) -> Result<PathBuf, Error> {
-    let absolute = std::path::absolute(path)?;
+    // Glyph addition: both primitives below are unusable on
+    // `wasm32-unknown-unknown`. There is no `unix`/`wasi` cfg there, so
+    // `std::path` falls back to WINDOWS semantics — `/vault/ch1.adoc` is not
+    // "absolute" (no drive prefix) and yields no `RootDir` component — and
+    // `std::path::absolute` additionally needs a CWD that wasm has no notion
+    // of. acdc include targets are always POSIX, so route already-absolute
+    // paths through the lexical normalizer, which produces the identical
+    // result on native for POSIX input, and only consult the platform for
+    // genuinely relative ones.
+    if path.to_string_lossy().starts_with('/') {
+        return Ok(include::normalize_lexical(path));
+    }
+    let Ok(absolute) = std::path::absolute(path) else {
+        // No CWD (wasm): normalize what we were given rather than fail the
+        // whole parse over a path we can still resolve through the resolver.
+        return Ok(include::normalize_lexical(path));
+    };
     let mut normalized = PathBuf::new();
     for component in absolute.components() {
         match component {
@@ -525,11 +561,38 @@ const BOM_PATTERNS: &[(&[u8], &Encoding, usize, &str)] = &[
 /// Returns an error if:
 /// - The file cannot be read
 /// - The file is not valid UTF-8 and has no BOM
+/// Read a file and decode it, optionally through a caller-supplied resolver.
+///
+/// Glyph addition (2026-05-17, wasm embeddings): when the caller wired a reader
+/// via `Options::with_file_resolver`, every byte comes from it and `std::fs` is
+/// never touched — `wasm32-unknown-unknown` has no filesystem, so the native
+/// path cannot serve includes there at all.
+///
+/// `Error::Io` is opaque on purpose: `Include::lines` decides whether to treat a
+/// failure as "warn + skip" (matching native `!path.exists()`) or to surface it.
+/// The structured `FileResolverError` survives as the io error's `source`, so
+/// callers can walk the chain for detail instead of string-matching.
 pub(crate) fn read_and_decode_file(
     file_path: &Path,
     encoding: Option<&str>,
+    resolver: Option<&crate::file_resolver::DynFileResolver>,
 ) -> Result<String, Error> {
-    let bytes = std::fs::read(file_path)?;
+    let bytes: Cow<'_, [u8]> = if let Some(resolver) = resolver {
+        resolver.read(file_path).map_err(|e| {
+            // `#[non_exhaustive]` on FileResolverError means future variants
+            // land without a major bump; the wildcard is deliberate.
+            #[allow(clippy::wildcard_enum_match_arm)]
+            let kind = match &e {
+                crate::file_resolver::FileResolverError::NotFound { .. } => {
+                    std::io::ErrorKind::NotFound
+                }
+                _ => std::io::ErrorKind::Other,
+            };
+            Error::from(std::io::Error::new(kind, e))
+        })?
+    } else {
+        Cow::Owned(std::fs::read(file_path)?)
+    };
     decode_bytes(&bytes, encoding, &file_path.display().to_string())
 }
 
@@ -769,7 +832,20 @@ impl Preprocessor {
         options: &Options,
         warnings: Rc<RefCell<Vec<Warning>>>,
     ) -> Result<PreprocessorResult<'a>, Error> {
-        let source_origin = SourceOrigin::memory(options.base_dir.as_deref());
+        // Glyph addition: a wasm embedding parses a string, not a file, but its
+        // includes still have to resolve RELATIVE TO a document location. When
+        // the caller declared that location via `with_virtual_current_file`,
+        // treat it as the entry file so `include::part1/intro.adoc[]` resolves
+        // the same way it would natively. Without a declared path the origin
+        // stays `Memory` and relative includes resolve against `base_dir`.
+        let source_origin = match options.virtual_current_file.as_deref() {
+            Some(virtual_file) => SourceOrigin::entry_file(
+                virtual_file,
+                options.base_dir.as_deref(),
+                options.file_resolver.is_some(),
+            )?,
+            None => SourceOrigin::memory(options.base_dir.as_deref()),
+        };
         Self::new(options, warnings).process_inner(input, Some(&source_origin), options)
     }
 
@@ -782,7 +858,11 @@ impl Preprocessor {
         options: &Options,
         warnings: Rc<RefCell<Vec<Warning>>>,
     ) -> Result<PreprocessorResult<'a>, Error> {
-        let source_origin = SourceOrigin::entry_file(file_path, options.base_dir.as_deref())?;
+        let source_origin = SourceOrigin::entry_file(
+            file_path,
+            options.base_dir.as_deref(),
+            options.file_resolver.is_some(),
+        )?;
         Self::new(options, warnings).process_inner(input, Some(&source_origin), options)
     }
 
@@ -795,9 +875,13 @@ impl Preprocessor {
     ) -> Result<PreprocessorResult<'static>, Error> {
         if file_path.as_ref().parent().is_some() {
             // Use read_and_decode_file to support UTF-8, UTF-16 LE, and UTF-16 BE with BOM
-            let input = read_and_decode_file(file_path.as_ref(), None)?;
-            let source_origin =
-                SourceOrigin::entry_file(file_path.as_ref(), options.base_dir.as_deref())?;
+            let input =
+                read_and_decode_file(file_path.as_ref(), None, options.file_resolver.as_ref())?;
+            let source_origin = SourceOrigin::entry_file(
+                file_path.as_ref(),
+                options.base_dir.as_deref(),
+                options.file_resolver.is_some(),
+            )?;
             Ok(Self::new(options, warnings)
                 .process_inner(&input, Some(&source_origin), options)?
                 .into_owned())
@@ -836,7 +920,18 @@ impl Preprocessor {
                 .map_or("", |(_, attributes)| attributes);
             return Ok(Some(include.lines(attribute_list_as_written)?));
         }
+        // Glyph addition: surface this to `ParseResult::warnings()`. `tracing`
+        // has no default subscriber in the wasm build, so an error macro here
+        // reaches nobody and the include just silently vanishes from the
+        // reader's document — the one failure mode a document editor must not
+        // have.
         tracing::error!(%line, "source origin is missing - include directive cannot be processed");
+        self.add_warning_at(
+            Cow::Borrowed(
+                "include directive cannot be processed: no file context (set `virtual_current_file` or use `parse_file`)",
+            ),
+            Self::create_source_location(line_number, None),
+        );
         Ok(None)
     }
 
@@ -1969,7 +2064,7 @@ endif::backend-pdf[]";
     #[test]
     fn test_utf8_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf8_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should contain the test content without BOM
         assert!(content.contains("= Test Document"));
@@ -1982,7 +2077,7 @@ endif::backend-pdf[]";
     #[test]
     fn test_utf16le_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf16le_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should correctly decode UTF-16 LE content
         assert!(content.contains("= Test Document"));
@@ -1993,7 +2088,7 @@ endif::backend-pdf[]";
     #[test]
     fn test_utf16be_bom_detection() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf16be_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should correctly decode UTF-16 BE content
         assert!(content.contains("= Test Document"));
@@ -2004,7 +2099,7 @@ endif::backend-pdf[]";
     #[test]
     fn test_utf8_no_bom() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let content = read_and_decode_file(path, None)?;
+        let content = read_and_decode_file(path, None, None)?;
 
         // Should decode regular UTF-8 file
         assert!(content.contains("= Test Document"));
@@ -2016,7 +2111,7 @@ endif::backend-pdf[]";
     fn test_explicit_encoding_override() -> Result<(), Error> {
         // Test that explicit encoding parameter works
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let content = read_and_decode_file(path, Some("utf-8"))?;
+        let content = read_and_decode_file(path, Some("utf-8"), None)?;
 
         assert!(content.contains("= Test Document"));
         Ok(())
@@ -2025,7 +2120,7 @@ endif::backend-pdf[]";
     #[test]
     fn test_unknown_encoding_label_falls_back_to_utf8() -> Result<(), Error> {
         let path = Path::new("fixtures/preprocessor/utf8_no_bom.adoc");
-        let content = read_and_decode_file(path, Some("unknown-encoding-12345"))?;
+        let content = read_and_decode_file(path, Some("unknown-encoding-12345"), None)?;
 
         assert!(content.contains("= Test Document"));
         Ok(())

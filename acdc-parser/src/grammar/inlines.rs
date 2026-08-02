@@ -1,5 +1,5 @@
 use crate::{
-    Anchor, AttributeValue, Autolink, BlockMetadata, Bold, Button, CurvedApostrophe,
+    Anchor, AnchorKind, AttributeValue, Autolink, BlockMetadata, Bold, Button, CurvedApostrophe,
     CurvedQuotation, Footnote, Form, Highlight, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind,
     InlineMacro, InlineNode, Italic, Keyboard, LineBreak, Link, Mailto, Menu, Monospace, Pass,
     PassthroughKind, Plain, Source, StandaloneCurvedApostrophe, Stem, StemNotation, Subscript,
@@ -48,6 +48,41 @@ fn is_word_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Char-aware version of `is_word_char` for Unicode-correct boundary checks.
+/// A "word char" for constrained-formatting purposes is a letter, digit, or
+/// underscore in any Unicode script (CJK ideographs, Hangul, Cyrillic, etc.
+/// all qualify as word chars — they're "letter-like" content the constrained
+/// markup must not abut). Everything else (whitespace, punctuation, symbols
+/// of any script) is a boundary.
+fn is_word_char_unicode(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// Get the char ending at byte position `pos` (i.e. the char whose last byte
+/// is at `pos - 1`). Returns `None` if `pos == 0`, `pos` exceeds `input.len()`,
+/// OR `pos` is mid-char.
+///
+/// Uses `str::get` (checked slicing) so a mid-char index returns `None`
+/// instead of panicking — defensive against future callers that may compute
+/// positions outside PEG's `position!()` (which is always at a char boundary).
+/// Without this, a single bad byte offset crashes the WASM module that ships
+/// downstream.
+fn char_before(input: &str, pos: usize) -> Option<char> {
+    if pos == 0 {
+        return None;
+    }
+    input.get(..pos).and_then(|s| s.chars().next_back())
+}
+
+/// Get the char starting at byte position `pos`. Returns `None` if `pos` is
+/// at/past end of input OR `pos` is mid-char.
+///
+/// Uses `str::get` (checked slicing) so a mid-char index returns `None`
+/// instead of panicking. See `char_before` for the same defensive rationale.
+fn char_at(input: &str, pos: usize) -> Option<char> {
+    input.get(pos..).and_then(|s| s.chars().next())
+}
+
 /// Check whether `@` appears within [`EMAIL_LOCAL_PART_MAX`] bytes from `pos`.
 fn has_at_sign_ahead(state: &ParserState, pos: usize) -> bool {
     use crate::grammar::state::AtLookahead;
@@ -77,34 +112,11 @@ fn has_at_sign_ahead(state: &ParserState, pos: usize) -> bool {
     first_at.is_some_and(|at| at < pos + EMAIL_LOCAL_PART_MAX)
 }
 
-pub(crate) fn match_constrained_boundary(b: u8) -> bool {
-    matches!(
-        b,
-        b' ' | b'\t'
-            | b'\n'
-            | b'\r'
-            | b'('
-            | b'{'
-            | b'['
-            | b')'
-            | b'}'
-            | b']'
-            | b'/'
-            | b'-'
-            | b'|'
-            | b','
-            | b';'
-            | b'.'
-            | b'?'
-            | b'!'
-            | b'\''
-            | b'"'
-            | b'<'
-            | b'>'
-            | b'^'
-            | b'~'
-    )
-}
+// (Deleted) `match_constrained_boundary(b: u8)` — superseded by the PEG
+// `constrained_boundary_char()` rule (Unicode-aware) and the action-side
+// `is_word_char_unicode(c: char)` helper. The byte-based check couldn't
+// recognize multi-byte CJK/Latin-1 punctuation as a boundary, silently
+// failing for `\`code\`，` and similar inputs.
 
 /**
 Check whether the character before `pos` is a valid constrained opening boundary.
@@ -112,62 +124,52 @@ Check whether the character before `pos` is a valid constrained opening boundary
 At position 0, falls back to `outer_delimiter` (the byte preceding the current
 inline span in the parent context). A word-character outer delimiter means the
 boundary is invalid.
+
+Unicode-aware: reads the preceding *char* (which may be multi-byte UTF-8) and
+treats anything non-alphanumeric+non-`_` as boundary. Without this, CJK
+punctuation (`）` `，` `；` `：` …) and other non-ASCII letter-like punctuation
+before an opening delimiter would silently disqualify the markup — even though
+those chars *are* boundaries semantically. The ASCII-byte set kept as a fast
+path for the legacy `match_constrained_boundary` API used by PEG `!([...])`
+lookahead in the matcher rules; this opening-side check uses the Unicode path.
 */
+/// `pos` is a DOCUMENT offset, and `input` is the whole document — PEG's
+/// `position!()` is local to the slice being parsed, so every caller adds
+/// `state.inline_ctx.offset`. Mixing the two reads a byte from an unrelated
+/// part of the document, and whether that byte happens to be a word char
+/// varies with the length of everything before the slice: the same markup
+/// parsed as bold or not depending on how long the document title was.
 fn check_constrained_opening_boundary(
     pos: usize,
-    input: &[u8],
+    input: &str,
     outer_delimiter: Option<u8>,
 ) -> bool {
     if pos == 0 {
-        return outer_delimiter.is_none_or(|d| !is_word_char(d));
+        outer_delimiter.is_none_or(|d| !is_word_char(d))
+    } else {
+        // Unicode-aware: the preceding *char* (possibly multi-byte UTF-8) is a
+        // boundary unless it is a Unicode word character. Handles CJK/Latin-1
+        // punctuation (`）`, `«`, …) that a byte-based check would miss.
+        char_before(input, pos).is_none_or(|c| !is_word_char_unicode(c))
     }
-    match input.get(pos - 1) {
-        None => true,
-        Some(&b) if b.is_ascii() => match_constrained_boundary(b),
-        // The preceding byte belongs to a multibyte (non-ASCII) character. It is
-        // a valid boundary unless that character is a Unicode word character
-        // (letter or number) — matching asciidoctor, where Unicode punctuation
-        // such as `“` or `«` opens a constrained span but letters like `é`/`日`
-        // do not.
-        Some(_) => char_ending_at(input, pos).is_none_or(|c| !c.is_alphanumeric()),
-    }
-}
-
-/// Decode the UTF-8 character whose final byte is at `end - 1` (i.e. the
-/// character immediately preceding byte offset `end`). Returns `None` at the
-/// start of input or if the bytes are not valid UTF-8.
-fn char_ending_at(input: &[u8], end: usize) -> Option<char> {
-    if end == 0 || end > input.len() {
-        return None;
-    }
-    // Walk back over UTF-8 continuation bytes (0b10xx_xxxx) to the lead byte.
-    let mut start = end - 1;
-    while start > 0
-        && input
-            .get(start)
-            .is_some_and(|&b| b & 0b1100_0000 == 0b1000_0000)
-    {
-        start -= 1;
-    }
-    std::str::from_utf8(input.get(start..end)?)
-        .ok()?
-        .chars()
-        .next()
 }
 
 /**
 Check whether a constrained closing delimiter at `end` is valid.
 
-If `end` is at the end of the input, the outer delimiter must not be a word
-character (otherwise the markup would be adjacent to a word character in the
-parent context).
+Unicode-aware: at end-of-input, falls back to `outer_delimiter`; otherwise the
+following *char* must not be a word char. CJK / non-ASCII punctuation after a
+closing delimiter is now correctly recognized as boundary (previously the
+byte-only check rejected `\`code\`）` because U+FF09 starts with 0xEF, which
+isn't in the ASCII boundary set).
 */
-fn check_constrained_closing_at_end(
-    end: usize,
-    input_len: usize,
-    outer_delimiter: Option<u8>,
-) -> bool {
-    end < input_len || outer_delimiter.is_none_or(|d| !is_word_char(d))
+/// `end` is a DOCUMENT offset and `input` the whole document, matching
+/// [`check_constrained_opening_boundary`]; see the note there.
+fn check_constrained_closing_at_end(end: usize, input: &str, outer_delimiter: Option<u8>) -> bool {
+    if end >= input.len() {
+        return outer_delimiter.is_none_or(|d| !is_word_char(d));
+    }
+    char_at(input, end).is_none_or(|c| !is_word_char_unicode(c))
 }
 
 /// Macro to handle inline processing errors with logging
@@ -194,6 +196,38 @@ peg::parser! {
         // same pair on the document grammar.
         inject span_start(_input, l, _r) -> usize { l }
         inject span_end(_input, _l, r) -> usize { r }
+
+        /// Unicode-aware constrained-formatting boundary lookahead.
+        ///
+        /// AsciiDoc constrained formatting (`+*X*+`, `+_X_+`, `+` `+X+` `+`, etc.) requires the
+        /// surrounding chars to be non-word. The original PEG rules used an
+        /// ASCII-only char class (` `, `,`, `;`, `.`, `?`, `!`, `(`, `)`, …) which
+        /// silently failed for CJK punctuation (`，` `。` `；` `）` `：` …) — the
+        /// PEG-level char-class match is byte-based and CJK chars start with a
+        /// continuation byte (e.g. `）` = `0xEF 0xBC 0x89`), so they never match
+        /// any of the listed ASCII bytes.
+        ///
+        /// This rule whitelists the original ASCII set plus the common Unicode
+        /// punctuation blocks (General Punctuation U+2000-206F, CJK Symbols and
+        /// Punctuation U+3000-303F, Halfwidth/Fullwidth Forms punctuation). The
+        /// fullwidth letters (U+FF21-FF3A, U+FF41-FF5A) are word chars and are
+        /// deliberately excluded — see the gaps in the fullwidth ranges below.
+        rule constrained_boundary_char()
+            = [' ' | '\t' | '\n' | ',' | ';' | '"' | '.' | '?' | '!' | ':' | '(' | ')' | '[' | ']' | '{' | '}' | '/' | '-' | '|' | '<' | '>' | '^' | '~'
+              | '\u{2000}'..='\u{206F}'
+              | '\u{3000}'..='\u{303F}'
+              | '\u{FF01}'..='\u{FF0F}'
+              | '\u{FF1A}'..='\u{FF20}'
+              | '\u{FF3B}'..='\u{FF40}'
+              | '\u{FF5B}'..='\u{FF65}']
+              // NOTE: apostrophe `'` (U+0027) is DELIBERATELY excluded.
+              // Pre-refactor `match_constrained_boundary(u8)` listed it, but
+              // the pre-refactor PEG char-class did NOT — the PEG is what
+              // actually drives matching, so the byte-fn entry was dead code.
+              // Including apostrophe here causes constrained monospace to
+              // match across AsciiDoc curly-quote syntax (`` `'X' ``) which
+              // is the smart-quote OPENING marker, not monospace. Caught by
+              // `fixtures/tests/curved_quotes.adoc` round-trip test.
 
         pub(crate) rule inlines() -> Vec<InlineNode<'input>>
         = (non_plain_text() / plain_text())+
@@ -1198,20 +1232,43 @@ peg::parser! {
             })))
         }
 
-        /// Pattern for cross-reference shorthand: <<id>> or <<id,custom text>>
+        /// Pattern for cross-reference shorthand: `<<id>>`, `<<id,text>>`,
+        /// `<<file.adoc#anchor>>`, `<<file.adoc#anchor,text>>`.
+        ///
+        /// Target may include any non-ASCII Unicode character (CJK, Hangul,
+        /// Cyrillic, Arabic, etc.) — Asciidoctor's reference accepts CJK
+        /// section IDs like `[#结论]` and the matching `<<结论>>` xref.
+        /// The leading char is a letter, `_`, `#`, or non-ASCII Unicode
+        /// (Asciidoctor likewise renders `<<#anchor>>` as `<a href="#anchor">`);
+        /// subsequent chars also allow digits, `-`, plus `.`, `/`, `#`
+        /// for cross-document targets (`file.adoc#anchor`, `sub/file.adoc`).
+        /// Downstream code routes by whether target contains `.adoc` / `#` /
+        /// path separators.
         rule cross_reference_shorthand_pattern() -> (&'input str, Option<(usize, &'input str)>)
-        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
+        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
         {
             (target, content)
         }
 
-        /// Parse cross-reference macro syntax: xref:id[text] or xref:file.adoc#anchor[text]
+        /// Parse cross-reference macro syntax. Three accepted shapes:
+        ///   1. `xref:id[text]`               same-document, target is the id
+        ///   2. `xref:file.adoc#anchor[text]` cross-document with fragment
+        ///   3. `xref:#anchor[text]`          same-document, explicit hash
+        ///
+        /// Form (3) is what Asciidoctor accepts but earlier acdc grammar
+        /// silently rejected (required non-empty `source()` for target).
+        /// `target` is now optional; at least ONE of target/fragment must
+        /// be present, otherwise the rule fails. When only the fragment is
+        /// present the emitted `target_str` includes the leading `#` so the
+        /// downstream converter routes through the same-document anchor path.
         rule cross_reference_macro() -> InlineNode<'input>
-        = "xref:" target:source() fragment:path_fragment()? "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
+        = "xref:" target:source()? fragment:path_fragment()? "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
         {?
-            let target_str: &'input str = match fragment {
-                Some(f) => state.intern_fmt(format_args!("{target}{f}")),
-                None => state.intern_fmt(format_args!("{target}")),
+            let target_str: &'input str = match (target.as_ref(), fragment.as_ref()) {
+                (Some(t), Some(f)) => state.intern_fmt(format_args!("{t}{f}")),
+                (Some(t), None)    => state.intern_fmt(format_args!("{t}")),
+                (None,    Some(f)) => state.intern_fmt(format_args!("{f}")),
+                (None,    None)    => return Err("xref macro requires a target or a #fragment"),
             };
             let bm = BlockParsingMetadata {
                 subs_flags: state.inline_ctx.subs_flags,
@@ -1234,13 +1291,19 @@ peg::parser! {
             })))
         }
 
-        /// Match cross-reference shorthand syntax without consuming: <<id>> or <<id,text>>
+        /// Match cross-reference shorthand syntax without consuming: <<id>>,
+        /// <<id,text>>, <<file.adoc#anchor>>, or <<file.adoc>>. Char class
+        /// mirrors `cross_reference_shorthand_pattern` (Unicode-permissive,
+        /// plus `.`, `/`, `#` for cross-document targets).
         rule cross_reference_shorthand_match() -> ()
-        = "<<" ['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']* ("," (!">>" [_])+)? ">>"
+        = "<<" ['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']* ("," (!">>" [_])+)? ">>"
 
-        /// Match cross-reference macro syntax without consuming: xref:id[text] or xref:file.adoc#anchor[text]
+        /// Match cross-reference macro syntax without consuming.
+        /// Three accepted shapes — mirror the parse-time rule:
+        ///   xref:id[…]                xref:file.adoc#a[…]    xref:#anchor[…]
         rule cross_reference_macro_match()
         = "xref:" source() path_fragment()? "[" (!"]" [_])* "]"
+        / "xref:" path_fragment() "[" (!"]" [_])* "]"
 
         rule bold_text_unconstrained() -> InlineNode<'input>
             = attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$((!(eol() / ![_] / "**") [_])+) "**" end:position!()
@@ -1318,13 +1381,13 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter) {
+            if !check_constrained_opening_boundary(absolute_pos, state.input, state.outer_constrained_delimiter) {
                 tracing::debug!(absolute_pos, prev_byte = ?state.input.as_bytes().get(absolute_pos.saturating_sub(1)), "Invalid word boundary for constrained bold");
                 return Err("invalid word boundary for constrained bold");
             }
 
             // Check closing boundary: if at end of input, validate outer delimiter
-            if !check_constrained_closing_at_end(end, state.input.len(), state.outer_constrained_delimiter) {
+            if !check_constrained_closing_at_end(end + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter) {
                 return Err("invalid closing boundary for constrained bold");
             }
 
@@ -1366,8 +1429,8 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow()
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter);
-            let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
+            let valid_opening = check_constrained_opening_boundary(boundary_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
+            let valid_closing = check_constrained_closing_at_end(closing_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
         }
@@ -1392,12 +1455,12 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter) {
+            if !check_constrained_opening_boundary(absolute_pos, state.input, state.outer_constrained_delimiter) {
                 return Err("invalid word boundary for constrained italic");
             }
 
             // Check closing boundary: if at end of input, validate outer delimiter
-            if !check_constrained_closing_at_end(end, state.input.len(), state.outer_constrained_delimiter) {
+            if !check_constrained_closing_at_end(end + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter) {
                 return Err("invalid closing boundary for constrained italic");
             }
 
@@ -1438,8 +1501,8 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow()
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter);
-            let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
+            let valid_opening = check_constrained_opening_boundary(boundary_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
+            let valid_closing = check_constrained_closing_at_end(closing_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
         }
@@ -1533,13 +1596,29 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter) {
+            if !check_constrained_opening_boundary(absolute_pos, state.input, state.outer_constrained_delimiter) {
                 return Err("monospace must be at word boundary");
             }
 
             // Check closing boundary: if at end of input, validate outer delimiter
-            if !check_constrained_closing_at_end(end, state.input.len(), state.outer_constrained_delimiter) {
+            if !check_constrained_closing_at_end(end + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter) {
                 return Err("invalid closing boundary for constrained monospace");
+            }
+
+            // Constrained quotes require the LAST char of content to be
+            // non-whitespace — asciidoctor refuses to recognize `` `- ` ``
+            // (trailing space/tab/newline before closing backtick) as
+            // monospace and preserves the backticks literal. Mirror of the
+            // same check in constrained passthrough
+            // (`inline_preprocessor.rs:trailing_content_valid`) — both
+            // delimiter families enforce identical content invariants for
+            // spec parity.
+            let trailing_content_valid = content
+                .chars()
+                .last()
+                .is_some_and(|c| !matches!(c, ' ' | '\t' | '\n' | '\r'));
+            if !trailing_content_valid {
+                return Err("constrained monospace must not have trailing whitespace before closing");
             }
 
             let bm = BlockParsingMetadata {
@@ -1572,17 +1651,25 @@ peg::parser! {
         = boundary_pos:position!()
         inline_attributes()?
         "`"
-        [^(' ' | '\t' | '\n')]
-        [^'`']*
-        ("`" !constrained_boundary_follow() [^'`']*)*
+        content:$([^(' ' | '\t' | '\n')] [^'`']* ("`" !constrained_boundary_follow() [^'`']*)*)
         "`"
         closing_pos:position!()
         constrained_boundary_follow()
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter);
-            let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
+            let valid_opening = check_constrained_opening_boundary(boundary_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
+            let valid_closing = check_constrained_closing_at_end(closing_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
+            // Mirror trailing-ws boundary check from the full rule above so
+            // plain_text's negative lookahead correctly REJECTS `X ` (trailing
+            // whitespace of any kind) and gets to consume the literal
+            // backticks. Without this, plain_text would refuse to gobble the
+            // backticks because _match() succeeds, but the real rule then
+            // fails — leaving the parser stuck with no alternative.
+            let trailing_content_valid = content
+                .chars()
+                .last()
+                .is_some_and(|c| !matches!(c, ' ' | '\t' | '\n' | '\r'));
 
-            if valid_opening && valid_closing { Ok(()) } else { Err("monospace must be at word boundary") }
+            if valid_opening && valid_closing && trailing_content_valid { Ok(()) } else { Err("monospace must be at word boundary") }
         }
 
         rule highlight_text_unconstrained() -> InlineNode<'input>
@@ -1640,13 +1727,13 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter) {
+            if !check_constrained_opening_boundary(absolute_pos, state.input, state.outer_constrained_delimiter) {
                 tracing::debug!(absolute_pos, prev_byte = ?state.input.as_bytes().get(absolute_pos.saturating_sub(1)), "Invalid word boundary for constrained highlight");
                 return Err("invalid word boundary for constrained highlight");
             }
 
             // Check closing boundary: if at end of input, validate outer delimiter
-            if !check_constrained_closing_at_end(end, state.input.len(), state.outer_constrained_delimiter) {
+            if !check_constrained_closing_at_end(end + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter) {
                 return Err("invalid closing boundary for constrained highlight");
             }
 
@@ -1687,8 +1774,8 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow()
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter);
-            let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
+            let valid_opening = check_constrained_opening_boundary(boundary_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
+            let valid_closing = check_constrained_closing_at_end(closing_pos + state.inline_ctx.offset, state.input, state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
         }
@@ -1878,18 +1965,36 @@ peg::parser! {
             }
         )
         double_close_square_bracket()
-        {
+        {?
+            // NOTE: an earlier guard here disabled `[[id]]` inside constrained
+            // monospace, reasoning from the draft spec that monospace's
+            // substitution group is `[specialchars, callouts]` and therefore
+            // excludes `macros`. Asciidoctor does not behave that way — its
+            // own output for `` `[[id]]` `` is `<code><a id="id"></a></code>`,
+            // which is what the `section_anchors` L1 fixture pins. The project
+            // rule is that asciidoctor's actual output is the oracle at the
+            // semantic layer and an anchor is a link target, i.e. structure and
+            // not presentation, so this is L2a where Glyph may not drift. The
+            // guard is gone and the fixture passes.
             let substituted_id = state.intern_cow(substitute(id, HEADER, &state.document_attributes));
             let substituted_reftext = reftext.map(|rt| state.intern_cow(substitute(rt, HEADER, &state.document_attributes)));
-            InlineNode::InlineAnchor(Anchor {
+            Ok(InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Inline,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset)
-            })
+            }))
         }
 
         rule inline_anchor_match() -> ()
         = double_open_square_bracket() [^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+ (comma() [^']']+)? double_close_square_bracket()
+            {?
+                // Mirror of `inline_anchor`: both must agree on whether
+                // `[[id]]` is an anchor, or `plain_text`'s negative lookahead
+                // disagrees with the rule that actually consumes it. See the
+                // note there about the removed constrained-monospace guard.
+                Ok(())
+            }
 
         /// Bibliography anchor: `[[[id]]]` or `[[[id,reftext]]]`
         /// Must be parsed before inline_anchor to avoid capturing `[id` as the ID
@@ -1905,6 +2010,7 @@ peg::parser! {
             InlineNode::InlineAnchor(Anchor {
                 id: substituted_id,
                 xreflabel: substituted_reftext,
+                kind: AnchorKind::Bibliography,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset)
             })
         }
@@ -2277,10 +2383,15 @@ peg::parser! {
         /// (e.g., `http://example.com.)` keeps both `.` and `)` outside).
         rule bare_url_char() = bare_url_safe_char() / bare_url_trailing_char() / "("
 
-        /// Fragment identifier for URLs and cross-references (e.g., `#section-id`)
-        /// Only used by `xref:` and `link:` macros — other macros (`image::`, `video::`, etc.) do not support fragments
+        /// Fragment identifier for URLs and cross-references (e.g., `#section-id`).
+        /// Only used by `xref:` and `link:` macros — other macros (`image::`,
+        /// `video::`, etc.) do not support fragments.
+        ///
+        /// Char class allows non-ASCII Unicode so that CJK anchor ids
+        /// (`[#结论]` / `xref:file.adoc#结论[…]`) resolve correctly. Mirrors
+        /// the relaxed pattern in `cross_reference_shorthand_pattern`.
         rule path_fragment() -> Cow<'input, str>
-            = "#" fragment:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']+)
+            = "#" fragment:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']+)
         {
             Cow::Owned(format!("#{fragment}"))
         }
@@ -2343,5 +2454,60 @@ peg::parser! {
                 position: state.line_map.offset_to_position(offset, state.input)
             }
         }
+    }
+}
+// canary edit: 1779991490
+// canary edit 2: 1779991530 106EF54D-DE2A-4246-BA63-8B99F2DAD586
+
+#[cfg(test)]
+mod boundary_helper_tests {
+    use super::{char_at, char_before};
+
+    // Mid-char position must NOT panic — defensive checked-slicing.
+    // CJK char (3 bytes UTF-8): "中" = E4 B8 AD. Indexing at byte 1 or 2 is
+    // mid-char and previously panicked with "byte index N is not a char
+    // boundary" via direct `input[..pos]` / `input[pos..]` slicing.
+    #[test]
+    fn char_before_returns_none_on_mid_char_index() {
+        let s = "中";
+        assert_eq!(char_before(s, 0), None);
+        assert_eq!(
+            char_before(s, 1),
+            None,
+            "mid-char byte 1 must return None, not panic"
+        );
+        assert_eq!(
+            char_before(s, 2),
+            None,
+            "mid-char byte 2 must return None, not panic"
+        );
+        assert_eq!(char_before(s, 3), Some('中'));
+        assert_eq!(char_before(s, 4), None, "out-of-bounds must return None");
+    }
+
+    #[test]
+    fn char_at_returns_none_on_mid_char_index() {
+        let s = "中";
+        assert_eq!(char_at(s, 0), Some('中'));
+        assert_eq!(
+            char_at(s, 1),
+            None,
+            "mid-char byte 1 must return None, not panic"
+        );
+        assert_eq!(
+            char_at(s, 2),
+            None,
+            "mid-char byte 2 must return None, not panic"
+        );
+        assert_eq!(char_at(s, 3), None, "at-end must return None");
+    }
+
+    #[test]
+    fn ascii_baseline() {
+        let s = "abc";
+        assert_eq!(char_before(s, 1), Some('a'));
+        assert_eq!(char_before(s, 3), Some('c'));
+        assert_eq!(char_at(s, 0), Some('a'));
+        assert_eq!(char_at(s, 2), Some('c'));
     }
 }

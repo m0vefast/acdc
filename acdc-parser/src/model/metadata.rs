@@ -102,7 +102,25 @@ impl<'a> BlockMetadata<'a> {
     }
 
     pub(crate) fn move_positional_attributes_to_attributes(&mut self) {
+        // For `[source,LANG,...]` blocks (style consumed positional[0]="source"),
+        // designate the FIRST remaining positional as a named `language`
+        // attribute. Without this, language ends up as a null-valued key
+        // alongside other flag-positionals (linenums, nowrap, ...) — and
+        // downstream consumers cannot recover positional order from the
+        // `FxHashMap` iteration. Pinned by Glyph golden-master test
+        // `09-code-source` (`[source,python,linenums]`).
+        let is_source = self.style == Some("source");
+        let mut first = true;
         for positional_attribute in self.positional_attributes.drain(..) {
+            if is_source && first {
+                self.attributes.insert(
+                    std::borrow::Cow::Borrowed("language"),
+                    AttributeValue::String(std::borrow::Cow::Borrowed(positional_attribute)),
+                );
+                first = false;
+                continue;
+            }
+            first = false;
             self.attributes.insert(
                 std::borrow::Cow::Borrowed(positional_attribute),
                 AttributeValue::None,

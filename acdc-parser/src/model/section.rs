@@ -392,7 +392,7 @@ impl Serialize for Section<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Anchor, Plain};
+    use crate::{Anchor, AnchorKind, Plain};
 
     use super::*;
 
@@ -504,6 +504,7 @@ mod tests {
             id: Some(Anchor {
                 id: "custom_id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location::default(),
             }),
             ..Default::default()
@@ -518,6 +519,7 @@ mod tests {
             anchors: vec![Anchor {
                 id: "anchor_id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location::default(),
             }],
             ..Default::default()
@@ -533,11 +535,13 @@ mod tests {
                 Anchor {
                     id: "first_anchor",
                     xreflabel: None,
+                    kind: AnchorKind::Inline,
                     location: Location::default(),
                 },
                 Anchor {
                     id: "last_anchor",
                     xreflabel: None,
+                    kind: AnchorKind::Inline,
                     location: Location::default(),
                 },
             ],
@@ -553,11 +557,13 @@ mod tests {
             id: Some(Anchor {
                 id: "from_id",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location::default(),
             }),
             anchors: vec![Anchor {
                 id: "from_anchors",
                 xreflabel: None,
+                kind: AnchorKind::Inline,
                 location: Location::default(),
             }],
             ..Default::default()

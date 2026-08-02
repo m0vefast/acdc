@@ -25,6 +25,111 @@ pub(crate) const MAX_INCLUDE_DEPTH_ATTR: &str = "max-include-depth";
 pub(crate) static DEFAULT_MAX_INCLUDE_DEPTH_VALUE: AttributeValue<'static> =
     AttributeValue::String(Cow::Borrowed(DEFAULT_MAX_INCLUDE_DEPTH_STR));
 
+/// Asciidoctor's runtime built-in attributes, served on READ rather than stored.
+///
+/// These are constant for every document (except the safe-mode trio, which is
+/// derived from `Options::safe_mode`), so materializing them into the attribute
+/// map is pure waste: measured, each extra entry costs ~4.5 allocations per
+/// parse because the map is cloned several times while parsing, and 13 entries
+/// put a fixed +61 allocations on EVERY parse — empty documents included. They
+/// are never `explicit`, so they must not appear in serialized ASG output
+/// either; a read-time fallback gives exactly that for free.
+static BUILTIN_EMPTY: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed(""));
+static BUILTIN_ASCIIDOCTOR_VERSION: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed(concat!(env!("CARGO_PKG_VERSION"), "-acdc")));
+static BUILTIN_BACKEND: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("html5"));
+static BUILTIN_BASEBACKEND: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed("html"));
+static BUILTIN_FILETYPE: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("html"));
+static BUILTIN_DOCTYPE: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("article"));
+static BUILTIN_SAFE_NAME_UNSAFE: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed("unsafe"));
+static BUILTIN_SAFE_NAME_SAFE: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed("safe"));
+static BUILTIN_SAFE_NAME_SERVER: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed("server"));
+static BUILTIN_SAFE_NAME_SECURE: AttributeValue<'static> =
+    AttributeValue::String(Cow::Borrowed("secure"));
+static BUILTIN_SAFE_LEVEL_0: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("0"));
+static BUILTIN_SAFE_LEVEL_1: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("1"));
+static BUILTIN_SAFE_LEVEL_10: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("10"));
+static BUILTIN_SAFE_LEVEL_20: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("20"));
+
+/// Resolve a runtime built-in attribute by name.
+///
+/// `safe_mode` drives the safe-mode trio; `backend` and `doctype` are the
+/// EFFECTIVE values the caller configured (or the built-in defaults), which the
+/// `backend-*` / `basebackend-*` / `filetype-*` / `doctype-*` marker attributes
+/// are derived from. Deriving matters: an LSP workspace configured for
+/// `backend=pdf` must NOT see `backend-html5` defined, or every
+/// `ifdef::backend-html5[]` block in the document activates alongside the pdf
+/// one. Only the NAME varies across backends — every marker's value is the
+/// empty string — so this still resolves to a `&'static` with no allocation.
+///
+/// Returns `None` for every other name so callers fall through to stored
+/// attributes. Only ever consulted AFTER a stored lookup misses, so a
+/// user-provided value always wins.
+pub(crate) fn runtime_builtin(
+    name: &str,
+    safe_mode: crate::SafeMode,
+    backend: &str,
+    doctype: &str,
+) -> Option<&'static AttributeValue<'static>> {
+    use crate::SafeMode;
+    let marker = match safe_mode {
+        SafeMode::Unsafe => "safe-mode-unsafe",
+        SafeMode::Safe => "safe-mode-safe",
+        SafeMode::Server => "safe-mode-server",
+        SafeMode::Secure => "safe-mode-secure",
+    };
+    if name == marker {
+        return Some(&BUILTIN_EMPTY);
+    }
+    // `basebackend` / `filetype` strip a trailing format digit the way
+    // Asciidoctor does: `html5` -> `html`, `docbook5` -> `docbook`. Anything
+    // else is its own basebackend.
+    let base = backend.trim_end_matches(|c: char| c.is_ascii_digit());
+    let base = if base.is_empty() { backend } else { base };
+    for (prefix, expected) in [
+        ("backend-", backend),
+        ("basebackend-", base),
+        ("filetype-", base),
+        ("doctype-", doctype),
+    ] {
+        if let Some(rest) = name.strip_prefix(prefix) {
+            return (rest == expected).then_some(&BUILTIN_EMPTY);
+        }
+    }
+    match name {
+        "safe-mode-name" => Some(match safe_mode {
+            SafeMode::Unsafe => &BUILTIN_SAFE_NAME_UNSAFE,
+            SafeMode::Safe => &BUILTIN_SAFE_NAME_SAFE,
+            SafeMode::Server => &BUILTIN_SAFE_NAME_SERVER,
+            SafeMode::Secure => &BUILTIN_SAFE_NAME_SECURE,
+        }),
+        "safe-mode-level" => Some(match safe_mode {
+            SafeMode::Unsafe => &BUILTIN_SAFE_LEVEL_0,
+            SafeMode::Safe => &BUILTIN_SAFE_LEVEL_1,
+            SafeMode::Server => &BUILTIN_SAFE_LEVEL_10,
+            SafeMode::Secure => &BUILTIN_SAFE_LEVEL_20,
+        }),
+        "asciidoctor-version" => Some(&BUILTIN_ASCIIDOCTOR_VERSION),
+        // These three only answer for the DEFAULT backend; a caller that
+        // configured another one has stored `backend` itself, and inventing a
+        // `basebackend` / `filetype` for it here would contradict that.
+        "backend" => (backend == DEFAULT_BACKEND).then_some(&BUILTIN_BACKEND),
+        "basebackend" => (backend == DEFAULT_BACKEND).then_some(&BUILTIN_BASEBACKEND),
+        "filetype" => (backend == DEFAULT_BACKEND).then_some(&BUILTIN_FILETYPE),
+        "doctype" => (doctype == DEFAULT_DOCTYPE).then_some(&BUILTIN_DOCTYPE),
+        "asciidoctor" => Some(&BUILTIN_EMPTY),
+        _ => None,
+    }
+}
+
+/// Effective backend / doctype when the caller configured neither.
+pub(crate) const DEFAULT_BACKEND: &str = "html5";
+pub(crate) const DEFAULT_DOCTYPE: &str = "article";
+
 /// Whether `name` is a trusted attribute that only the caller may set through
 /// [`crate::Options`]. Document content that declares one is parsed as syntax but
 /// never stored, so the caller's value (or its built-in default) holds for the

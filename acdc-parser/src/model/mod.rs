@@ -22,7 +22,7 @@ mod tables;
 mod title;
 
 pub use admonition::{Admonition, AdmonitionVariant};
-pub use anchor::{Anchor, Reference, TocEntry, UNNUMBERED_SECTION_STYLES};
+pub use anchor::{Anchor, AnchorKind, Reference, TocEntry, UNNUMBERED_SECTION_STYLES};
 pub use attributes::{
     AttributeName, AttributeValue, DocumentAttributes, ElementAttributes, MAX_SECTION_LEVELS,
     MAX_TOC_LEVELS, strip_quotes,
@@ -282,6 +282,15 @@ pub enum Block<'a> {
 }
 
 impl<'a> Block<'a> {
+    /// Public accessor for the variant's underlying `Location`. Mirrors the
+    /// crate-internal `Locateable` impl so downstream consumers (Glyph's HTML
+    /// converter, third-party walkers) can ask "where in the source did this
+    /// block come from?" without re-implementing the per-variant match.
+    #[must_use]
+    pub fn location(&self) -> &Location {
+        <Self as Locateable>::location(self)
+    }
+
     /// The anchor defining this block's id (its cross-reference target), if any:
     /// the explicit `[#id]` or the first `[[id]]` anchor.
     pub(crate) fn anchor(&self) -> Option<&Anchor<'a>> {

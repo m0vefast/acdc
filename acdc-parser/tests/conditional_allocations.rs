@@ -36,31 +36,52 @@ struct ScenarioBudget {
     slow_control: Budget,
 }
 
+/// `allocations`, `reallocations` and `bytes_reallocated` are upstream's
+/// numbers, unchanged and matched exactly — those are the dimensions that catch
+/// real regressions, and Glyph must not drift on any of them.
+///
+/// `bytes_allocated` is recalibrated to Glyph's measurement. Glyph's `Anchor`
+/// carries an `AnchorKind` that upstream has no equivalent for, which takes the
+/// struct from 80 to 88 bytes (its 80 bytes were already gapless, so a 1-byte
+/// enum costs a full 8 after alignment) and `Block` from 736 to 744 with it. A
+/// `Vec<Block>` allocation is therefore larger by a fixed amount, measured at
+/// +176 bytes here and +136 for the `inactive` scenario — **identical at 1 000
+/// and at 10 000 lines**, which is what proves this is data-model size rather
+/// than per-line work. Shrinking it back would mean boxing
+/// `BlockMetadata::id`, a public-field change across 73 call sites in the
+/// parser and every converter, to save 48 bytes.
+///
+/// So the guard this file provides is intact: allocation COUNTS stay pinned to
+/// upstream, and the byte figures still fail on any per-line or capacity-growth
+/// regression. What changed is only the constant that encodes how big one AST
+/// node is. If a future upstream sync makes these numbers drift again, check
+/// `size_of::<Block>()` on both sides FIRST — a fixed delta that does not scale
+/// with line count is a struct-layout difference, not a leak.
 const BUDGETS: [ScenarioBudget; 2] = [
     ScenarioBudget {
         line_count: 1_000,
         active: Budget {
             allocations: 371,
             reallocations: 25,
-            bytes_allocated: 261_691,
+            bytes_allocated: 261_867,
             bytes_reallocated: 17_384,
         },
         inactive: Budget {
             allocations: 349,
             reallocations: 9,
-            bytes_allocated: 34_130,
+            bytes_allocated: 34_266,
             bytes_reallocated: 8_184,
         },
         plain_control: Budget {
             allocations: 350,
             reallocations: 16,
-            bytes_allocated: 232_747,
+            bytes_allocated: 232_923,
             bytes_reallocated: 9_200,
         },
         slow_control: Budget {
             allocations: 371,
             reallocations: 25,
-            bytes_allocated: 261_102,
+            bytes_allocated: 261_278,
             bytes_reallocated: 17_384,
         },
     },
@@ -69,25 +90,25 @@ const BUDGETS: [ScenarioBudget; 2] = [
         active: Budget {
             allocations: 371,
             reallocations: 37,
-            bytes_allocated: 2_290_915,
+            bytes_allocated: 2_291_091,
             bytes_reallocated: 278_504,
         },
         inactive: Budget {
             allocations: 349,
             reallocations: 13,
-            bytes_allocated: 157_010,
+            bytes_allocated: 157_146,
             bytes_reallocated: 131_064,
         },
         plain_control: Budget {
             allocations: 350,
             reallocations: 24,
-            bytes_allocated: 2_139_091,
+            bytes_allocated: 2_139_267,
             bytes_reallocated: 147_440,
         },
         slow_control: Budget {
             allocations: 371,
             reallocations: 37,
-            bytes_allocated: 2_290_326,
+            bytes_allocated: 2_290_502,
             bytes_reallocated: 278_504,
         },
     },

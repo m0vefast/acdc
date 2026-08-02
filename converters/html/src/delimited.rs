@@ -1135,7 +1135,10 @@ mod tests {
         use acdc_parser::{AttributeValue, ElementAttributes};
 
         let mut attributes = ElementAttributes::default();
-        attributes.insert("bash".into(), AttributeValue::None);
+        // The parser normalizes `[source,bash]` into a NAMED `language` attribute
+        // (BlockMetadata::move_positional_attributes_to_attributes) — construct the
+        // same shape the real parser emits so detect_language resolves the language.
+        attributes.insert("language".into(), AttributeValue::String("bash".into()));
 
         let metadata = BlockMetadata::new()
             .with_style(Some("source"))

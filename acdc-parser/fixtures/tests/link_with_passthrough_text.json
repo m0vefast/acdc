@@ -28,6 +28,9 @@
                   "line": 1,
                   "col": 42
                 }
+              ],
+              "subs": [
+                "special_chars"
               ]
             }
           ],
