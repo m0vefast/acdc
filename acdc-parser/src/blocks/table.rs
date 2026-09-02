@@ -2618,7 +2618,7 @@ mod tests {
             0,
             Some(4),
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(rows.len(), 1, "expected one 4-col row, got shape {shape:?}");
         assert_eq!(rows[0].len(), 4, "row should have 4 cells: F, A, a|, D");
@@ -2649,7 +2649,7 @@ mod tests {
             0,
             Some(3),
         )
-            .expect("table should parse");
+        .expect("table should parse");
         assert_eq!(rows.len(), 1, "one 3-col row");
         assert_eq!(rows[0].len(), 3);
         assert_eq!(rows[0][0].content, "a");
@@ -2679,7 +2679,7 @@ mod tests {
             0,
             None, // implicit ncols — derived from row 0's width
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(rows.len(), 2, "2 rows (Same×3, then X/Y/Z); got {shape:?}");
         assert_eq!(
@@ -2721,7 +2721,7 @@ mod tests {
             0,
             Some(2),
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(rows.len(), 3, "Big row, phantom row, b row; got {shape:?}");
         assert_eq!(rows[0][0].content, "Big");
@@ -2752,7 +2752,7 @@ mod tests {
             0,
             Some(1),
         )
-            .expect("table should parse");
+        .expect("table should parse");
         assert!(
             rows.len() <= 2,
             "row count bounded by cells (2), not rowspan (999); got {}",
@@ -2777,7 +2777,7 @@ mod tests {
             0,
             None, // implicit — derived from the first LOGICAL row
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(rows.len(), 1, "one 3-col logical row; got {shape:?}");
         assert_eq!(rows[0].len(), 3, "cells a / (b is long) / c");
@@ -2799,7 +2799,7 @@ mod tests {
             0,
             None,
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(
             rows.len(),
@@ -2831,7 +2831,7 @@ mod tests {
             0,
             None,
         )
-            .expect("table should parse");
+        .expect("table should parse");
         let shape: Vec<usize> = rows.iter().map(std::vec::Vec::len).collect();
         assert_eq!(rows.len(), 2, "2 rows (ncols=3); got {shape:?}");
         assert_eq!(rows[0].len(), 2, "wrapped desc + Wide");
@@ -2877,7 +2877,7 @@ mod tests {
                 0,
                 Some(2),
             )
-                .expect("table should parse");
+            .expect("table should parse");
             assert!(
                 rows[0][0].content.contains(marker),
                 "align-first `{marker}` must stay content in {src:?}: got {:?}",
@@ -2912,7 +2912,7 @@ mod tests {
                 0,
                 Some(2),
             )
-                .expect("table should parse");
+            .expect("table should parse");
             assert_eq!(
                 rows[0][0].content,
                 format!("foo {run}"),
@@ -2944,7 +2944,7 @@ mod tests {
                 0,
                 Some(2),
             )
-                .expect("table should parse");
+            .expect("table should parse");
             assert_eq!(
                 rows[0][0].content,
                 format!("latency {tok}"),
@@ -2982,7 +2982,7 @@ mod tests {
                 0,
                 Some(2),
             )
-                .expect("table should parse");
+            .expect("table should parse");
             assert_eq!(
                 rows[0][0].content, kept,
                 "interior `{kept}` must stay intact, not be parsed as a spec"
@@ -3202,15 +3202,15 @@ mod tests {
         let sep = Separator::new("|");
         // (line, expected occupied columns)
         let cases: &[(&str, usize)] = &[
-            ("| a | b", 2),          // plain cells
-            ("2+| a | b", 3),        // colspan 2 + 1
-            ("3*| same", 3),         // duplication 3
-            ("2*| a | b", 3),        // duplication 2 + 1
-            ("100*| same", 100),     // the boundary the resource limit sits on
-            (".2+| a | b", 2),       // rowspan does not widen the row
-            ("^2+| a", 2),           // alignment + colspan
-            ("3*s| a", 3),           // duplication + style letter
-            ("2.3+| a", 2),          // colspan 2, rowspan 3
+            ("| a | b", 2),      // plain cells
+            ("2+| a | b", 3),    // colspan 2 + 1
+            ("3*| same", 3),     // duplication 3
+            ("2*| a | b", 3),    // duplication 2 + 1
+            ("100*| same", 100), // the boundary the resource limit sits on
+            (".2+| a | b", 2),   // rowspan does not widen the row
+            ("^2+| a", 2),       // alignment + colspan
+            ("3*s| a", 3),       // duplication + style letter
+            ("2.3+| a", 2),      // colspan 2, rowspan 3
         ];
         for (line, expected) in cases {
             let counted = count_cell_colspans(line, &sep, true);
@@ -3249,13 +3249,16 @@ mod tests {
             Some(4),
         )
         .expect("table should parse");
-        assert_eq!(rows.len(), 3, "three `4*` lines are three rows, got {rows:?}");
+        assert_eq!(
+            rows.len(),
+            3,
+            "three `4*` lines are three rows, got {rows:?}"
+        );
         for row in &rows {
             let occupied: usize = row.iter().map(occupied_columns).sum();
             assert_eq!(occupied, 4, "each row fills the declared 4 columns");
         }
     }
-
 
     /// Inline-spec recovery SPAN/DUP branch byte-offset correctness.
     ///
@@ -3415,4 +3418,3 @@ mod tests {
         assert_eq!(len, 4);
     }
 }
-

@@ -1,4 +1,4 @@
-use crate::{Form, InlineNode, Location, Plain, ProcessedContent, Source};
+use crate::{Form, InlineNode, Location, Pass, Plain, ProcessedContent, Source, Substitution};
 
 use super::{
     ParserState,
@@ -228,11 +228,32 @@ pub(crate) fn map_inner_content_locations<'a>(
     processed: &ProcessedContent<'a>,
     base_location: &Location,
 ) -> Result<Vec<InlineNode<'a>>, crate::Error> {
-    content
-        .into_iter()
-        .map(|node| -> Result<InlineNode, crate::Error> {
-            match node {
+    let mut mapped_nodes = Vec::with_capacity(content.len());
+    for node in content {
+        let mapped: InlineNode = match node {
                 InlineNode::PlainText(mut inner_plain) => {
+                    // A placeholder-ONLY inner restores to the pass NODE, not a
+                    // string splice. The splice hands the pass content back as
+                    // PlainText, where the block's replacement/escape subs run a
+                    // second time — `` `+....+` `` (whole monospace interior is
+                    // one pass) came back as an ellipsis, `` `+\\**stars**+` ``
+                    // lost its backslashes. `process_passthrough_with_quotes`
+                    // yields RawText carrying the pass's own subs (SpecialChars),
+                    // which `render_raw` honors. Quotes-passes keep the splice
+                    // path below — their content is markup meant to be parsed.
+                    if let Some(pass) = placeholder_only_pass(inner_plain.content, processed)
+                        && !pass.substitutions.contains(&Substitution::Quotes)
+                        && let Some(text) = pass.text
+                    {
+                        mapped_nodes.extend(
+                            super::passthrough_processing::process_passthrough_with_quotes(
+                                state.arena,
+                                text,
+                                pass,
+                            ),
+                        );
+                        continue;
+                    }
                     // Replace passthrough placeholders in the content
                     let content = super::passthrough_processing::replace_passthrough_placeholders(
                         inner_plain.content,
@@ -251,7 +272,7 @@ pub(crate) fn map_inner_content_locations<'a>(
                     // Apply attribute location extension if needed
                     inner_plain.location =
                         extend_attribute_location_if_needed(state, processed, mapped);
-                    Ok(InlineNode::PlainText(inner_plain))
+                    InlineNode::PlainText(inner_plain)
                 }
                 marked_text @ (InlineNode::ItalicText(_)
                 | InlineNode::BoldText(_)
@@ -266,7 +287,7 @@ pub(crate) fn map_inner_content_locations<'a>(
                         processed,
                         base_location,
                     };
-                    marked_text.with_location_mapping_context(&mapping_ctx)
+                    marked_text.with_location_mapping_context(&mapping_ctx)?
                 }
                 other @ (InlineNode::RawText(_)
                 | InlineNode::VerbatimText(_)
@@ -274,10 +295,27 @@ pub(crate) fn map_inner_content_locations<'a>(
                 | InlineNode::LineBreak(_)
                 | InlineNode::InlineAnchor(_)
                 | InlineNode::CalloutRef(_)
-                | InlineNode::Macro(_)) => Ok(other),
-            }
-        })
-        .collect()
+                | InlineNode::Macro(_)) => other,
+        };
+        mapped_nodes.push(mapped);
+    }
+    Ok(mapped_nodes)
+}
+
+/// If `content` is EXACTLY one passthrough placeholder (`\u{FFFD}×3 N \u{FFFD}×3`),
+/// return that pass. Mixed content (text around the placeholder) returns None —
+/// the caller's splice path handles it.
+fn placeholder_only_pass<'a, 'p>(
+    content: &str,
+    processed: &'p ProcessedContent<'a>,
+) -> Option<&'p Pass<'a>> {
+    const MARK: &str = "\u{FFFD}\u{FFFD}\u{FFFD}";
+    let digits = content.strip_prefix(MARK)?.strip_suffix(MARK)?;
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let index: usize = digits.parse().ok()?;
+    processed.passthroughs.get(index)
 }
 
 /// Helper macro to remap locations for simple nodes (`PlainText`, etc.)

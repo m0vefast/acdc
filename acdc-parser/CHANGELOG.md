@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `` `+text+` `` (constrained monospace passthrough) is now recognised as one
+  construct. Previously the monospace span closed at the first backtick inside
+  the passthrough, so the `+` markers leaked into the rendered output and the
+  content was substituted. It now renders as monospace whose content takes no
+  substitutions, matching `asciidoctor`. As in `asciidoctor`, the content may
+  not begin or end with whitespace — `` `+` `` stays a literal plus in
+  monospace instead of swallowing the rest of the line — and `` `++text++` ``
+  keeps its existing double-plus rendering. The passthrough content no longer
+  has replacements or escapes re-applied when it sits inside the monospace
+  span (`` `+....+` `` renders four dots, not an ellipsis).
+
+- Inline locations inside table cells no longer drift after an escaped
+  separator: every position past a collapsed `\|` (or `\<sep>` for a custom
+  separator) was reported one column short per escape, which mis-anchored
+  cursor mapping in cells like `` `+a\|+` ``.
+
 - PSV table rows are now assembled by asciidoctor's cell-count model: cells
   stream left-to-right / top-to-bottom into an `ncols`-wide grid, and source
   line breaks / blank lines no longer dictate row boundaries. Fixes rows that

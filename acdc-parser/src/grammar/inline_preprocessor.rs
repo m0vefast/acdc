@@ -375,6 +375,14 @@ parser!(
             // also can have + signs on each side.
             // We add monospace before passthrough to skip content inside backticks
             kbd_macro()
+            // ...but `` `+text+` `` — the constrained monospace passthrough — must be
+            // taken as ONE construct BEFORE monospace gets to it. `monospace()` stops at
+            // the first inner backtick (its content class is `[^'`']*`), so
+            // `` `+a`b+` `` was being cut into `` `+a` `` and the `+` markers then
+            // survived into the output as literal text. asciidoctor renders this form as
+            // `<code>` whose content takes NO substitutions, which is exactly what the
+            // `+` pair is there to say.
+            / constrained_monospace_passthrough()
             / monospace()
             / passthrough()
             // counter_reference must come BEFORE attribute_reference because counters
@@ -512,6 +520,75 @@ parser!(
         rule passthrough() -> String = quiet!{
             triple_plus_passthrough() / double_plus_passthrough() / single_plus_passthrough() / pass_macro()
         } / expected!("passthrough parser failed")
+
+        /// `` `+text+` `` — constrained monospace passthrough. The backticks are LEFT IN
+        /// the stream (the quotes pass turns them into `<code>`); only the `+…+` interior
+        /// becomes a passthrough, so its content takes no substitutions.
+        ///
+        /// This must run before `monospace()`, whose content class excludes backticks and
+        /// would otherwise close the span at the first inner one.
+        rule constrained_monospace_passthrough() -> String
+        = // NEWLINE-BOUNDED. Without `!"\n"` an opening `` `+ `` with no closing
+        // `` +` `` consumes to end of input before failing, so every such position
+        // costs O(n) and a document full of them costs O(n²) — measured as an
+        // 8.9-minute sweep turning into over an hour. A constrained passthrough
+        // is inline and cannot span lines anyway, so the bound is also correct.
+        // `!"+"`: this rule is the SINGLE-plus form only. `` `++…++` `` (double,
+        // and triple likewise) already renders correctly through plain monospace
+        // + the standalone `++…++` passthrough rules; matching `` `+ `` against
+        // its first two chars stole the span and re-enabled substitutions on the
+        // interior (outline fixture: `` `++{set:...}++` `` came back as
+        // `+{set:…}+` with the ellipsis replacement applied).
+        "`+" !"+" content:$((!("+`" / "\n") [_])+) "+`"
+        {?
+            // Constrained boundary (asciidoctor `\S|\S.*?\S`): content must not
+            // begin or end with whitespace. `` `+` `` (a literal plus in
+            // monospace) otherwise greedily scans to some later `` +` `` and
+            // swallows everything between — asciidoctor renders it
+            // `<code>+</code>`. Failing here (before any side effect) lets the
+            // plain monospace rule take the span literally.
+            if content.starts_with([' ', '\t']) || content.ends_with([' ', '\t']) {
+                return Err("constrained passthrough content may not start or end with whitespace");
+            }
+            if !state.macros_enabled {
+                let text = format!("`+{content}+`");
+                state.advance(&text);
+                return Ok(text);
+            }
+            // The backticks are NOT part of the passthrough — they stay in the
+            // stream so the quotes pass still sees a monospace span. So, like
+            // every other Pass, the location covers exactly the replaced span:
+            // `+…+`. Step over the opening backtick FIRST (it maps one-to-one),
+            // then span content + the two `+` delimiters. Spanning the backticks
+            // instead broke the Single-kind delimiter stripping downstream
+            // (prefix = span − content − 1 landed the content start on the `+`),
+            // shifting every rendered offset inside such a span by one.
+            state.advance_by(1);
+            let start = state.get_position();
+            let location = state.calculate_location(start, content, 2);
+            state.passthroughs.borrow_mut().push(Pass {
+                text: Some(content),
+                substitutions: vec![Substitution::SpecialChars].into_iter().collect(),
+                location: location.clone(),
+                kind: PassthroughKind::Single,
+            });
+            let placeholder = format!("\u{FFFD}\u{FFFD}\u{FFFD}{}\u{FFFD}\u{FFFD}\u{FFFD}", state.pass_found_count.get());
+            let new_content = format!("`{placeholder}`");
+            // Replaced span == Pass location == `+…+` (the standalone-rule
+            // invariant). The backticks appear unchanged on both sides and map
+            // one-to-one; covering them told the source map that two characters
+            // with an exact counterpart had been rewritten, and every offset
+            // inside such a cell came back shifted (63 char-tight wrong_offset).
+            state.source_map.borrow_mut().add_replacement(
+                location.absolute_start,
+                location.absolute_end,
+                placeholder.len(),
+                ProcessedKind::Passthrough,
+            );
+            state.pass_found_count.set(state.pass_found_count.get() + 1);
+            state.advance_by(1);
+            Ok(new_content)
+        }
 
         rule single_plus_passthrough() -> String
         = start:position() start_offset:byte_offset()
@@ -815,6 +892,44 @@ mod tests {
             macros_enabled: true,
             attributes_enabled: true,
         }
+    }
+
+    /// `` `+text+` `` — the constrained monospace passthrough. The backtick
+    /// hugs the `+` on both sides, so both boundary tests must accept it;
+    /// while either rejected it the whole construct degraded to literal text
+    /// (asciidoctor: `<code>` with the content left unsubstituted).
+    #[test]
+    fn test_preprocess_constrained_monospace_passthrough() -> Result<(), Error> {
+        let attributes = setup_attributes();
+        let input = "`+a`b+`";
+        let state = setup_state(input);
+        let result = inline_preprocessing::run(input, &attributes, &state)?;
+        assert_eq!(
+            result.text,
+            "`\u{FFFD}\u{FFFD}\u{FFFD}0\u{FFFD}\u{FFFD}\u{FFFD}`"
+        );
+        let passthroughs = state.passthroughs.into_inner();
+        assert_eq!(passthroughs.len(), 1);
+        let Some(first) = passthroughs.first() else {
+            panic!("expected first passthrough");
+        };
+        // The inner backtick survives verbatim — that is the whole point of the
+        // passthrough, and the case that used to close the monospace span early.
+        assert_eq!(first.text, Some("a`b"));
+        assert_eq!(first.kind, PassthroughKind::Single);
+        // The backticks are NOT part of the passthrough (they stay in the stream
+        // for the quotes pass), so — like every other Pass — the location covers
+        // exactly the replaced span: `+a`b+` at bytes 1..6. Spanning the backticks
+        // instead made the Single-kind delimiter stripping (prefix = span − content
+        // − 1) land the content start on the `+`, shifting every rendered offset
+        // inside such a span by one (63 char-tight wrong_offset failures).
+        assert_eq!(first.location.absolute_start, 1);
+        assert_eq!(first.location.absolute_end, 6);
+        let source_map = state.source_map.borrow();
+        assert_eq!(source_map.replacements.len(), 1);
+        assert_eq!(source_map.replacements[0].absolute_start, 1);
+        assert_eq!(source_map.replacements[0].absolute_end, 6);
+        Ok(())
     }
 
     #[test]

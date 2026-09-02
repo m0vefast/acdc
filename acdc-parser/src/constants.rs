@@ -38,8 +38,7 @@ static BUILTIN_EMPTY: AttributeValue<'static> = AttributeValue::String(Cow::Borr
 static BUILTIN_ASCIIDOCTOR_VERSION: AttributeValue<'static> =
     AttributeValue::String(Cow::Borrowed(concat!(env!("CARGO_PKG_VERSION"), "-acdc")));
 static BUILTIN_BACKEND: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("html5"));
-static BUILTIN_BASEBACKEND: AttributeValue<'static> =
-    AttributeValue::String(Cow::Borrowed("html"));
+static BUILTIN_BASEBACKEND: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("html"));
 static BUILTIN_FILETYPE: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("html"));
 static BUILTIN_DOCTYPE: AttributeValue<'static> = AttributeValue::String(Cow::Borrowed("article"));
 static BUILTIN_SAFE_NAME_UNSAFE: AttributeValue<'static> =
