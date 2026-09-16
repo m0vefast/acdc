@@ -5,6 +5,7 @@
     {
       "name": "heading",
       "type": "block",
+      "id": "_a_discrete_heading",
       "title": [
         {
           "name": "text",

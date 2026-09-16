@@ -132,6 +132,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_real_title",
       "title": [
         {
           "name": "text",

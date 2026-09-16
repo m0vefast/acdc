@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use bumpalo::Bump;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 
@@ -92,6 +90,8 @@ pub struct Section<'a> {
     pub content: Vec<Block<'a>>,
     /// The section's structural category (special-section style, or `Normal`).
     pub kind: SectionKind,
+    /// The explicit id, or the generated one numbered in document order.
+    pub id: &'a str,
     pub location: Location,
 }
 
@@ -110,6 +110,7 @@ impl<'a> Section<'a> {
             level,
             content,
             kind: SectionKind::Normal,
+            id: "",
             location,
         }
     }
@@ -122,52 +123,12 @@ impl<'a> Section<'a> {
     }
 }
 
-/// A `SafeId` represents a sanitised ID.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum SafeId<'a> {
-    Generated(&'a str),
-    Explicit(&'a str),
-}
-
-impl Display for SafeId<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            // An empty generated slug (a title with no id-able characters)
-            // yields an empty id rather than a bare `_`, matching asciidoctor.
-            SafeId::Generated("") => Ok(()),
-            SafeId::Generated(id) => write!(f, "_{id}"),
-            SafeId::Explicit(id) => write!(f, "{id}"),
-        }
-    }
-}
-
-impl<'a> SafeId<'a> {
-    /// Return the display-equivalent `&'a str` for this safe id without going
-    /// through `format!`/`to_string()`. `Generated` variants are prepended
-    /// with `_` into the arena; an empty generated slug stays empty; `Explicit`
-    /// is returned unchanged.
-    #[must_use]
-    pub(crate) fn as_arena_str(&self, arena: &'a Bump) -> &'a str {
-        match self {
-            SafeId::Generated("") => "",
-            SafeId::Generated(id) => {
-                let mut s = bumpalo::collections::String::new_in(arena);
-                s.push('_');
-                s.push_str(id);
-                s.into_bump_str()
-            }
-            SafeId::Explicit(id) => id,
-        }
-    }
-}
-
 impl<'a> Section<'a> {
     /// Build a section id from title text: lowercase, non-alphanumerics
     /// (except whitespace, `-`, `.`, `_`) dropped, survivors joined with `_`,
     /// consecutive `_` collapsed, leading and trailing `_` trimmed. Single
-    /// pass. The `_` prefix on a generated id is added by `SafeId`, so leading
-    /// separators here must be squeezed away to avoid a doubled `__`.
+    /// pass. `generated_id` adds the `_` prefix, so leading separators here must
+    /// be squeezed away to avoid a doubled `__`.
     fn id_from_title(title: &[InlineNode<'a>]) -> String {
         let mut out = String::new();
         // Start as if a `_` was just emitted so leading separators are dropped.
@@ -324,43 +285,41 @@ impl<'a> Section<'a> {
         }
     }
 
-    /// Pick the explicit id if metadata provides one, else None. Shared by
-    /// the arena-returning and `String`-returning variants below.
-    fn explicit_id(metadata: &BlockMetadata<'a>) -> Option<&'a str> {
+    /// The explicit id a block's metadata assigns: `[#id]` / `[id=…]`, otherwise the
+    /// last `[[id]]` anchor.
+    #[must_use]
+    pub fn explicit_id(metadata: &BlockMetadata<'a>) -> Option<&'a str> {
         if let Some(anchor) = &metadata.id {
             return Some(anchor.id);
         }
         metadata.anchors.last().map(|a| a.id)
     }
 
-    /// Generate a section ID based on its title and metadata.
-    ///
-    /// Checks in order: explicit `metadata.id` (e.g. `[id=foo]`), then the last entry in
-    /// `metadata.anchors` (e.g. `[[foo]]`), otherwise auto-generates one from the title
-    /// and interns it into the supplied arena.
-    #[must_use]
-    pub(crate) fn generate_id(
+    /// The id a title has before it is numbered against the ids in use: the explicit
+    /// id, otherwise the generated one. The grammar records it while parsing; the final
+    /// id is assigned once the whole document is known.
+    pub(crate) fn unnumbered_id(
         arena: &'a Bump,
         metadata: &BlockMetadata<'a>,
         title: &[InlineNode<'a>],
-    ) -> SafeId<'a> {
-        match Self::explicit_id(metadata) {
-            Some(id) => SafeId::Explicit(id),
-            None => SafeId::Generated(arena.alloc_str(&Self::id_from_title(title))),
-        }
+    ) -> &'a str {
+        Self::explicit_id(metadata)
+            .unwrap_or_else(|| arena.alloc_str(&Self::generated_id_from_title(title)))
     }
 
-    /// Generate a section ID based on its title and metadata, returning a `String`
-    /// directly.
-    ///
-    /// Returns the `Display`-formatted form (prefixed with `_` for generated IDs)
-    /// matching `safe_id.to_string()`.
+    /// The id asciidoctor generates from a title, before it is numbered against the
+    /// ids already in use. A parsed section or discrete heading carries its final id in
+    /// `id`; this is for a title outside that allocation, such as the document header's.
     #[must_use]
-    pub fn generate_id_string(metadata: &BlockMetadata<'a>, title: &[InlineNode<'a>]) -> String {
-        if let Some(id) = Self::explicit_id(metadata) {
-            return id.to_string();
+    pub fn generated_id_from_title(title: &[InlineNode<'a>]) -> String {
+        Self::generated_id(Self::id_from_title(title))
+    }
+
+    /// A slug with no id characters generates an empty id, not a bare `_`.
+    fn generated_id(mut slug: String) -> String {
+        while slug.ends_with('_') {
+            slug.pop();
         }
-        let slug = Self::id_from_title(title);
         if slug.is_empty() {
             slug
         } else {
@@ -377,6 +336,7 @@ impl Serialize for Section<'_> {
         let mut state = serializer.serialize_map(None)?;
         state.serialize_entry("name", "section")?;
         state.serialize_entry("type", "block")?;
+        state.serialize_entry("id", &self.id)?;
         state.serialize_entry("title", &self.title)?;
         state.serialize_entry("level", &self.level)?;
         if !self.metadata.is_default() {
@@ -420,8 +380,8 @@ mod tests {
 
     #[test]
     fn test_id_from_title_strips_leading_separators() {
-        // Leading non-alphanumerics must be squeezed away so the `_` prefix
-        // added by `SafeId::Generated` does not produce a doubled `__`.
+        // Leading non-alphanumerics must be squeezed away so the `_` prefix of a
+        // generated id does not produce a doubled `__`.
         let inlines: &[InlineNode] = &[InlineNode::PlainText(Plain {
             content: "--  Specialized Environments",
             location: Location::default(),
@@ -432,7 +392,7 @@ mod tests {
             "specialized_environments".to_string()
         );
         assert_eq!(
-            Section::generate_id_string(&BlockMetadata::default(), inlines),
+            Section::generated_id_from_title(inlines),
             "_specialized_environments".to_string()
         );
     }
@@ -441,22 +401,40 @@ mod tests {
     fn test_id_from_title_all_separators_is_empty() {
         // A title with no id-able characters yields an empty id (not a bare
         // `_`), matching asciidoctor.
-        let arena = Bump::new();
         let inlines: &[InlineNode] = &[InlineNode::PlainText(Plain {
             content: "---",
             location: Location::default(),
             escaped: false,
         })];
         assert_eq!(Section::id_from_title(inlines), String::new());
-        let metadata = BlockMetadata::default();
-        assert_eq!(
-            Section::generate_id_string(&metadata, inlines),
-            String::new()
-        );
-        let safe_id = Section::generate_id(&arena, &metadata, inlines);
-        assert_eq!(safe_id, SafeId::Generated(""));
-        assert_eq!(safe_id.to_string(), String::new());
-        assert_eq!(safe_id.as_arena_str(&arena), "");
+        assert_eq!(Section::generated_id_from_title(inlines), String::new());
+    }
+
+    #[test]
+    fn test_generated_id_from_title_matches_asciidoctor() {
+        // Each expected id is asciidoctor 2.0.26's for a document holding only
+        // `== <text>`.
+        for (content, expected) in [
+            ("My Section", "_my_section"),
+            ("foo - bar", "_foo_bar"),
+            ("This is a----title.", "_this_is_a_title"),
+            ("trailing!!!", "_trailing"),
+            ("foo!bar", "_foobar"),
+            ("a&b", "_ab"),
+            ("CHART_BOT", "_chart_bot"),
+            ("中文标题", "_中文标题"),
+            ("Über Café", "_über_café"),
+            ("Section 1.1", "_section_1_1"),
+            ("_intro_2", "_intro_2"),
+            ("!!!", ""),
+        ] {
+            let inlines: &[InlineNode] = &[InlineNode::PlainText(Plain {
+                content,
+                location: Location::default(),
+                escaped: false,
+            })];
+            assert_eq!(Section::generated_id_from_title(inlines), expected, "{content}");
+        }
     }
 
     #[test]
@@ -485,8 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn test_section_generate_id() {
-        let arena = Bump::new();
+    fn test_explicit_and_generated_ids() {
         let inlines: &[InlineNode] = &[InlineNode::PlainText(Plain {
             content: "This is a b__i__g title.",
             location: Location::default(),
@@ -494,9 +471,10 @@ mod tests {
         })];
         // metadata has an empty id
         let metadata = BlockMetadata::default();
+        assert_eq!(Section::explicit_id(&metadata), None);
         assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Generated("this_is_a_b_i_g_title")
+            Section::generated_id_from_title(inlines),
+            "_this_is_a_b_i_g_title"
         );
 
         // metadata has a specific id in metadata.id
@@ -509,10 +487,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("custom_id")
-        );
+        assert_eq!(Section::explicit_id(&metadata), Some("custom_id"));
 
         // metadata has anchor in metadata.anchors (from [[id]] or [#id] syntax)
         let metadata = BlockMetadata {
@@ -524,10 +499,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("anchor_id")
-        );
+        assert_eq!(Section::explicit_id(&metadata), Some("anchor_id"));
 
         // with multiple anchors, the last one is used (matches asciidoctor behavior)
         let metadata = BlockMetadata {
@@ -547,10 +519,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("last_anchor")
-        );
+        assert_eq!(Section::explicit_id(&metadata), Some("last_anchor"));
 
         // metadata.id takes precedence over metadata.anchors
         let metadata = BlockMetadata {
@@ -568,9 +537,6 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("from_id")
-        );
+        assert_eq!(Section::explicit_id(&metadata), Some("from_id"));
     }
 }

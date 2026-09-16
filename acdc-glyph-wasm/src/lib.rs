@@ -56,9 +56,35 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use acdc_converters_core::Converter;
-use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options, SafeMode};
+use acdc_parser::{DynFileResolver, FileResolver, FileResolverError, Options, SafeMode, XrefForm};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
+
+/// Adds `targetKind` to every cross reference in a serialized ASG: what its target
+/// names, read with acdc's own rule (`xref_target_kind`). The renderer reads this field
+/// instead of re-deriving asciidoctor's rule in TypeScript. Added here rather than in the
+/// parser's ASG so the ASG itself stays the shape asciidoctor's schema describes.
+fn annotate_xref_targets(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Array(items) => items.iter_mut().for_each(annotate_xref_targets),
+        serde_json::Value::Object(map) => {
+            let kind = match (map.get("name"), map.get("target"), map.get("form")) {
+                (Some(serde_json::Value::String(name)), Some(serde_json::Value::String(target)), Some(form))
+                    if name == "xref" =>
+                {
+                    let form = if form.as_str() == Some("macro") { XrefForm::Macro } else { XrefForm::Shorthand };
+                    serde_json::to_value(acdc_parser::xref_target_kind(target, form)).ok()
+                }
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                map.insert("targetKind".to_string(), kind);
+            }
+            map.values_mut().for_each(annotate_xref_targets);
+        }
+        _ => {}
+    }
+}
 
 mod validate;
 
@@ -263,8 +289,9 @@ pub fn parse_block(source: &str, safe_mode: Option<String>) -> Result<JsValue, J
             let warnings: Vec<WarningJson> = collect_all_warnings(&result);
             // Serialize via serde_json::Value to a JS-friendly intermediate
             // (avoids serde-wasm-bindgen lifetime issues with bumpalo arenas).
-            let json = serde_json::to_value(doc)
+            let mut json = serde_json::to_value(doc)
                 .map_err(|e| JsValue::from_str(&format!("serialize document: {e}")))?;
+            annotate_xref_targets(&mut json);
             let envelope = serde_json::json!({
                 "ok": true,
                 "value": json,
@@ -301,8 +328,9 @@ pub fn parse_inline(source: &str, safe_mode: Option<String>) -> Result<JsValue, 
             let inlines = result.inlines();
             let warnings: Vec<WarningJson> =
                 result.warnings().iter().map(warning_to_json).collect();
-            let json = serde_json::to_value(inlines)
+            let mut json = serde_json::to_value(inlines)
                 .map_err(|e| JsValue::from_str(&format!("serialize inlines: {e}")))?;
+            annotate_xref_targets(&mut json);
             let envelope = serde_json::json!({
                 "ok": true,
                 "value": json,
@@ -364,8 +392,9 @@ pub fn parse_block_with_resolver(
         Ok(result) => {
             let doc = result.document();
             let warnings: Vec<WarningJson> = collect_all_warnings(&result);
-            let json = serde_json::to_value(doc)
+            let mut json = serde_json::to_value(doc)
                 .map_err(|e| JsValue::from_str(&format!("serialize document: {e}")))?;
+            annotate_xref_targets(&mut json);
             let envelope = serde_json::json!({
                 "ok": true,
                 "value": json,

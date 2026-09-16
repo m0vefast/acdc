@@ -171,8 +171,7 @@ fn collect_block_anchors(
             collect_inline_anchors(&pb.title, anchors, warnings);
         }
         Block::DiscreteHeader(h) => {
-            collect_metadata_anchors(&h.metadata, &h.location, anchors, warnings);
-            collect_inline_anchors(&h.title, anchors, warnings);
+            collect_heading_anchors(&h.metadata, h.id, &h.location, &h.title, anchors, warnings);
         }
         Block::CalloutList(cl) => {
             collect_metadata_anchors(&cl.metadata, &cl.location, anchors, warnings);
@@ -203,22 +202,43 @@ fn collect_section_anchors(
     anchors: &mut HashMap<String, Location>,
     warnings: &mut Vec<RefWarning>,
 ) {
-    // `generate_id_string` already resolves the section's primary id, which is
-    // the explicit `[#id]` / last `[[id]]` anchor when present (see
-    // Section::explicit_id). Inserting it AND then iterating metadata.anchors
-    // would double-count that same anchor → a false DuplicateAnchorId. Skip
-    // the anchor(s) already represented by the primary id.
+    collect_heading_anchors(
+        &section.metadata,
+        section.id,
+        &heading_line_location(section),
+        &section.title,
+        anchors,
+        warnings,
+    );
+    for child in &section.content {
+        collect_block_anchors(child, anchors, warnings);
+    }
+}
+
+/// A section or discrete heading: the id the parser allocated for it, at the heading,
+/// plus every metadata anchor that id does not already stand for.
+fn collect_heading_anchors(
+    metadata: &BlockMetadata,
+    id: &str,
+    heading: &Location,
+    title: &[InlineNode],
+    anchors: &mut HashMap<String, Location>,
+    warnings: &mut Vec<RefWarning>,
+) {
+    // The id already stands for the explicit `[#id]` / last `[[id]]` anchor when
+    // present (see Section::explicit_id). Inserting it AND then iterating
+    // metadata.anchors would double-count that same anchor → a false
+    // DuplicateAnchorId. Skip the anchor(s) the id represents.
     //
     // Synonym dedup mirrors collect_metadata_anchors: `[[a]]\n[[a]]\n== S`
-    // pushes both `a` entries into section.metadata.anchors. Without
-    // `seen_in_block` the second insert would false-flag DuplicateAnchorId
-    // against itself. Also skip `metadata.id` (the `[id=foo]` attribute form)
-    // since it's the same anchor declared two ways.
-    let id = Section::generate_id_string(&section.metadata, &section.title);
-    let primary_id_attr: Option<&str> = section.metadata.id.as_ref().map(|a| a.id);
+    // pushes both `a` entries into metadata.anchors. Without `seen_in_block` the
+    // second insert would false-flag DuplicateAnchorId against itself. Also skip
+    // `metadata.id` (the `[id=foo]` attribute form) since it's the same anchor
+    // declared two ways.
+    let primary_id_attr: Option<&str> = metadata.id.as_ref().map(|a| a.id);
     let mut seen_in_block: HashSet<&str> = HashSet::new();
-    for anchor in &section.metadata.anchors {
-        if anchor.id == id.as_str() || Some(anchor.id) == primary_id_attr {
+    for anchor in &metadata.anchors {
+        if anchor.id == id || Some(anchor.id) == primary_id_attr {
             continue;
         }
         if !seen_in_block.insert(anchor.id) {
@@ -226,13 +246,10 @@ fn collect_section_anchors(
         }
         insert_anchor(anchor.id.to_string(), &anchor.location, anchors, warnings);
     }
-    insert_anchor(id, &heading_line_location(section), anchors, warnings);
+    insert_anchor(id.to_string(), heading, anchors, warnings);
     // Heading titles can carry inline anchors (`== [[hdr]] My Heading`); skipping
     // them would false-flag `<<hdr>>` as unresolved.
-    collect_inline_anchors(&section.title, anchors, warnings);
-    for child in &section.content {
-        collect_block_anchors(child, anchors, warnings);
-    }
+    collect_inline_anchors(title, anchors, warnings);
 }
 
 fn collect_metadata_anchors(
@@ -459,6 +476,41 @@ mod tests {
     }
 
     #[test]
+    fn repeated_generated_titles_do_not_warn() {
+        // asciidoctor numbers the later ids (`_intro_2`, `_intro_3`) instead of reusing `_intro`.
+        let kinds = warn_kinds("= Doc\n\n== Intro\n\n== Intro\n\n[discrete]\n== Intro\n");
+        assert!(
+            kinds.iter().all(|(k, _)| k != "DuplicateAnchorId"),
+            "repeated generated titles must not warn, got: {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_id_before_a_same_named_generated_id_does_not_warn() {
+        // The generated id moves on to `_explicit_2`.
+        let kinds = warn_kinds("= Doc\n\n[[_explicit]]\n== Explicit Anchor\n\n== Explicit\n");
+        assert!(
+            kinds.iter().all(|(k, _)| k != "DuplicateAnchorId"),
+            "a generated id must not collide with an earlier explicit one, got: {kinds:?}"
+        );
+    }
+
+    #[test]
+    fn generated_discrete_id_reused_by_a_later_anchor_warns() {
+        // asciidoctor: "id assigned to block already in use: _floating".
+        let kinds = warn_kinds("= Doc\n\n[discrete]\n== Floating\n\n[[_floating]]\nPara.\n");
+        let dups: Vec<_> = kinds
+            .iter()
+            .filter(|(k, _)| k == "DuplicateAnchorId")
+            .collect();
+        assert_eq!(dups.len(), 1, "expected 1 duplicate-anchor, got: {kinds:?}");
+        assert!(
+            dups.first().is_some_and(|(_, m)| m.contains("_floating")),
+            "message should name the id: {kinds:?}"
+        );
+    }
+
+    #[test]
     fn synonym_anchor_pair_does_not_false_duplicate() {
         // `[#foo]\n[[foo]]` is a SYNONYM (one anchor declared two ways), not
         // two duplicates. acdc empirically populates metadata.anchors with
@@ -476,7 +528,7 @@ mod tests {
     fn section_synonym_anchor_pair_does_not_false_duplicate() {
         // Section parallel to `synonym_anchor_pair_does_not_false_duplicate`:
         // section metadata.anchors can carry `[[a]]\n[[a]]` synonyms (verified
-        // 2026-05-29). `Section::generate_id_string` picks one as primary; the
+        // 2026-05-29). The parser picks one as the section id; the
         // walk must dedup the remaining same-id entries within the section
         // block, else a syntactically valid synonym pair false-flags as
         // DuplicateAnchorId.

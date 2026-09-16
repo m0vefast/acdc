@@ -74,10 +74,8 @@ impl Visitor for PdfVisitor<'_, '_, '_> {
         }
         self.write_title(&section.title)?;
         self.writer.raw("]");
-        let id =
-            acdc_parser::Section::generate_id_string(&section.metadata, section.title.as_ref());
-        if !id.is_empty() {
-            let _ = write!(self.writer, " <{}>", encode_label(&id));
+        if !section.id.is_empty() {
+            let _ = write!(self.writer, " <{}>", encode_label(section.id));
         }
         self.writer.raw("\n\n");
         self.write_blocks(&section.content)

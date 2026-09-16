@@ -58,6 +58,15 @@ fn is_word_char_unicode(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// The first character of a cross-reference target, per asciidoctor's
+/// `InlineXrefMacroRx`: `[\p{Word}#/.:{]`.
+fn xref_target_starts_well(target: &str) -> bool {
+    target
+        .chars()
+        .next()
+        .is_some_and(|c| is_word_char_unicode(c) || matches!(c, '#' | '/' | '.' | ':' | '{'))
+}
+
 /// Get the char ending at byte position `pos` (i.e. the char whose last byte
 /// is at `pos - 1`). Returns `None` if `pos == 0`, `pos` exceeds `input.len()`,
 /// OR `pos` is mid-char.
@@ -1043,7 +1052,7 @@ peg::parser! {
         = ("latexmath" / "asciimath" / "stem") ":[" ("\\\\" / "\\" ['[' | ']'] / [^(']' | '\\')]+ / "\\")* "]"
 
         rule inline_image() -> InlineNode<'input>
-        = "image:" source:source() attributes:macro_attributes()
+        = "image:" source:media_source() attributes:macro_attributes()
         {?
             let (_discrete, metadata, title_position) = attributes;
             let mut metadata = metadata.clone();
@@ -1101,7 +1110,7 @@ peg::parser! {
 
         /// Match inline image without consuming - for use in negative lookaheads.
         rule inline_image_match()
-        = "image:" source() "[" (!"]" [_])* "]"
+        = "image:" media_source() "[" (!"]" [_])* "]"
 
         /// Parse link macros with custom attribute handling.
         ///
@@ -1138,7 +1147,7 @@ peg::parser! {
         /// regressions in other parts of the parser while correctly handling edge cases
         /// like quotes, special characters, and mixed content.
         rule link_macro() -> InlineNode<'input>
-        = "link:" target:source() fragment:path_fragment()? "["
+        = "link:" target:link_macro_target() "["
         content_start:position!()
         content:(
             title:link_or_url_title() attributes:("," att:attribute() { att })* {
@@ -1161,13 +1170,6 @@ peg::parser! {
                     metadata.attributes.insert(k, AttributeValue::String(v));
                 }
             }
-            let target = match fragment {
-                Some(f) => {
-                    let combined = state.intern_fmt(format_args!("{target}{f}"));
-                    Source::from_str_borrowed(combined).unwrap_or(target)
-                }
-                None => target,
-            };
             let text = if let Some(text) = text {
                 process_inlines_no_autolinks(state, &bm, content_start, span_end, state.inline_ctx.offset, text)
                     .map_err(|e| {
@@ -1187,14 +1189,14 @@ peg::parser! {
 
         /// Match link macro without consuming - for use in negative lookaheads.
         rule link_macro_match()
-        = "link:" source() path_fragment()? "[" (!"]" [_])* "]"
+        = "link:" link_macro_target() "[" (!"]" [_])* "]"
 
         /// Parse cross-reference shorthand syntax: <<id>> or <<id,custom text>>
         rule cross_reference_shorthand() -> InlineNode<'input>
         = shorthand:cross_reference_shorthand_pattern()
         {?
-            let (target, raw_text) = shorthand;
-            let target_str: &'input str = target.trim();
+            let (target, (target_start, target_end), raw_text) = shorthand;
+            let target_str: &'input str = target;
             let bm = BlockParsingMetadata {
                 subs_flags: state.inline_ctx.subs_flags,
                 ..BlockParsingMetadata::default()
@@ -1228,48 +1230,32 @@ peg::parser! {
             Ok(InlineNode::Macro(InlineMacro::CrossReference(crate::model::CrossReference {
                 target: target_str,
                 text,
+                form: crate::model::XrefForm::Shorthand,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
+                target_location: state.create_block_location(target_start, target_end, state.inline_ctx.offset),
             })))
         }
 
-        /// Pattern for cross-reference shorthand: `<<id>>`, `<<id,text>>`,
-        /// `<<file.adoc#anchor>>`, `<<file.adoc#anchor,text>>`.
+        /// Pattern for cross-reference shorthand: `<<target>>` or `<<target,text>>`.
         ///
-        /// Target may include any non-ASCII Unicode character (CJK, Hangul,
-        /// Cyrillic, Arabic, etc.) — Asciidoctor's reference accepts CJK
-        /// section IDs like `[#结论]` and the matching `<<结论>>` xref.
-        /// The leading char is a letter, `_`, `#`, or non-ASCII Unicode
-        /// (Asciidoctor likewise renders `<<#anchor>>` as `<a href="#anchor">`);
-        /// subsequent chars also allow digits, `-`, plus `.`, `/`, `#`
-        /// for cross-document targets (`file.adoc#anchor`, `sub/file.adoc`).
-        /// Downstream code routes by whether target contains `.adoc` / `#` /
-        /// path separators.
-        rule cross_reference_shorthand_pattern() -> (&'input str, Option<(usize, &'input str)>)
-        = "<<" target:$(['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']*) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
-        {
-            (target, content)
+        /// asciidoctor's `InlineXrefMacroRx`: the target starts with a word character or
+        /// one of `#/.:{` and runs to the first `,` or `>>`, so `<<../guide.adoc#install>>`
+        /// and `<<my guide.adoc#x>>` are references.
+        rule cross_reference_shorthand_pattern() -> (&'input str, (usize, usize), Option<(usize, &'input str)>)
+        = "<<" target_start:position!() target:$((!("," / ">>") [_])+) target_end:position!() content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
+        {?
+            if xref_target_starts_well(target) {
+                Ok((target, (target_start, target_end), content))
+            } else {
+                Err("cross-reference target must start with a word character or one of #/.:{")
+            }
         }
 
-        /// Parse cross-reference macro syntax. Three accepted shapes:
-        ///   1. `xref:id[text]`               same-document, target is the id
-        ///   2. `xref:file.adoc#anchor[text]` cross-document with fragment
-        ///   3. `xref:#anchor[text]`          same-document, explicit hash
-        ///
-        /// Form (3) is what Asciidoctor accepts but earlier acdc grammar
-        /// silently rejected (required non-empty `source()` for target).
-        /// `target` is now optional; at least ONE of target/fragment must
-        /// be present, otherwise the rule fails. When only the fragment is
-        /// present the emitted `target_str` includes the leading `#` so the
-        /// downstream converter routes through the same-document anchor path.
+        /// Parse cross-reference macro syntax: `xref:target[text]`, where the target is an
+        /// id, `#id`, or a path with an optional `#fragment` (`cross_reference_macro_target`).
         rule cross_reference_macro() -> InlineNode<'input>
-        = "xref:" target:source()? fragment:path_fragment()? "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
+        = "xref:" target_start:position!() target_str:cross_reference_macro_target() target_end:position!() "[" content_start:position!() raw_text:$((!"]" [_])*) "]"
         {?
-            let target_str: &'input str = match (target.as_ref(), fragment.as_ref()) {
-                (Some(t), Some(f)) => state.intern_fmt(format_args!("{t}{f}")),
-                (Some(t), None)    => state.intern_fmt(format_args!("{t}")),
-                (None,    Some(f)) => state.intern_fmt(format_args!("{f}")),
-                (None,    None)    => return Err("xref macro requires a target or a #fragment"),
-            };
             let bm = BlockParsingMetadata {
                 subs_flags: state.inline_ctx.subs_flags,
                 ..BlockParsingMetadata::default()
@@ -1287,23 +1273,19 @@ peg::parser! {
             Ok(InlineNode::Macro(InlineMacro::CrossReference(crate::model::CrossReference {
                 target: target_str,
                 text,
+                form: crate::model::XrefForm::Macro,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
+                target_location: state.create_block_location(target_start, target_end, state.inline_ctx.offset),
             })))
         }
 
-        /// Match cross-reference shorthand syntax without consuming: <<id>>,
-        /// <<id,text>>, <<file.adoc#anchor>>, or <<file.adoc>>. Char class
-        /// mirrors `cross_reference_shorthand_pattern` (Unicode-permissive,
-        /// plus `.`, `/`, `#` for cross-document targets).
+        /// Match cross-reference shorthand syntax without consuming.
         rule cross_reference_shorthand_match() -> ()
-        = "<<" ['a'..='z' | 'A'..='Z' | '_' | '#' | '\u{0080}'..='\u{10FFFF}'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '/' | '#' | '\u{0080}'..='\u{10FFFF}']* ("," (!">>" [_])+)? ">>"
+        = cross_reference_shorthand_pattern() {}
 
         /// Match cross-reference macro syntax without consuming.
-        /// Three accepted shapes — mirror the parse-time rule:
-        ///   xref:id[…]                xref:file.adoc#a[…]    xref:#anchor[…]
         rule cross_reference_macro_match()
-        = "xref:" source() path_fragment()? "[" (!"]" [_])* "]"
-        / "xref:" path_fragment() "[" (!"]" [_])* "]"
+        = "xref:" cross_reference_macro_target() "[" (!"]" [_])* "]"
 
         rule bold_text_unconstrained() -> InlineNode<'input>
             = attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$((!(eol() / ![_] / "**") [_])+) "**" end:position!()
@@ -2252,6 +2234,10 @@ peg::parser! {
         proto:$("https" / "http" / "ftp" / "irc") "://" path:url_path() { Cow::Owned(format!("{proto}://{path}")) }
         / "mailto:" email:email_address() { Cow::Owned(format!("mailto:{email}")) }
 
+        rule media_url() -> Cow<'input, str> =
+        proto:$("https" / "http" / "ftp" / "irc") "://" path:media_url_path() { Cow::Owned(format!("{proto}://{path}")) }
+        / "mailto:" email:email_address() { Cow::Owned(format!("mailto:{email}")) }
+
         /// Email address pattern (RFC 822 simplified)
         ///
         /// Local part: alphanumeric plus . _ % + -
@@ -2302,9 +2288,10 @@ peg::parser! {
             Ok(Cow::Owned(format!("{local}@{domain}")))
         }
 
-        /// URL path component - supports query params, fragments, encoding, etc.
-        /// Excludes '[' and ']' to respect AsciiDoc macro/attribute boundaries
-        rule url_path() -> Cow<'input, str> = path:$(['A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' | '\\' ]+)
+        /// URL target content following `://`.
+        /// Supports query parameters, fragments, and percent escapes while excluding
+        /// brackets that delimit the macro attributes.
+        rule url_path() -> Cow<'input, str> = path:$(url_path_char()+)
         {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 path,
@@ -2324,6 +2311,30 @@ peg::parser! {
             // from normalizing backslashes to forward slashes
             Ok(Cow::Owned(strip_url_backslash_escapes(&processed.text).into_owned()))
         }
+
+        /// URL target content for an inline media macro.
+        /// Spaces must be internal to the target.
+        rule media_url_path() -> Cow<'input, str> = path:$(url_path_char() (url_path_char() / internal_url_path_spaces())*)
+        {?
+            let inline_state = InlinePreprocessorParserState::new_all_enabled(
+                path,
+                state.line_map.clone(),
+                state.input,
+                state.arena,
+            );
+            let processed = inline_preprocessing::run(path, &state.document_attributes, &inline_state)
+            .map_err(|e| {
+                tracing::error!(?e, "could not preprocess media URL path");
+                "could not preprocess media URL path"
+            })?;
+            for warning in inline_state.drain_warnings() {
+                state.add_inline_preprocessor_warning(warning);
+            }
+            Ok(Cow::Owned(strip_url_backslash_escapes(&processed.text).into_owned()))
+        }
+
+        rule url_path_char() = ['A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' | '\\' ]
+        rule internal_url_path_spaces() = [' ']+ &url_path_char()
 
         /// URL for bare autolinks — avoids capturing trailing sentence punctuation
         /// (., ;, !, etc.) by only consuming punctuation when more URL chars follow.
@@ -2383,22 +2394,11 @@ peg::parser! {
         /// (e.g., `http://example.com.)` keeps both `.` and `)` outside).
         rule bare_url_char() = bare_url_safe_char() / bare_url_trailing_char() / "("
 
-        /// Fragment identifier for URLs and cross-references (e.g., `#section-id`).
-        /// Only used by `xref:` and `link:` macros — other macros (`image::`,
-        /// `video::`, etc.) do not support fragments.
+        /// Filesystem path accepted by inline macros.
         ///
-        /// Char class allows non-ASCII Unicode so that CJK anchor ids
-        /// (`[#结论]` / `xref:file.adoc#结论[…]`) resolve correctly. Mirrors
-        /// the relaxed pattern in `cross_reference_shorthand_pattern`.
-        rule path_fragment() -> Cow<'input, str>
-            = "#" fragment:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '\u{0080}'..='\u{10FFFF}']+)
-        {
-            Cow::Owned(format!("#{fragment}"))
-        }
-
-        /// Filesystem path - conservative character set for cross-platform compatibility
-        /// Includes '{' and '}' for `AsciiDoc` attribute substitution
-        pub rule path() -> Cow<'input, str> = path:$(['A'..='Z' | 'a'..='z' | '0'..='9' | '{' | '}' | '_' | '-' | '.' | '/' | '\\' ]+)
+        /// ASCII input uses a conservative filename set. Non-ASCII Unicode characters
+        /// are accepted unchanged, and `{`/`}` permit `AsciiDoc` attribute substitution.
+        pub rule path() -> Cow<'input, str> = path:$(path_char()+)
         {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 path,
@@ -2416,6 +2416,126 @@ peg::parser! {
             }
             Ok(processed.text)
         }
+
+        /// Filesystem path for an inline media target, as asciidoctor's
+        /// `InlineImageMacroRx` takes it: not starting with `:`, any character up to the
+        /// `[` that opens the attributes, whitespace only inside it. Existing percent
+        /// escapes and internal spaces are preserved.
+        rule media_path() -> Cow<'input, str> = path:$(!":" media_path_char() (media_path_char() / internal_media_path_spaces())*)
+        {?
+            let inline_state = InlinePreprocessorParserState::new_all_enabled(
+                path,
+                state.line_map.clone(),
+                state.input,
+                state.arena,
+            );
+            let processed = inline_preprocessing::run(path, &state.document_attributes, &inline_state)
+            .map_err(|e| {
+                tracing::error!(?e, "could not preprocess media path");
+                "could not preprocess media path"
+            })?;
+            for warning in inline_state.drain_warnings() {
+                state.add_inline_preprocessor_warning(warning);
+            }
+            Ok(processed.text)
+        }
+
+        rule path_char() = ['A'..='Z' | 'a'..='z' | '0'..='9' | '{' | '}' | '_' | '-' | '.' | '/' | '\\' | '\u{80}'..='\u{10FFFF}' ]
+        rule media_path_char() = !['[' | ' ' | '\t' | '\n' | '\r'] [_]
+        rule internal_media_path_spaces() = [' ']+ &media_path_char()
+
+        /// A cross-reference macro target, as asciidoctor's `InlineXrefMacroRx` reads it: a
+        /// word character or one of `#/.:{`, then everything up to the `[` that opens the
+        /// text — the first `[` left once the constructs asciidoctor substitutes earlier
+        /// have taken theirs. Attribute references are substituted, as in other macro targets.
+        rule cross_reference_macro_target() -> &'input str
+        = target:$((!"[" !substituted_before_xrefs() [_])+) !substituted_before_xrefs()
+        {?
+            if !xref_target_starts_well(target) {
+                return Err("cross-reference target must start with a word character or one of #/.:{");
+            }
+            let inline_state = InlinePreprocessorParserState::new_all_enabled(
+                target,
+                state.line_map.clone(),
+                state.input,
+                state.arena,
+            );
+            let processed = inline_preprocessing::run(target, &state.document_attributes, &inline_state)
+            .map_err(|e| {
+                tracing::error!(?e, "could not preprocess xref target");
+                "could not preprocess xref target"
+            })?;
+            for warning in inline_state.drain_warnings() {
+                state.add_inline_preprocessor_warning(warning);
+            }
+            Ok(state.intern_cow(processed.text))
+        }
+
+        /// A construct asciidoctor substitutes before cross references, taking the `[` it is
+        /// written with: an inline image or icon, a URL, `link:`, `mailto:`, an inline
+        /// anchor, or quoted text with an attribute list. Passthroughs are placeholders by
+        /// the time inlines are read.
+        rule substituted_before_xrefs()
+        = inline_image_match() / inline_icon_match() / url_macro_match() / link_macro_match()
+        / mailto_macro_match() / inline_anchor_match()
+        / &"[" (bold_text_unconstrained_match() / bold_text_constrained_match()
+            / italic_text_unconstrained_match() / italic_text_constrained_match()
+            / monospace_text_unconstrained_match() / monospace_text_constrained_match()
+            / highlight_text_unconstrained_match() / highlight_text_constrained_match()
+            / superscript_text_match() / subscript_text_match())
+
+        /// A link macro target, as asciidoctor's `InlineLinkMacroRx` reads it: anything but
+        /// whitespace and `[`, not starting with `:`. Percent escapes and non-ASCII
+        /// characters are kept; attribute references are substituted.
+        rule link_macro_target() -> Source<'input>
+            = source:
+        (
+            p:passthrough_placeholder() {
+                Source::Name(p)
+            }
+            / target:$([^(':' | ' ' | '\t' | '\n' | '[')] [^(' ' | '\t' | '\n' | '[')]*) {?
+                let inline_state = InlinePreprocessorParserState::new_all_enabled(
+                    target,
+                    state.line_map.clone(),
+                    state.input,
+                    state.arena,
+                );
+                let processed = inline_preprocessing::run(target, &state.document_attributes, &inline_state)
+                .map_err(|e| {
+                    tracing::error!(?e, "could not preprocess link target");
+                    "could not preprocess link target"
+                })?;
+                for warning in inline_state.drain_warnings() {
+                    state.add_inline_preprocessor_warning(warning);
+                }
+                // Backslash escapes are stripped from URLs only, as `url_path` does.
+                let text = if processed.text.contains("://") || processed.text.starts_with("mailto:") {
+                    Cow::Owned(strip_url_backslash_escapes(&processed.text).into_owned())
+                } else {
+                    processed.text
+                };
+                let interned = state.intern_cow(text);
+                Source::from_str_borrowed(interned).map_err(|_| "failed to parse link target")
+            }
+        )
+        { source }
+
+        rule media_source() -> Source<'input>
+            = source:
+        (
+            p:passthrough_placeholder() {
+                Source::Name(p)
+            }
+            / u:media_url() {?
+                let interned = state.intern_cow(u);
+                Source::from_str_borrowed(interned).map_err(|_| "failed to parse media URL")
+            }
+            / p:media_path() {?
+                let interned = state.intern_cow(p);
+                Source::from_str_borrowed(interned).map_err(|_| "failed to parse media path")
+            }
+        )
+        { source }
 
         pub rule source() -> Source<'input>
             = source:

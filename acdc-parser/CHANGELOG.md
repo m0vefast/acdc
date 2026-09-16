@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cross reference and link targets are read the way `asciidoctor` reads them. A
+  `<<target>>` target runs to the first `,` or `>>` and starts with a word character
+  or one of `#/.:{`, so `<<../guide.adoc#install>>`, `<<my guide.adoc#x>>` and
+  `<<:x>>` are references while `<< x>>` stays text. An `xref:` target runs to the
+  `[`, so it may hold spaces, non-ASCII characters and dots in the fragment
+  (`xref:guide.adoc#v1.2[]`). A `link:` target is anything but whitespace and `[`,
+  so `link:Meeting%20Notes.pdf[]` and `link:设计.pdf[]` are links and
+  `link:a b.pdf[]` stays text.
+- Inline `image:` and block `image::`, `audio::` and `video::` targets accept what
+  `asciidoctor` accepts: any character up to the `[` that opens the attributes, with
+  whitespace only inside the target (`image::logo@2x.png[]`, `image::diagram (1).png[]`,
+  `image:设计 图.png[]`); a `video::` target list is still separated by commas. Other
+  inline macro paths accept non-ASCII characters.
+- Section and discrete heading ids are allocated the way `asciidoctor` allocates them.
+  A generated id already in use takes the first free `_2`, `_3`, … suffix (`Intro`,
+  `Intro 2`, `Intro` → `_intro`, `_intro_2`, `_intro_3`), and an id counts as in use
+  once the document id, an earlier section or discrete heading, an earlier block id,
+  an anchor in paragraph text, the `[[id]]` that opens a list item, a description
+  list term or a PSV table cell outside `a` and `l` cells, or the `[[[id]]]` that
+  opens a `[bibliography]` list entry claims it. Discrete heading
+  ids, generated ones included, are cross-reference targets. The ASG carries the id on
+  every `section` and `heading` block; read it from `Section::id` /
+  `DiscreteHeader::id` instead of the removed `Section::generate_id_string`. Unlike
+  `asciidoctor`, `:sectids!:`, `:idprefix:` and `:idseparator:` are not honoured.
 - `` `+text+` `` (constrained monospace passthrough) is now recognised as one
   construct. Previously the monospace span closed at the first backtick inside
   the passthrough, so the `+` markers leaked into the rendered output and the
@@ -69,6 +93,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Block::title` is public: a section or discrete heading's title, or the `.Title`
+  line of any other block, so a consumer can read every title's inlines without
+  listing the block variants that carry one.
+- A cross reference records how it was written: `CrossReference::form` is
+  `XrefForm::Shorthand` for `<<target>>` and `XrefForm::Macro` for `xref:target[]`,
+  and the ASG `xref` node carries it as `"form": "shorthand"` / `"macro"`.
+  `asciidoctor` resolves the two forms differently — `<<guide.adoc>>` names an id,
+  `xref:guide.adoc[]` a document — so a consumer needs the form to follow it.
 - `Options::builder().with_base_dir(path)` now controls entry include resolution
   for string, reader, and file input. It also defines the Safe/Server local
   boundary; otherwise string/reader input uses the current directory and file

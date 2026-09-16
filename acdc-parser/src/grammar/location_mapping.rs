@@ -546,6 +546,7 @@ fn map_inline_macro<'a>(
         InlineMacro::Keyboard(keyboard) => keyboard.location = map_loc(&keyboard.location)?,
         InlineMacro::CrossReference(xref) => {
             xref.location = map_loc(&xref.location)?;
+            xref.target_location = map_loc(&xref.target_location)?;
             xref.text = map_inline_locations(state, processed, &xref.text, location)?;
         }
         InlineMacro::Autolink(autolink) => autolink.location = map_loc(&autolink.location)?,

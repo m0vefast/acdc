@@ -52,6 +52,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_section_1",
       "title": [
         {
           "name": "text",
@@ -74,6 +75,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_subsection_1_1",
           "title": [
             {
               "name": "text",
@@ -96,6 +98,7 @@
             {
               "name": "section",
               "type": "block",
+              "id": "_sub_subsection_1_1_1",
               "title": [
                 {
                   "name": "text",
@@ -152,6 +155,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_section_2",
       "title": [
         {
           "name": "text",

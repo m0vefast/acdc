@@ -13,6 +13,7 @@ pub(crate) mod manpage;
 mod marked_text;
 mod passthrough_processing;
 mod revision;
+mod section_ids;
 pub(crate) mod setext;
 mod source_remap;
 mod state;

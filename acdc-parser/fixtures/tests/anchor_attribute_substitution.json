@@ -40,6 +40,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "doc-intro",
       "title": [
         {
           "name": "text",
@@ -123,6 +124,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "doc-details",
       "title": [
         {
           "name": "text",
@@ -205,6 +207,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_inline_anchors",
       "title": [
         {
           "name": "text",
@@ -362,6 +365,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_cross_references",
       "title": [
         {
           "name": "text",
@@ -404,6 +408,7 @@
               "name": "xref",
               "type": "inline",
               "target": "doc-intro",
+              "form": "macro",
               "location": [
                 {
                   "line": 25,
@@ -465,6 +470,7 @@
               "name": "xref",
               "type": "inline",
               "target": "ch1-overview",
+              "form": "macro",
               "inlines": [
                 {
                   "name": "text",
@@ -535,6 +541,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_bibliography",
       "title": [
         {
           "name": "text",

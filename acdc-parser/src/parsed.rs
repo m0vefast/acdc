@@ -75,11 +75,30 @@ self_cell::self_cell! {
 /// presence of warnings are orthogonal, so both are returned side-by-side
 /// rather than encoded into `Result`. `#[must_use]` so warnings don't get
 /// silently dropped.
+/// An include directive the preprocessor acted on in the parsed input — not one written
+/// in a file it included, and not an escaped one or one inside a false conditional.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct IncludeDirective {
+    /// 1-based line of the directive in the parsed input.
+    pub line: usize,
+    /// Byte column, 0-based, where `target` starts on that line.
+    pub target_column: usize,
+    /// The target exactly as written between `include::` and `[`.
+    pub target: String,
+    /// The target after document attribute substitution: what the preprocessor reads.
+    pub resolved_target: String,
+    /// `resolved_target` lexically normalized the way the preprocessor normalizes include
+    /// paths — `.` and empty components dropped, `..` collapsed, `/`-separated — relative
+    /// to the document's folder unless absolute.
+    pub path: String,
+}
+
 #[derive(Debug)]
 #[must_use = "ignoring a ParseResult drops any warnings the parser produced"]
 pub struct ParseResult {
     cell: ParsedDocumentCell,
     warnings: Vec<Warning>,
+    include_directives: Vec<IncludeDirective>,
 }
 
 impl ParseResult {
@@ -96,6 +115,7 @@ impl ParseResult {
         Ok(Self {
             cell,
             warnings: recover_warnings(warnings_handle),
+            include_directives: Vec::new(),
         })
     }
 
@@ -119,6 +139,17 @@ impl ParseResult {
     #[must_use]
     pub fn warnings(&self) -> &[Warning] {
         &self.warnings
+    }
+
+    /// The include directives the preprocessor acted on in the parsed input, in order.
+    #[must_use]
+    pub fn include_directives(&self) -> &[IncludeDirective] {
+        &self.include_directives
+    }
+
+    pub(crate) fn with_include_directives(mut self, include_directives: Vec<IncludeDirective>) -> Self {
+        self.include_directives = include_directives;
+        self
     }
 
     /// Take the warnings out of this result, leaving an empty warnings

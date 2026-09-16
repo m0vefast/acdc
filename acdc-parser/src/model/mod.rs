@@ -314,9 +314,11 @@ impl<'a> Block<'a> {
         }
     }
 
-    /// This block's title, if it has a non-empty one (used as the cross-reference
-    /// text when an `<<id>>` to this block has no explicit label).
-    pub(crate) fn title(&self) -> Option<&Title<'a>> {
+    /// This block's title, if it has a non-empty one: a section or discrete heading's
+    /// title, or the `.Title` line of any other block. It is also the cross-reference
+    /// text when an `<<id>>` to this block has no explicit label.
+    #[must_use]
+    pub fn title(&self) -> Option<&Title<'a>> {
         let title = match self {
             Block::Section(b) => &b.title,
             Block::DelimitedBlock(b) => &b.title,
@@ -426,6 +428,8 @@ pub struct DiscreteHeader<'a> {
     pub metadata: BlockMetadata<'a>,
     pub title: Title<'a>,
     pub level: u8,
+    /// The explicit id, or the generated one numbered in document order.
+    pub id: &'a str,
     pub location: Location,
 }
 
@@ -814,6 +818,7 @@ impl Serialize for DiscreteHeader<'_> {
         let mut state = serializer.serialize_map(None)?;
         state.serialize_entry("name", "heading")?;
         state.serialize_entry("type", "block")?;
+        state.serialize_entry("id", &self.id)?;
         if !self.title.is_empty() {
             state.serialize_entry("title", &self.title)?;
         }

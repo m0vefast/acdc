@@ -114,6 +114,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_valid_hard_line_break",
       "title": [
         {
           "name": "text",
@@ -208,6 +209,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_indented_plus_should_be_literal",
       "title": [
         {
           "name": "text",
@@ -292,6 +294,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_multiple_cases",
       "title": [
         {
           "name": "text",

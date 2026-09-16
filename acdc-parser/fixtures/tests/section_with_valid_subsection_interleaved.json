@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_first_section",
       "title": [
         {
           "name": "text",
@@ -88,6 +89,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_nested_section",
           "title": [
             {
               "name": "text",
@@ -165,6 +167,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_second_section",
       "title": [
         {
           "name": "text",

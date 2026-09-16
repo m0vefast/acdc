@@ -41,7 +41,7 @@ impl<W: Write> HtmlVisitor<'_, '_, W> {
     /// Call this before walking the section's nested blocks.
     fn render_section_header(&mut self, section: &Section) -> Result<(), Error> {
         let processor = self.processor.clone();
-        let id = Section::generate_id_string(&section.metadata, &section.title);
+        let id = section.id;
 
         // Special sections (and every subsection nested under one) are excluded
         // from `:sectnums:` numbering. The tracker is fed every section in
@@ -149,7 +149,7 @@ pub(crate) fn visit_discrete_header<V: WritableVisitor<Error = Error>>(
     visitor: &mut V,
 ) -> Result<(), Error> {
     let level = header.level + 1; // Level 1 = h2
-    let id = Section::generate_id_string(&header.metadata, &header.title);
+    let id = header.id;
 
     // asciidoctor emits a `class` only when the discreteness came from the
     // `discrete`/`float` block style (`[discrete]` → `class="discrete"`, plus any

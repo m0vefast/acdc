@@ -192,7 +192,10 @@ fn walk_inline_macro<F: FnMut(&mut Location)>(m: &mut InlineMacro<'_>, visit: &m
         InlineMacro::Link(l) => walk_inlines(&mut l.text, visit),
         InlineMacro::Url(u) => walk_inlines(&mut u.text, visit),
         InlineMacro::Mailto(m) => walk_inlines(&mut m.text, visit),
-        InlineMacro::CrossReference(x) => walk_inlines(&mut x.text, visit),
+        InlineMacro::CrossReference(x) => {
+            visit(&mut x.target_location);
+            walk_inlines(&mut x.text, visit);
+        }
         InlineMacro::Icon(_)
         | InlineMacro::Image(_)
         | InlineMacro::Keyboard(_)

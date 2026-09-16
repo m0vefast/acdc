@@ -37,6 +37,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_part_one",
       "title": [
         {
           "name": "text",
@@ -59,6 +60,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_chapter_one",
           "title": [
             {
               "name": "text",
@@ -124,6 +126,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_chapter_two",
           "title": [
             {
               "name": "text",
@@ -201,6 +204,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_part_two",
       "title": [
         {
           "name": "text",
@@ -223,6 +227,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_chapter_three",
           "title": [
             {
               "name": "text",

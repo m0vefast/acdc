@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Repeated section and discrete heading titles render distinct ids (`_intro`,
+  `_intro_2`, …) instead of repeating one, matching `asciidoctor`.
 - Table header cells no longer receive a per-column or explicit cell style
   (`m`/`s`/`e`/`l`/`a`): a `[%header,cols="m,s"]` header now renders plain `<th>`
   text (only its alignment applies), matching `asciidoctor`. Body cells are

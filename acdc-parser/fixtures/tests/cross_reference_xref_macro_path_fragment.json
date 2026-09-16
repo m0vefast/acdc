@@ -10,6 +10,7 @@
           "name": "xref",
           "type": "inline",
           "target": "docs/intro#getting-started",
+          "form": "macro",
           "inlines": [
             {
               "name": "text",

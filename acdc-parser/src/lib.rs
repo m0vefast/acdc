@@ -120,18 +120,19 @@ pub use model::{
     DelimitedBlockType, DescriptionList, DescriptionListItem, DiscreteHeader, Document,
     DocumentAttribute, DocumentAttributes, ElementAttributes, Footnote, Form, HEADER, Header,
     Highlight, HorizontalAlignment, ICON_SIZES, Icon, Image, IndexTerm, IndexTermKind, InlineMacro,
-    InlineNode, Italic, Keyboard, LineBreak, Link, ListItem, ListItemCheckedStatus, Location,
+    InlineNode, Italic, Keyboard, LineBreak, LineIndex, Link, ListItem, ListItemCheckedStatus, Location,
     MAX_SECTION_LEVELS, MAX_TOC_LEVELS, Mailto, Menu, Monospace, NORMAL, OrderedList, PageBreak,
     Paragraph, Pass, PassthroughKind, Plain, Position, Raw, Reference, Role, Section, SectionKind,
     Source, SourceUrl, StandaloneCurvedApostrophe, Stem, StemContent, StemNotation, Subscript,
     Substitution, Subtitle, Superscript, Table, TableColumn, TableOfContents, TableRow,
     ThematicBreak, Title, TocEntry, UNNUMBERED_SECTION_STYLES, UnorderedList, Url, VERBATIM,
-    Verbatim, VerticalAlignment, Video, strip_quotes, substitute,
+    Verbatim, VerticalAlignment, Video, XrefForm, XrefTarget, ASCIIDOC_EXTENSIONS, strip_quotes,
+    substitute, xref_target_kind,
 };
 #[cfg(feature = "pre-spec-subs")]
 pub use model::{SubstitutionOp, SubstitutionSpec};
 pub use options::{Options, OptionsBuilder, SafeMode};
-pub use parsed::{OwnedSource, ParseInlineResult, ParseResult};
+pub use parsed::{IncludeDirective, OwnedSource, ParseInlineResult, ParseResult};
 pub use warning::{Warning, WarningKind};
 
 /// Type-based parser for `AsciiDoc` content.
@@ -309,6 +310,7 @@ pub fn parse_from_reader<R: std::io::Read>(
         PreprocessorMetadata {
             leveloffset_ranges: result.leveloffset_ranges,
             source_ranges: result.source_ranges,
+            include_directives: result.include_directives,
         },
         warnings_handle,
     )
@@ -349,6 +351,7 @@ pub fn parse(input: &str, options: &Options<'_>) -> Result<ParseResult, Error> {
         PreprocessorMetadata {
             leveloffset_ranges: result.leveloffset_ranges,
             source_ranges: result.source_ranges,
+            include_directives: result.include_directives,
         },
         warnings_handle,
     )
@@ -404,6 +407,7 @@ pub fn parse_file<P: AsRef<Path>>(
         PreprocessorMetadata {
             leveloffset_ranges: result.leveloffset_ranges,
             source_ranges: result.source_ranges,
+            include_directives: result.include_directives,
         },
         warnings_handle,
     )
@@ -442,6 +446,7 @@ fn peg_error_to_source_location(
 struct PreprocessorMetadata {
     leveloffset_ranges: Vec<model::LeveloffsetRange>,
     source_ranges: Vec<model::SourceRange>,
+    include_directives: Vec<IncludeDirective>,
 }
 
 #[instrument(skip_all)]
@@ -449,7 +454,7 @@ fn parse_input(
     input: Box<str>,
     options: Options<'_>,
     file_path: Option<PathBuf>,
-    meta: PreprocessorMetadata,
+    mut meta: PreprocessorMetadata,
     warnings_handle: Rc<RefCell<Vec<Warning>>>,
 ) -> Result<ParseResult, Error> {
     tracing::trace!(?input, "post preprocessor");
@@ -474,6 +479,7 @@ fn parse_input(
     // IncludeExpansion + conditional_drops JS line-map (dropped — would
     // double-compensate). meta.include_expansions/conditional_drops no longer
     // threaded; ParseResult::try_new drops to 3 args (parsed.rs adapts in P2b).
+    let include_directives = std::mem::take(&mut meta.include_directives);
     ParseResult::try_new(owner, warnings_handle, move |owner| {
         let mut state = grammar::ParserState::new(&owner.source, &owner.arena);
         state.document_attributes = Rc::new(options_owned.document_attributes.clone());
@@ -505,6 +511,7 @@ fn parse_input(
         state.emit_warnings();
         result
     })
+    .map(|parsed| parsed.with_include_directives(include_directives))
 }
 
 /// Parse inline `AsciiDoc` content from a string.

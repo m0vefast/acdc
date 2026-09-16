@@ -41,6 +41,8 @@ pub(crate) struct PreprocessorResult<'a> {
     /// Byte ranges mapping preprocessed output back to source files.
     /// Used by the parser to produce accurate file/line info in warnings.
     pub(crate) source_ranges: Vec<SourceRange>,
+    /// The include directives acted on in this input (not in the files it includes).
+    pub(crate) include_directives: Vec<crate::IncludeDirective>,
 }
 
 impl PreprocessorResult<'_> {
@@ -52,6 +54,7 @@ impl PreprocessorResult<'_> {
             text: Cow::Owned(self.text.into_owned()),
             leveloffset_ranges: self.leveloffset_ranges,
             source_ranges: self.source_ranges,
+            include_directives: self.include_directives,
         }
     }
 }
@@ -344,6 +347,9 @@ struct PreprocessorState<'input> {
     /// have. A mismatch means the source skipped lines (a dropped comment, a
     /// stripped conditional, …) and the current run must be closed.
     run_expected_src_line: usize,
+    /// The include directives acted on in this input. A nested preprocess of included
+    /// content has its own state, so directives inside included files never land here.
+    include_directives: Vec<crate::IncludeDirective>,
 }
 
 /// Bookkeeping for a contiguous run of main-file output whose source lines are
@@ -400,6 +406,7 @@ impl<'input> PreprocessorState<'input> {
             line_origins,
             run: None,
             run_expected_src_line: 1,
+            include_directives: Vec::new(),
         }
     }
 
@@ -1217,6 +1224,23 @@ impl Preprocessor {
                 out.push_source_line(line, ctx.input_line);
                 return Ok(());
             }
+            if let Some(target) = line
+                .strip_prefix("include::")
+                .and_then(|body| body.strip_suffix(']'))
+                .and_then(|body| body.split_once('['))
+                .map(|(target, _)| target)
+            {
+                let resolved_target =
+                    crate::model::substitute(target, crate::model::HEADER, &options.document_attributes).into_owned();
+                let path = include::normalize_lexical(Path::new(&resolved_target)).to_string_lossy().into_owned();
+                out.include_directives.push(crate::IncludeDirective {
+                    line: ctx.source_line,
+                    target_column: "include::".len(),
+                    target: target.to_string(),
+                    resolved_target,
+                    path,
+                });
+            }
             // Included content carries its own source ranges; close the main-file
             // run first so it does not overlap them.
             out.flush_run();
@@ -1253,6 +1277,7 @@ impl Preprocessor {
                 text: normalized,
                 leveloffset_ranges: Vec::new(),
                 source_ranges: Vec::new(),
+                include_directives: Vec::new(),
             });
         }
 
@@ -1286,6 +1311,7 @@ impl Preprocessor {
                 text: Cow::Owned(normalized.into_owned()),
                 leveloffset_ranges: Vec::new(),
                 source_ranges,
+                include_directives: Vec::new(),
             });
         }
 
@@ -1415,6 +1441,7 @@ impl Preprocessor {
             text: Cow::Owned(out.output.join("\n")),
             leveloffset_ranges: out.leveloffset_ranges,
             source_ranges: out.source_ranges,
+            include_directives: out.include_directives,
         })
     }
 }

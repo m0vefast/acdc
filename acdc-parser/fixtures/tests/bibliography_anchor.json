@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_references",
       "title": [
         {
           "name": "text",
@@ -192,6 +193,7 @@
               "name": "xref",
               "type": "inline",
               "target": "ref01",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 8,
@@ -222,6 +224,7 @@
               "name": "xref",
               "type": "inline",
               "target": "ref02",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 8,

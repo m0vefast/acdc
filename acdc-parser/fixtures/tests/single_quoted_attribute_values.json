@@ -66,6 +66,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_block_macros",
       "title": [
         {
           "name": "text",
@@ -198,6 +199,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_inline_macros",
       "title": [
         {
           "name": "text",
@@ -486,6 +488,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_quote_block",
       "title": [
         {
           "name": "text",
@@ -606,6 +609,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_verse_block",
       "title": [
         {
           "name": "text",
@@ -710,6 +714,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_named_attributes",
       "title": [
         {
           "name": "text",
@@ -856,6 +861,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_link_title",
       "title": [
         {
           "name": "text",
@@ -975,6 +981,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_table_attributes",
       "title": [
         {
           "name": "text",
@@ -1205,6 +1212,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_mixed_quote_styles",
       "title": [
         {
           "name": "text",

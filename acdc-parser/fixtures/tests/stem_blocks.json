@@ -37,6 +37,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_inline_stem_expressions",
       "title": [
         {
           "name": "text",
@@ -195,6 +196,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_stem_block_latexmath",
       "title": [
         {
           "name": "text",
@@ -247,6 +249,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_stem_block_with_title",
       "title": [
         {
           "name": "text",
@@ -316,6 +319,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_multiple_stem_blocks",
       "title": [
         {
           "name": "text",
@@ -403,6 +407,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_asciimath_stem_blocks",
       "title": [
         {
           "name": "text",
@@ -517,6 +522,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_mixed_content_with_stem",
       "title": [
         {
           "name": "text",
@@ -631,6 +637,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_stem_with_escaped_brackets",
       "title": [
         {
           "name": "text",
@@ -821,6 +828,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_explicit_notation_macros",
       "title": [
         {
           "name": "text",

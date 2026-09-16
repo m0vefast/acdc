@@ -242,6 +242,52 @@ impl Location {
     }
 }
 
+/// The text a document was parsed from, indexed by line, to find the bytes a
+/// [`Location`] covers in it.
+///
+/// `absolute_start`/`absolute_end` count the preprocessed text, which drops every line's
+/// trailing whitespace and `\r`, so they fall short of the input by every byte dropped
+/// above them. `start`/`end` line and column are the same in both.
+#[derive(Debug, Clone)]
+pub struct LineIndex<'a> {
+    text: &'a str,
+    starts: Vec<usize>,
+}
+
+impl<'a> LineIndex<'a> {
+    #[must_use]
+    pub fn new(text: &'a str) -> Self {
+        let starts = std::iter::once(0).chain(text.match_indices('\n').map(|(i, _)| i + 1)).collect();
+        Self { text, starts }
+    }
+
+    #[must_use]
+    pub fn text(&self) -> &'a str {
+        self.text
+    }
+
+    /// The bytes `location` covers in the text, end exclusive. `None` for a location in
+    /// an included file or one the text does not hold.
+    #[must_use]
+    pub fn range(&self, location: &Location) -> Option<std::ops::Range<usize>> {
+        let start = self.byte_at(&location.start)?;
+        let last = self.byte_at(&location.end)?;
+        let end = last + self.text[last..].chars().next()?.len_utf8();
+        (start < end).then_some(start..end)
+    }
+
+    fn byte_at(&self, position: &Position) -> Option<usize> {
+        if position.file.is_some() {
+            return None;
+        }
+        let line = usize::try_from(position.line).ok()?.checked_sub(1)?;
+        let column = usize::try_from(position.column).ok()?.checked_sub(1)?;
+        let start = *self.starts.get(line)?;
+        let end = self.starts.get(line + 1).map_or(self.text.len(), |next| next - 1);
+        self.text[start..end].char_indices().nth(column).map(|(i, _)| start + i)
+    }
+}
+
 // We serialize `Location` into the ASG format: a two-element sequence of location
 // boundaries, `[start, end]`. Each boundary is a [`Position`] (`{ line, col }` plus an
 // optional `file`). See the official schema's `locationBoundary` definition:

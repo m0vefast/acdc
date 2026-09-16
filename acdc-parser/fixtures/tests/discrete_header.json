@@ -42,6 +42,7 @@
         {
           "name": "heading",
           "type": "block",
+          "id": "_discrete_heading",
           "title": [
             {
               "name": "text",

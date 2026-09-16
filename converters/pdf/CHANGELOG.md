@@ -66,3 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nor a role, matching Asciidoctor.
 - Passthrough block titles remain available as automatic cross-reference text
   without being displayed above the block, matching Asciidoctor PDF.
+
+### Fixed
+
+- Repeated section titles get distinct PDF labels (`_intro`, `_intro_2`, …), so a
+  cross-reference to a later one links to it rather than to the first, matching
+  Asciidoctor PDF.

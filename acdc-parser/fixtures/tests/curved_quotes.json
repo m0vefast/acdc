@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_a_section_with_a_highlight",
       "title": [
         {
           "name": "text",
