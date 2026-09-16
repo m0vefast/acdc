@@ -148,6 +148,18 @@ impl<'a> Keyboard<'a> {
 // TODO(nlopes): this could perhaps be an enum instead with the allowed keys
 pub type Key<'a> = &'a str;
 
+/// How an author wrote a cross reference. asciidoctor reads the two forms
+/// differently: `<<guide.adoc>>` is an id, `xref:guide.adoc[]` a document.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum XrefForm {
+    /// `<<target>>` or `<<target,text>>`.
+    #[default]
+    Shorthand,
+    /// `xref:target[text]`.
+    Macro,
+}
+
 /// A `CrossReference` represents an inline cross-reference (xref) in a document.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
@@ -155,16 +167,18 @@ pub struct CrossReference<'a> {
     pub target: &'a str,
     #[serde(skip_serializing)]
     pub text: Vec<InlineNode<'a>>,
+    pub form: XrefForm,
     pub location: Location,
 }
 
 impl<'a> CrossReference<'a> {
-    /// Creates a new `CrossReference` with the given target.
+    /// Creates a new shorthand `CrossReference` with the given target.
     #[must_use]
     pub fn new(target: &'a str, location: Location) -> Self {
         Self {
             target,
             text: Vec::new(),
+            form: XrefForm::Shorthand,
             location,
         }
     }

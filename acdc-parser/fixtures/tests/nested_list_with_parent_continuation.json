@@ -66,6 +66,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_pattern_from_breakingchanges_adoc",
       "title": [
         {
           "name": "text",

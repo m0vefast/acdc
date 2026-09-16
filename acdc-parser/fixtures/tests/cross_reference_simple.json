@@ -10,6 +10,7 @@
           "name": "xref",
           "type": "inline",
           "target": "conclusion",
+          "form": "macro",
           "inlines": [
             {
               "name": "text",

@@ -5,6 +5,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_parent",
       "title": [
         {
           "name": "text",
@@ -27,6 +28,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "sub",
           "title": [
             {
               "name": "text",

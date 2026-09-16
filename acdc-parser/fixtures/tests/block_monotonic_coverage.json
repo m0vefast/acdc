@@ -867,6 +867,7 @@
     {
       "name": "heading",
       "type": "block",
+      "id": "_discrete_header",
       "title": [
         {
           "name": "text",

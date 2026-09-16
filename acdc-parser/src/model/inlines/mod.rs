@@ -508,6 +508,7 @@ where
     map.serialize_entry("name", "xref")?;
     map.serialize_entry("type", "inline")?;
     map.serialize_entry("target", &x.target)?;
+    map.serialize_entry("form", &x.form)?;
     if !x.text.is_empty() {
         map.serialize_entry("inlines", &x.text)?;
     }

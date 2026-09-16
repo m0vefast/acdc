@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_quote_style",
       "title": [
         {
           "name": "text",
@@ -188,6 +189,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_verse_style",
       "title": [
         {
           "name": "text",
@@ -290,6 +292,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_literal_style",
       "title": [
         {
           "name": "text",

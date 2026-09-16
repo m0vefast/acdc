@@ -50,6 +50,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_introduction",
       "title": [
         {
           "name": "text",
@@ -1137,6 +1138,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_cross_references_and_anchors",
       "title": [
         {
           "name": "text",
@@ -1159,6 +1161,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "section-one",
           "title": [
             {
               "name": "text",
@@ -1218,6 +1221,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-one",
+                  "form": "shorthand",
                   "location": [
                     {
                       "line": 25,
@@ -1248,6 +1252,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-two",
+                  "form": "shorthand",
                   "inlines": [
                     {
                       "name": "text",
@@ -1295,6 +1300,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "other-doc.adoc",
+                  "form": "macro",
                   "inlines": [
                     {
                       "name": "text",
@@ -1342,6 +1348,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "guide.adoc#tips",
+                  "form": "macro",
                   "inlines": [
                     {
                       "name": "text",
@@ -1412,6 +1419,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "section-two",
           "title": [
             {
               "name": "text",
@@ -1471,6 +1479,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-one",
+                  "form": "shorthand",
                   "location": [
                     {
                       "line": 31,
@@ -1501,6 +1510,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-three",
+                  "form": "shorthand",
                   "inlines": [
                     {
                       "name": "text",
@@ -1548,6 +1558,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "api.adoc",
+                  "form": "macro",
                   "inlines": [
                     {
                       "name": "text",
@@ -1595,6 +1606,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "tutorial.adoc#step1",
+                  "form": "macro",
                   "inlines": [
                     {
                       "name": "text",
@@ -1665,6 +1677,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "section-three",
           "title": [
             {
               "name": "text",
@@ -1724,6 +1737,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-one",
+                  "form": "shorthand",
                   "location": [
                     {
                       "line": 37,
@@ -1754,6 +1768,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-two",
+                  "form": "shorthand",
                   "location": [
                     {
                       "line": 37,
@@ -1784,6 +1799,7 @@
                   "name": "xref",
                   "type": "inline",
                   "target": "section-three",
+                  "form": "shorthand",
                   "location": [
                     {
                       "line": 37,
@@ -1849,6 +1865,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_index_terms",
       "title": [
         {
           "name": "text",
@@ -2255,6 +2272,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_dense_formatting",
       "title": [
         {
           "name": "text",
@@ -4052,6 +4070,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_escaped_syntax",
           "title": [
             {
               "name": "text",
@@ -4369,6 +4388,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_mixed_inline_constructs",
       "title": [
         {
           "name": "text",
@@ -4761,6 +4781,7 @@
               "name": "xref",
               "type": "inline",
               "target": "section-one",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 69,
@@ -4791,6 +4812,7 @@
               "name": "xref",
               "type": "inline",
               "target": "doc.adoc",
+              "form": "macro",
               "inlines": [
                 {
                   "name": "text",
@@ -6267,6 +6289,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_long_plain_text_sections",
       "title": [
         {
           "name": "text",
@@ -6425,6 +6448,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_repeated_patterns",
       "title": [
         {
           "name": "text",
@@ -8004,6 +8028,7 @@
               "name": "xref",
               "type": "inline",
               "target": "section-one",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 108,
@@ -8034,6 +8059,7 @@
               "name": "xref",
               "type": "inline",
               "target": "section-two",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 108,
@@ -8064,6 +8090,7 @@
               "name": "xref",
               "type": "inline",
               "target": "section-three",
+              "form": "shorthand",
               "location": [
                 {
                   "line": 108,
@@ -8396,6 +8423,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_final_section",
       "title": [
         {
           "name": "text",
@@ -8918,6 +8946,7 @@
               "name": "xref",
               "type": "inline",
               "target": "section-one",
+              "form": "shorthand",
               "inlines": [
                 {
                   "name": "text",

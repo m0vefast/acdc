@@ -126,7 +126,7 @@ pub use model::{
     Source, SourceUrl, StandaloneCurvedApostrophe, Stem, StemContent, StemNotation, Subscript,
     Substitution, Subtitle, Superscript, Table, TableColumn, TableOfContents, TableRow,
     ThematicBreak, Title, TocEntry, UNNUMBERED_SECTION_STYLES, UnorderedList, Url, VERBATIM,
-    Verbatim, VerticalAlignment, Video, strip_quotes, substitute,
+    Verbatim, VerticalAlignment, Video, XrefForm, strip_quotes, substitute,
 };
 #[cfg(feature = "pre-spec-subs")]
 pub use model::{SubstitutionOp, SubstitutionSpec};

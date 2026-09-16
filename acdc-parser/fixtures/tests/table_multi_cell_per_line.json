@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_the_table",
       "title": [
         {
           "name": "text",

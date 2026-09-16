@@ -66,6 +66,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_nested_section",
       "title": [
         {
           "name": "text",

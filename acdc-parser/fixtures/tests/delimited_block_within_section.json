@@ -5,6 +5,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_section_1",
       "title": [
         {
           "name": "text",

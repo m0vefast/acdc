@@ -8,6 +8,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_version_1_0_release_notes",
       "title": [
         {
           "name": "text",

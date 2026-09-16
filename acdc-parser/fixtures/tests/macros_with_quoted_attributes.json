@@ -66,6 +66,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_block_image",
       "title": [
         {
           "name": "text",
@@ -124,6 +125,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_inline_macros",
       "title": [
         {
           "name": "text",
@@ -276,6 +278,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_audio_and_video",
       "title": [
         {
           "name": "text",
@@ -358,6 +361,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_edge_cases",
       "title": [
         {
           "name": "text",

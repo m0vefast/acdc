@@ -37,6 +37,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_this_should_be_level_2",
       "title": [
         {
           "name": "text",
@@ -90,6 +91,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_this_should_be_level_3",
           "title": [
             {
               "name": "text",
@@ -182,6 +184,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_this_should_be_level_1_again",
       "title": [
         {
           "name": "text",

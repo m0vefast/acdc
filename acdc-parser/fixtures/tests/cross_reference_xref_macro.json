@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_introduction",
       "title": [
         {
           "name": "text",
@@ -77,6 +78,7 @@
               "name": "xref",
               "type": "inline",
               "target": "conclusion",
+              "form": "macro",
               "inlines": [
                 {
                   "name": "text",
@@ -147,6 +149,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_conclusion",
       "title": [
         {
           "name": "text",

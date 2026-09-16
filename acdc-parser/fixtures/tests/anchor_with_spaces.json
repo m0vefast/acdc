@@ -97,6 +97,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_section_with_space_in_anchor",
       "title": [
         {
           "name": "text",
@@ -193,6 +194,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_section_with_space_in_shorthand",
       "title": [
         {
           "name": "text",
@@ -258,6 +260,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "valid-id",
       "title": [
         {
           "name": "text",

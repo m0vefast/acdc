@@ -639,7 +639,7 @@ fn collect_references<'a>(
     xrefs: &mut Vec<(&'a str, Location)>,
 ) {
     for block in blocks {
-        if !matches!(block, Block::Section(_))
+        if !matches!(block, Block::Section(_) | Block::DiscreteHeader(_))
             && let Some(anchor) = block.anchor()
         {
             insert_reference(state, refs, anchor, block.title().cloned());
@@ -647,6 +647,20 @@ fn collect_references<'a>(
 
         match block {
             Block::Section(s) => collect_references(state, &s.content, refs, xrefs),
+            Block::DiscreteHeader(header) => {
+                if !refs.contains_key(header.id) {
+                    let xreflabel = header.metadata.anchors.last().and_then(|a| a.xreflabel);
+                    let xreflabel = parse_reference_label(state, xreflabel, &header.location);
+                    refs.insert(
+                        header.id,
+                        Reference {
+                            xreflabel,
+                            title: Some(header.title.clone()),
+                            location: header.location.clone(),
+                        },
+                    );
+                }
+            }
             Block::Paragraph(p) => collect_inline_references(state, &p.content, refs, xrefs),
             // A simple admonition's content is a synthetic paragraph that shares
             // the admonition's anchor; the admonition registered it first, so its
@@ -681,8 +695,7 @@ fn collect_references<'a>(
                 }
             }
             Block::DelimitedBlock(d) => collect_delimited_references(state, &d.inner, refs, xrefs),
-            Block::DiscreteHeader(_)
-            | Block::ThematicBreak(_)
+            Block::ThematicBreak(_)
             | Block::PageBreak(_)
             | Block::Image(_)
             | Block::Audio(_)
@@ -1042,15 +1055,9 @@ fn parse_table_block_impl<'input>(
     // decision must be carried from user intent (the attribute the user
     // wrote) AND the fence char, NOT recovered later from the separator byte
     // (which is ambiguous — `[separator=:]` PSV vs `[format=dsv]` default
-    // both arrive with separator=":"). `is_psv` is the single source of
-    // truth that `Table::parse_rows_with_positions` consumes.
+    // both arrive with separator=":"). `Table::is_psv` is the single source of
+    // truth that `Table::parse_rows_with_positions` and section id allocation consume.
     //
-    // Fence-char defaults per asciidoctor docs/tables/data-format/:
-    //   `|===` → PSV, `!===` → PSV (nested), `,===` → CSV, `:===` → DSV.
-    // `is_psv_default(default_separator)` encodes that mapping.
-    fn is_psv_default(default_separator: &str) -> bool {
-        matches!(default_separator, "|" | "!")
-    }
     // Resolution order (asciidoctor parity, per `lib/asciidoctor/table.rb`
     // `parse_table_attributes`):
     //   1. `format=` (if present) chooses the FORMAT (PSV / CSV / DSV / TSV)
@@ -1061,17 +1068,7 @@ fn parse_table_block_impl<'input>(
     //   3. If only `separator=` is given (no `format=`), default to PSV —
     //      asciidoctor treats bare `separator=` as a PSV-delimiter override.
     //   4. Otherwise, fall back to fence-char defaults.
-    let format_attr = block_metadata
-        .metadata
-        .attributes
-        .get("format")
-        .and_then(|v| {
-            if let AttributeValue::String(s) = v {
-                Some(s.as_ref())
-            } else {
-                None
-            }
-        });
+    let format_attr = Table::format_attribute(&block_metadata.metadata);
     let separator_attr = block_metadata
         .metadata
         .attributes
@@ -1083,7 +1080,7 @@ fn parse_table_block_impl<'input>(
                 None
             }
         });
-    // Returns `(separator, is_psv, is_csv)` — `is_psv` and `is_csv` are
+    // Returns `(separator, is_csv)` — `is_psv` and `is_csv` are
     // mutually exclusive intent bits. DSV/TSV are neither; they fall through
     // to the line-by-line row parser with their respective default delimiters.
     // Round 11 fix: reject multi-byte separator on CSV path. The csv crate's
@@ -1143,14 +1140,15 @@ fn parse_table_block_impl<'input>(
     let mut warn = |msg: &str| {
         state.add_generic_warning_at(msg.to_string(), table_loc_for_warn.clone());
     };
-    let (separator, is_psv, is_csv) = match format_attr {
+    let is_psv = Table::is_psv(format_attr, default_separator);
+    let (separator, is_csv) = match format_attr {
         Some("csv") => {
             let sep = validate_separator(separator_attr, ",", "CSV", true, &mut warn);
-            (sep.to_string(), false, true)
+            (sep.to_string(), true)
         }
         Some("dsv") => {
             let sep = validate_separator(separator_attr, ":", "DSV", false, &mut warn);
-            (sep.to_string(), false, false)
+            (sep.to_string(), false)
         }
         Some("tsv") => {
             // TSV shares CSV's RFC-4180 quote-aware parsing (multi-line quoted
@@ -1160,11 +1158,11 @@ fn parse_table_block_impl<'input>(
             // byte). Without this, TSV multi-line quoted values are split
             // row-by-row and lose their embedded newlines.
             let sep = validate_separator(separator_attr, "\t", "TSV", true, &mut warn);
-            (sep.to_string(), false, true)
+            (sep.to_string(), true)
         }
         Some("psv") => {
             let sep = validate_separator(separator_attr, "|", "PSV", false, &mut warn);
-            (sep.to_string(), true, false)
+            (sep.to_string(), false)
         }
         Some(unknown_format) => {
             // Round 77 Expert A P1: unknown_format must fall through to
@@ -1184,7 +1182,6 @@ fn parse_table_block_impl<'input>(
             // too, because it has no `psv` case at all; psv is the DEFAULT
             // AsciiDoc table format, so the arm above keeps it valid here.)
             unknown_format_warning = Some(unknown_format.to_string());
-            let is_psv = is_psv_default(default_separator);
             let is_csv = !is_psv && default_separator == ",";
             let format_label = if is_csv {
                 "CSV"
@@ -1200,7 +1197,7 @@ fn parse_table_block_impl<'input>(
                 is_csv,
                 &mut warn,
             );
-            (sep.to_string(), is_psv, is_csv)
+            (sep.to_string(), is_csv)
         }
         None => {
             // Round 18 Expert A P1-1 fix: separator alone overrides DELIMITER
@@ -1219,7 +1216,6 @@ fn parse_table_block_impl<'input>(
             // downstream. Track `is_csv` BEFORE calling validate_separator
             // so the require_ascii_byte flag + warning label match the
             // dispatch target.
-            let is_psv = is_psv_default(default_separator);
             let is_csv = !is_psv && default_separator == ",";
             let format_label = if is_csv {
                 "CSV"
@@ -1235,7 +1231,7 @@ fn parse_table_block_impl<'input>(
                 is_csv,
                 &mut warn,
             );
-            (sep.to_string(), is_psv, is_csv)
+            (sep.to_string(), is_csv)
         }
     };
     if let Some(unknown_format) = unknown_format_warning {
@@ -1903,12 +1899,20 @@ peg::parser! {
                 }
             }
 
+            let mut blocks = blocks;
+            let mut toc_entries = std::mem::take(&mut state.toc_entries);
+            crate::grammar::section_ids::assign_section_ids(
+                state.arena,
+                header.as_ref(),
+                &mut blocks,
+                &mut toc_entries,
+            );
+
             // Build the id -> reference catalog for O(1) `<<id>>` resolution:
             // sections (already collected as toc_entries) plus a single walk over
-            // the final tree for every other anchor (block IDs, inline `[[id]]`
-            // anchors, and formatted span IDs). The same walk collects every
-            // cross-reference so unresolved ones can be reported.
-            let toc_entries = state.toc_entries.clone();
+            // the final tree for every other anchor (block IDs, discrete heading
+            // ids, inline `[[id]]` anchors, and formatted span IDs). The same walk
+            // collects every cross-reference so unresolved ones can be reported.
             let mut references: HashMap<&str, Reference<'_>> =
                 HashMap::with_capacity(toc_entries.len());
             for entry in &toc_entries {
@@ -2533,10 +2537,12 @@ peg::parser! {
                 ));
             }
 
+            let id = Section::unnumbered_id(state.arena, &block_metadata.metadata, &title);
             Ok(Block::DiscreteHeader(DiscreteHeader {
                 metadata: block_metadata.metadata,
                 title,
                 level,
+                id,
                 location,
             }))
         }
@@ -2567,7 +2573,7 @@ peg::parser! {
         title_start:position!()
         section_header:(title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_]) {
             let title = title?;
-            let section_id: &'input str = Section::generate_id(state.arena, &block_metadata.metadata, &title).as_arena_str(state.arena);
+            let section_id: &'input str = Section::unnumbered_id(state.arena, &block_metadata.metadata, &title);
 
             // Extract xreflabel from the last anchor (same anchor used for section ID)
             // This matches asciidoctor behavior: [[id,xreflabel]] provides custom cross-reference text
@@ -2654,6 +2660,7 @@ peg::parser! {
                 level,
                 content: content.unwrap_or(Ok(Vec::new()))?,
                 kind,
+                id: section_id,
                 location
             }))
         }
@@ -2728,8 +2735,7 @@ peg::parser! {
             match process_inlines(state, &block_metadata, title_start, title_end, offset, title) {
                 Ok(processed_title) => {
                     let processed_title = Title::new(processed_title);
-                    let section_id_str = Section::generate_id(state.arena, &block_metadata.metadata, &processed_title).to_string();
-                    let section_id: &'input str = state.intern_str(&section_id_str);
+                    let section_id: &'input str = Section::unnumbered_id(state.arena, &block_metadata.metadata, &processed_title);
 
                     // Extract xreflabel from the last anchor
                     let xreflabel = block_metadata.metadata.anchors.last().and_then(|a| a.xreflabel);
@@ -2759,7 +2765,7 @@ peg::parser! {
             is_book_doctype(&state.document_attributes),
         )))?
         {
-            let (title, _section_id) = section_header?;
+            let (title, section_id) = section_header?;
             let location = state.create_block_location(span_start, span_end, offset);
 
             // Derive manname/manpurpose from NAME section in manpage documents
@@ -2784,6 +2790,7 @@ peg::parser! {
                 level: setext_level,
                 content: content.unwrap_or(Ok(Vec::new()))?,
                 kind,
+                id: section_id,
                 location,
             }))
         }
@@ -3302,7 +3309,7 @@ peg::parser! {
         }
 
         rule image(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = "image::" source:source() attributes:macro_attributes() end:position!()
+        = "image::" source:source(false) attributes:macro_attributes() end:position!()
           trailing:$([^'\n']*)
         {
             state.warn_trailing_macro_content("image", trailing, end, offset);
@@ -3331,7 +3338,7 @@ peg::parser! {
         }
 
         rule audio(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = "audio::" source:source() attributes:macro_attributes() end:position!()
+        = "audio::" source:source(false) attributes:macro_attributes() end:position!()
           trailing:$([^'\n']*)
         {
             state.warn_trailing_macro_content("audio", trailing, end, offset);
@@ -3352,7 +3359,7 @@ peg::parser! {
         // multiple sources. This is for example to allow passing multiple youtube video
         // ids to form a playlist.
         rule video(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = "video::" sources:(source() ** comma()) attributes:macro_attributes() end:position!()
+        = "video::" sources:(source(true) ** comma()) attributes:macro_attributes() end:position!()
           trailing:$([^'\n']*)
         {
             state.warn_trailing_macro_content("video", trailing, end, offset);
@@ -5417,9 +5424,11 @@ peg::parser! {
             Ok(format!("{local}@{domain}"))
         }
 
-        /// URL path component - supports query params, fragments, encoding, etc.
-        /// Excludes '[' and ']' to respect AsciiDoc macro/attribute boundaries
-        rule url_path() -> String = path:$(['A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' | '\\' ]+)
+        /// URL target content following `://`.
+        /// Supports query parameters, fragments, and percent escapes while excluding
+        /// brackets that delimit the macro attributes.
+        /// Spaces must be internal to the target.
+        rule url_path() -> String = path:$(url_path_char() (url_path_char() / internal_url_path_spaces())*)
         {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 path,
@@ -5442,6 +5451,9 @@ peg::parser! {
             }
             Ok(result)
         }
+
+        rule url_path_char() = ['A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' | '\\' ]
+        rule internal_url_path_spaces() = [' ']+ &url_path_char()
 
         /// URL for bare autolinks — avoids capturing trailing sentence punctuation
         /// (., ;, !, etc.) by only consuming punctuation when more URL chars follow.
@@ -5512,9 +5524,13 @@ peg::parser! {
             format!("#{fragment}")
         }
 
-        /// Filesystem path - conservative character set for cross-platform compatibility
-        /// Includes '{' and '}' for `AsciiDoc` attribute substitution
-        pub rule path() -> String = path:$(['A'..='Z' | 'a'..='z' | '0'..='9' | '{' | '}' | '_' | '-' | '.' | '/' | '\\' ]+)
+        /// Filesystem path accepted by block macros.
+        ///
+        /// As asciidoctor's `BlockMediaMacroRx` takes a target: any character up to the
+        /// `[` that opens the attributes, whitespace only inside it. `{`/`}` permit
+        /// `AsciiDoc` attribute substitution; percent escapes are preserved. In a list of
+        /// sources (`in_list`) a comma separates one source from the next.
+        pub rule path(in_list: bool) -> String = path:$(path_char(in_list) (path_char(in_list) / internal_path_spaces(in_list))*)
         {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 path,
@@ -5536,15 +5552,19 @@ peg::parser! {
             Ok(result)
         }
 
+        rule path_char(in_list: bool) = !['[' | ' ' | '\t' | '\n' | '\r'] c:[_] {?
+            if in_list && c == ',' { Err("source separator") } else { Ok(()) }
+        }
+        rule internal_path_spaces(in_list: bool) = [' ']+ &path_char(in_list)
 
-        pub rule source() -> Source<'input>
+        pub rule source(in_list: bool) -> Source<'input>
             = source:
         (
             u:url() {?
                 let interned = state.intern_str(&u);
                 Source::from_str_borrowed(interned).map_err(|_| "failed to parse URL")
             }
-            / p:path() {?
+            / p:path(in_list) {?
                 let interned = state.intern_str(&p);
                 Source::from_str_borrowed(interned).map_err(|_| "failed to parse path")
             }

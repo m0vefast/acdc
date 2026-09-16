@@ -1,4 +1,6 @@
-use crate::{ColumnStyle, HorizontalAlignment, Table, VerticalAlignment};
+use crate::{
+    AttributeValue, BlockMetadata, ColumnStyle, HorizontalAlignment, Table, VerticalAlignment,
+};
 
 pub(crate) const MAX_TABLE_COLUMNS: usize = 100;
 pub(crate) const MAX_TABLE_ROWS: usize = 1_000;
@@ -1313,6 +1315,25 @@ fn grid_reflow(rows: Vec<Vec<ParsedCell>>, ncols: usize) -> Vec<Vec<ParsedCell>>
 }
 
 impl Table<'_> {
+    /// The `format` attribute a table was written with.
+    pub(crate) fn format_attribute<'m>(metadata: &'m BlockMetadata<'_>) -> Option<&'m str> {
+        match metadata.attributes.get("format") {
+            Some(AttributeValue::String(format)) => Some(format.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Whether a table is PSV. An explicit `format` decides; otherwise the fence does:
+    /// `|===` and `!===` are PSV, `,===` is CSV and `:===` is DSV
+    /// (asciidoctor docs/tables/data-format/). `fence` is the delimiter or its separator.
+    pub(crate) fn is_psv(format: Option<&str>, fence: &str) -> bool {
+        match format {
+            Some("psv") => true,
+            Some("csv" | "dsv" | "tsv") => false,
+            _ => fence.starts_with(['|', '!']),
+        }
+    }
+
     pub(crate) fn parse_rows_with_positions(
         text: &str,
         separator: &Separator<'_>,

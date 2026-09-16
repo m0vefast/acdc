@@ -99,14 +99,11 @@ fn heading_line_location(section: &Section) -> Location {
 }
 
 fn collect_section_anchors(section: &Section, anchors: &mut HashMap<String, Location>) {
-    // Get the section ID (explicit or generated)
-    // Title implements Deref<Target = [InlineNode]>
-    let id = Section::generate_id_string(&section.metadata, &section.title);
     // Use heading-line location (section start to title end), not the full
     // section span. The full span covers all content blocks, which would make
     // the anchor match on hover anywhere inside the section body.
     let heading_loc = heading_line_location(section);
-    anchors.insert(id, heading_loc);
+    anchors.insert(section.id.to_string(), heading_loc);
 
     // Also collect any explicit anchors from metadata
     for anchor in &section.metadata.anchors {

@@ -5,6 +5,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_a_list_of_sorts",
       "title": [
         {
           "name": "text",

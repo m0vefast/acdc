@@ -35,6 +35,7 @@
     {
       "name": "section",
       "type": "block",
+      "id": "_第一节",
       "title": [
         {
           "name": "text",
@@ -277,6 +278,7 @@
         {
           "name": "section",
           "type": "block",
+          "id": "_第二节",
           "title": [
             {
               "name": "text",
@@ -299,6 +301,7 @@
             {
               "name": "section",
               "type": "block",
+              "id": "_深层嵌套",
               "title": [
                 {
                   "name": "text",

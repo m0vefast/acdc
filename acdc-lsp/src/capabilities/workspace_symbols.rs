@@ -152,10 +152,9 @@ fn extract_section_symbols(section: &Section, symbols: &mut Vec<IndexedSymbol>) 
     // Collect anchors from metadata
     extract_metadata_anchors(&section.metadata, &section.location, symbols);
 
-    // Also add generated section ID as anchor
-    let id = Section::generate_id_string(&section.metadata, &section.title);
+    // Also add the section ID as anchor
     symbols.push(IndexedSymbol {
-        name: id,
+        name: section.id.to_string(),
         kind: SymbolKind::KEY,
         location: section.location.clone(),
         detail: Some("Anchor".to_string()),

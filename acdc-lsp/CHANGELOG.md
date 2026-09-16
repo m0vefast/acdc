@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document-link tooltips for `link:` macros now flatten parsed inline markup via
   `inlines_to_string` (follows the `Link.text` type change in `acdc-parser`).
 
+### Fixed
+
+- A repeated section title is navigable by its own numbered id (`_intro_2`, …): code
+  lenses count the references to that section, workspace symbols list its id, and
+  go-to-definition lands on its heading instead of the first one with the same title.
+
 ## [0.2.0] - 2026-03-28
 
 ### Added
