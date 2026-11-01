@@ -14,7 +14,7 @@ pub(crate) fn parse_table_cell<'a>(
     // Markdown blockquotes are only parsed when cell has AsciiDoc style ('a' prefix).
     // This matches asciidoctor behavior where `> text` is only a blockquote in 'a' style cells.
     let mut blocks = if cell.style == Some(ColumnStyle::AsciiDoc) {
-        document_parser::blocks(content, state, cell_start_offset, parent_section_level)
+        document_parser::block_content(content, state, cell_start_offset, parent_section_level)
     } else {
         document_parser::blocks_for_table_cell(
             content,

@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A delimited block (example, sidebar, quote, open block) or an `a|` table cell whose
+  content ends with a blank line — before its closing delimiter, or at the end of the
+  document when the block is left unclosed — keeps its content, as `asciidoctor` does.
+  It came out empty.
+- A `////` comment block in the header, or opening a document, is skipped whole as
+  `asciidoctor` skips it: the header's title, author and attribute entries after it
+  still count, and the text after its closing `////` is no longer swallowed into a
+  comment. A `///x` line in the header is not a comment.
+- A `<<<` page break at the end of the document is a page break, not a paragraph.
+- A paragraph runs to a blank line, a block delimiter, a block attribute line or an
+  anchor line (`[[id]]`), as in `asciidoctor`. A section title, a list item, a
+  description list entry, a block title or a block macro on the next line is part of
+  the paragraph's text instead of starting a new block; only a block attached to a
+  list item with `+` still ends at the next list item. A description list entry
+  continues past a section title line the same way and ends at an anchor line.
+- A block attribute line, a block macro's attribute list (`image::`, `audio::`,
+  `video::`, `toc::`), a description list term and an anchor's reftext stay on one
+  line, as in `asciidoctor`: a `[` that does not close on its own line is text, so
+  it no longer swallows the lines after it.
+- A first positional block attribute holding a space (`[#another space id]`,
+  `[x#a b]`) is the block style as written, as in `asciidoctor`, instead of making
+  the line text: it still ends the paragraph above and its block gets no id.
+- Block metadata (an attribute line, an anchor, a block title, an attribute entry)
+  with no block after it is dropped, as in `asciidoctor`, instead of failing the
+  whole document; a metadata line on the last line of the input, with no line break
+  after it, is still metadata.
+- A table cell without the `a` style holds text paragraphs only, as in
+  `asciidoctor`: a block title, an attribute line, `image::`, `audio::`, `video::`,
+  `'''` or a quoted paragraph in it is cell text.
+- A `[discrete]` heading attached to a list item with `+` is a discrete heading in
+  the item instead of a paragraph.
+- A block attached to a list item with `+` ends where `asciidoctor` ends the item: a
+  paragraph in it runs past a list marker of another style or a deeper one (`** b`,
+  `- b`, `.. b` are its text) and stops at the next item of that list or of the list
+  holding it. A block right after an attached one, with no blank line between (a
+  paragraph after an attribute line or a discrete heading, text after a delimited
+  block, a nested list after a delimited block), stays in the same item; a delimited
+  block opened there still ends the list. A list item's text runs on past a section
+  title line.
+- Text that looks like the start of an inline construct the parser then cannot read
+  is text, instead of failing the whole document: `https://a.co:a` (a port that is not
+  a number) in a paragraph or section title used to fail the parse. Unlike
+  `asciidoctor`, such a URL is shown as text, not a link.
+- A section marker with no title text (`== `, `=`) is a paragraph line, as in
+  `asciidoctor`, instead of failing the whole document.
+- Block metadata (`[#id]`, `[.role]`, `.Title`, attribute lines) followed by blank
+  lines or comment lines is carried to the next block, as in `asciidoctor`, instead
+  of failing the whole document.
 - Cross reference and link targets are read the way `asciidoctor` reads them. A
   `<<target>>` target runs to the first `,` or `>>` and starts with a word character
   or one of `#/.:{`, so `<<../guide.adoc#install>>`, `<<my guide.adoc#x>>` and

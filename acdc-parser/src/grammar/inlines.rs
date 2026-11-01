@@ -239,16 +239,40 @@ peg::parser! {
               // `fixtures/tests/curved_quotes.adoc` round-trip test.
 
         pub(crate) rule inlines() -> Vec<InlineNode<'input>>
-        = (non_plain_text() / plain_text())+
+        = (non_plain_text() / plain_text() / unclaimed_text())+
 
         pub(crate) rule inlines_no_autolinks() -> Vec<InlineNode<'input>>
-        = (non_plain_text() / plain_text())+
+        = (non_plain_text() / plain_text() / unclaimed_text())+
 
         /// Reduced inline rule set for "quotes" substitution in passthroughs.
         /// Only matches formatting markup + escaped markup + plain text.
         /// Does not match macros, xrefs, anchors, autolinks, footnotes, etc.
         pub(crate) rule quotes_only_inlines() -> Vec<InlineNode<'input>>
-        = (quotes_non_plain_text() / quotes_plain_text())+
+        = (quotes_non_plain_text() / quotes_plain_text() / quotes_unclaimed_text())+
+
+        /// A character no construct takes is text, with the plain text after it: a
+        /// `*_match` lookahead stopped plain text there, yet the construct itself does not
+        /// parse (an autolink whose URL the `url` crate rejects, `https://a.co:a`).
+        /// Without it the whole document failed to parse.
+        rule unclaimed_text() -> InlineNode<'input>
+        = start_pos:position!() content:$([_] plain_text()?) end:position!()
+        {
+            InlineNode::PlainText(Plain {
+                content,
+                location: state.create_block_location(start_pos, end, state.inline_ctx.offset),
+                escaped: false,
+            })
+        }
+
+        rule quotes_unclaimed_text() -> InlineNode<'input>
+        = start_pos:position!() content:$([_] quotes_plain_text()?) end:position!()
+        {
+            InlineNode::PlainText(Plain {
+                content,
+                location: state.create_block_location(start_pos, end, state.inline_ctx.offset),
+                escaped: false,
+            })
+        }
 
         /// Non-plain-text alternatives for quotes-only mode: formatting markup only.
         /// Keep in sync with the formatting entries in `non_plain_text` above.
@@ -1939,7 +1963,8 @@ peg::parser! {
         warn_anchor_id_with_whitespace()?
         id:$([^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+)
         reftext:(
-            comma() reftext:$([^']']+) {
+            // One line, as asciidoctor's `InlineAnchorRx` reads it.
+            comma() reftext:$([^(']' | '\n')]+) {
                 Some(reftext)
             } /
             {
@@ -1969,7 +1994,7 @@ peg::parser! {
         }
 
         rule inline_anchor_match() -> ()
-        = double_open_square_bracket() [^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+ (comma() [^']']+)? double_close_square_bracket()
+        = double_open_square_bracket() [^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+ (comma() [^(']' | '\n')]+)? double_close_square_bracket()
             {?
                 // Mirror of `inline_anchor`: both must agree on whether
                 // `[[id]]` is an anchor, or `plain_text`'s negative lookahead
