@@ -149,7 +149,7 @@ fn parse_block_content<'input>(
     if content.trim().is_empty() {
         Ok(Vec::new())
     } else {
-        document_parser::blocks(
+        document_parser::block_content(
             content,
             state,
             content_start + offset,
@@ -462,7 +462,7 @@ fn quote_inner<'input>(
         ]))
     } else if metadata.style.is_some() {
         // A styled (non-verse) quote always parses its body, even when empty.
-        let blocks = document_parser::blocks(
+        let blocks = document_parser::block_content(
             p.content,
             state,
             p.content_start + p.offset,
@@ -847,6 +847,38 @@ fn get_literal_paragraph<'input>(
 /// When there are no continuation lines (the common case), this just returns the borrowed
 /// `first_line` unchanged — zero allocation. Otherwise it writes `first_line` followed by
 /// each continuation line (separated by `\n`) into a fresh arena string.
+/// The markers of a list item a block is attached to with `+`: its own and, when its list
+/// is nested in a list of the other kind, that parent item's.
+type ItemMarkers<'a> = (&'a str, Option<&'a str>);
+
+/// A list item marked `line` ends an item marked `item`: the same marker style, no deeper
+/// (asciidoctor `Parser.is_sibling_list_item?`; acdc nests one style by depth). Any other
+/// list marker is text in a block attached to that item.
+fn ends_list_item(line: &str, item: &str) -> bool {
+    let style = |m: &str| match m.as_bytes().first() {
+        Some(b'*') => Some(('*', m.len())),
+        Some(b'.') => Some(('.', m.len())),
+        Some(b':') => Some((':', m.len())),
+        Some(b'-') => Some(('-', 1)),
+        Some(b';') => Some((';', 1)),
+        Some(b'0'..=b'9') => Some(('1', 1)),
+        _ => None,
+    };
+    match (style(line), style(item)) {
+        (Some((line_style, line_depth)), Some((item_style, item_depth))) => {
+            line_style == item_style && line_depth <= item_depth
+        }
+        _ => false,
+    }
+}
+
+fn item_boundary(line: &str, item: Option<ItemMarkers<'_>>) -> Result<(), &'static str> {
+    match item {
+        Some((own, parent)) if ends_list_item(line, own) || parent.is_some_and(|p| ends_list_item(line, p)) => Ok(()),
+        _ => Err("not where the item ends"),
+    }
+}
+
 fn assemble_principal_text<'a>(
     state: &ParserState<'a>,
     first_line: &'a str,
@@ -1969,11 +2001,11 @@ peg::parser! {
 
         pub(crate) rule header() -> Result<Option<Header<'input>>, Error>
             = start:position!()
-            ((document_attribute() / comment()) (eol()+ / ![_]))*
+            ((document_attribute() / header_comment()) (eol()+ / ![_]))*
             // Parse header metadata (anchors and attributes) before the document title
             metadata:header_metadata()
             title_authors:(title_authors:title_authors() { title_authors })?
-            (eol()+ (document_attribute() / comment()))*
+            (eol()+ (document_attribute() / header_line_comment()) / eol() header_comment())*
             end:position!()
             (eol()*<,2> / ![_])
         {
@@ -2054,7 +2086,7 @@ peg::parser! {
         // `asciidoctor`). The first non-comment line is the author line only when it is
         // not an attribute entry (`:name:`). An attribute entry means there is no author
         // and it belongs to the header body.
-        = title_and_subtitle:document_title() eol() (comment() eol())* !document_attribute_match() !comment() authors:authors_and_revision() &(eol()+ / ![_])
+        = title_and_subtitle:document_title() eol() (header_comment() eol())* !document_attribute_match() !header_comment() authors:authors_and_revision() &(eol()+ / ![_])
         {
             let (title, subtitle) = title_and_subtitle;
             tracing::debug!(?title, ?subtitle, ?authors, "Found title and authors in the document header.");
@@ -2072,7 +2104,7 @@ peg::parser! {
 
         /// ATX-style document title: `= Title` or `# Title`
         rule document_title_atx() -> (Title<'input>, Option<Subtitle<'input>>)
-        = document_title_token() whitespace() start:position!() title:$([^'\n']*) end:position!()
+        = document_title_token() &section_title_follows() whitespace() start:position!() title:$([^'\n']*) end:position!()
         {?
             tracing::debug!(?title, "Processing ATX document title");
             let block_metadata = BlockParsingMetadata::default();
@@ -2192,7 +2224,7 @@ peg::parser! {
 
         rule authors_and_revision() -> Vec<Author<'input>>
             // Capture the author line, substitute any attribute references, then parse
-            = start:position!() author_line:$([^'\n']+) end:position!() (eol() (comment() eol())* revision_pre_substitution())? {?
+            = start:position!() author_line:$([^'\n']+) end:position!() (eol() (header_comment() eol())* revision_pre_substitution())? {?
                 let substituted_cow = substitute(author_line.trim(), HEADER, &state.document_attributes);
                 // Intern any owned substitution result so the downstream
                 // `authors()` parse can yield `Author<'input>` that outlives
@@ -2348,7 +2380,7 @@ peg::parser! {
         }
 
         pub(crate) rule blocks(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Vec<Block<'input>>, Error>
-        = blocks:block(offset, parent_section_level)*
+        = blocks:block(offset, parent_section_level)* dangling_metadata(offset, parent_section_level)?
         {
             let mut blocks = blocks.into_iter().collect::<Result<Vec<_>, Error>>()?;
             // A trusted attribute declared in document content is consumed as syntax
@@ -2362,6 +2394,18 @@ peg::parser! {
             });
             Ok(blocks)
         }
+
+        /// The content of a delimited block or an `a|` cell: its blocks, then the blank
+        /// lines that may end it — before a closing delimiter, or at the end of the input
+        /// when the block runs unclosed. asciidoctor drops them; read as blocks they are none.
+        pub(crate) rule block_content(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Vec<Block<'input>>, Error>
+        = blocks:blocks(offset, parent_section_level) ([' ' | '\t']* eol())* [' ' | '\t']* { blocks }
+
+        /// Block metadata with no block after it is dropped, as asciidoctor's
+        /// `Parser.next_block` drops it when the lines run out.
+        rule dangling_metadata(offset: usize, parent_section_level: Option<SectionLevel>)
+        = eol()* &(anchor() / attributes_line() / document_attribute_line() / title_line(offset))
+          block_metadata(offset, parent_section_level) eol()* ![_]
 
         /// Blocks for table cells without `AsciiDoc` style - excludes block types that require full parsing.
         /// Table cells use a simplified block parser that excludes sections, document attributes,
@@ -2437,7 +2481,7 @@ peg::parser! {
           (
             // ATX-style section check - require space after marker to avoid matching
             // description list items like `#term::` as sections
-            level:section_level(offset, parent_section_level) &" "
+            level:section_level(offset, parent_section_level) &section_title_follows()
             {?
                 if let Some(parent_level) = parent_section_level {
                     let upcoming_level = level.1 + 1; // Convert to 1-based
@@ -2513,7 +2557,7 @@ peg::parser! {
             }
             Ok(bm)
         })
-        section_level:section_level(offset, None) whitespace()
+        section_level:section_level(offset, None) &section_title_follows() whitespace()
         title_start:position!() title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_])
         {
             let title = title?;
@@ -2569,6 +2613,7 @@ peg::parser! {
         section_level_start:position!()
         section_level:section_level(offset, parent_section_level)
         section_level_end:position!()
+        &section_title_follows()
         whitespace()
         title_start:position!()
         section_header:(title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_]) {
@@ -2797,10 +2842,14 @@ peg::parser! {
 
         rule block_metadata(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<BlockParsingMetadata<'input>, Error>
         = meta_start:position!() lines:(
-            anchor:anchor() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::Anchor(anchor)) }
-            / attr:attributes_line() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::Attributes((attr.0, Box::new(attr.1)))) }
-            / doc_attr:document_attribute_line() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::DocumentAttribute(Cow::Borrowed(doc_attr.key), doc_attr.value)) }
-            / title:title_line(offset) { title.map(BlockMetadataLine::Title) }
+            line:(
+                anchor:anchor() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::Anchor(anchor)) }
+                / attr:attributes_line() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::Attributes((attr.0, Box::new(attr.1)))) }
+                / doc_attr:document_attribute_line() { Ok::<BlockMetadataLine<'input>, Error>(BlockMetadataLine::DocumentAttribute(Cow::Borrowed(doc_attr.key), doc_attr.value)) }
+                / title:title_line(offset) { title.map(BlockMetadataLine::Title) }
+            )
+            metadata_gap()
+            { line }
         )* meta_end:position!()
         {
             let mut metadata = BlockMetadata::default();
@@ -2877,7 +2926,7 @@ peg::parser! {
         //
         // A title line is a line that starts with a period (.) followed by a non-whitespace character
         rule title_line(offset: usize) -> Result<Title<'input>, Error>
-        = period() start:position!() title:$(![' ' | '\t' | '\n' | '\r' | '.'] [^'\n']*) end:position!() eol()
+        = period() start:position!() title:$(![' ' | '\t' | '\n' | '\r' | '.'] [^'\n']*) end:position!() (eol() / ![_])
         {
             tracing::debug!(?title, ?start, ?end, "Found title line in block metadata");
             let block_metadata = BlockParsingMetadata::default();
@@ -2889,7 +2938,7 @@ peg::parser! {
         // This allows document attributes to be set between block attributes and the block content
         // Uses the same parsing logic as document attributes in the header
         rule document_attribute_line() -> AttributeEntry<'input>
-        = attr:document_attribute_match() eol()
+        = attr:document_attribute_match() (eol() / ![_])
         {
             tracing::debug!(?attr, "Found document attribute in block metadata");
             attr
@@ -2956,15 +3005,16 @@ peg::parser! {
             / list:list(start, offset, &block_metadata) { list }
             / quoted_paragraph:quoted_paragraph(start, offset, &block_metadata) { quoted_paragraph }
             / markdown_blockquote:markdown_blockquote(start, offset, &block_metadata) { markdown_blockquote }
-            / paragraph:paragraph(start, offset, &block_metadata) { paragraph }
+            / paragraph:paragraph(start, offset, &block_metadata, None) { paragraph }
         ) {
             block
         }
 
         // Block parsing for continuation context - lists inside continuations cannot consume
         // further continuations (those belong to the parent item that started the continuation)
-        rule block_in_continuation(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Block<'input>, Error>
-        = start:position!()
+        rule block_in_continuation(offset: usize, parent_section_level: Option<SectionLevel>, item: ItemMarkers<'input>) -> Result<Block<'input>, Error>
+        = &"[" dh:discrete_header(offset) { dh }
+        / start:position!()
         block_metadata:(bm:block_metadata(offset, parent_section_level) {?
             bm.map_err(|e| {
                 tracing::error!(?e, "error parsing block metadata in block_in_continuation");
@@ -2994,35 +3044,23 @@ peg::parser! {
             / list:list_with_continuation(start, offset, &block_metadata, false) { list }
             / quoted_paragraph:quoted_paragraph(start, offset, &block_metadata) { quoted_paragraph }
             / markdown_blockquote:markdown_blockquote(start, offset, &block_metadata) { markdown_blockquote }
-            / paragraph:paragraph(start, offset, &block_metadata) { paragraph }
+            / paragraph:paragraph(start, offset, &block_metadata, Some(item)) { paragraph }
         ) {
             block
         }
 
-        /// Block parsing for table cells without `AsciiDoc` style - excludes block types that require full parsing.
-        /// Only `a` (`AsciiDoc`) style cells should have full block parsing.
-        /// Excluded: delimited_block, list, toc, page_break, markdown_blockquote
+        /// A cell without the `a` (`AsciiDoc`) style holds text paragraphs only, split
+        /// at blank lines: no block metadata, block macro or break (asciidoctor
+        /// `Table::Cell#content`). Only an `a` cell gets full block parsing.
         rule block_generic_for_table_cell(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Block<'input>, Error>
         = eol()*
         start:position!()
-        block_metadata:(bm:block_metadata(offset, parent_section_level) {?
-            bm.map_err(|e| {
-                tracing::error!(?e, "error parsing block metadata in block_generic_for_table_cell");
-                "block metadata parse error"
-            })
-        })
-        block:(
-            // NOTE: delimited_block is intentionally excluded - only valid with 'a' cell style
-            image:image(start, offset, &block_metadata) { image }
-            / audio:audio(start, offset, &block_metadata) { audio }
-            / video:video(start, offset, &block_metadata) { video }
-            / thematic_break:thematic_break(start, offset, &block_metadata) { thematic_break }
-            / quoted_paragraph:quoted_paragraph(start, offset, &block_metadata) { quoted_paragraph }
-            // NOTE: toc, page_break, list, markdown_blockquote are excluded - only valid with 'a' cell style
-            / paragraph:paragraph(start, offset, &block_metadata) { paragraph }
-        ) {
-            block
-        }
+        paragraph:paragraph(start, offset, &BlockParsingMetadata {
+            parent_section_level,
+            subs_flags: SubsFlags::all(),
+            ..BlockParsingMetadata::default()
+        }, None)
+        { paragraph }
 
         rule delimited_block(
             start: usize,
@@ -3415,7 +3453,7 @@ peg::parser! {
         }
 
         rule page_break(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-            = "<<<" &eol()*<2,2>
+            = "<<<" &(eol() / ![_])
         {
             tracing::debug!("Found page break block");
             let mut metadata = block_metadata.metadata.clone();
@@ -3450,12 +3488,12 @@ peg::parser! {
 
         rule section_level_marker() -> &'input str = $(("=" / "#")+)
 
+        /// What a section marker needs after it to start a title: blanks, then text
+        /// (asciidoctor `AtxSectionTitleRx`); `== ` alone is a paragraph line.
+        rule section_title_follows() = [' ' | '\t']+ [^' ' | '\t' | '\n']
+
         // Helper rule to check if we're at the start of a new list item (lookahead)
         rule at_list_item_start() = whitespace()* (unordered_list_marker() / ordered_list_marker()) whitespace()
-
-        // Helper rule to check if we're at the start of a section heading (lookahead)
-        // This is used to terminate list continuations when a section follows
-        rule at_section_start() = (anchor() / attributes_line())* ("=" / "#")+ " "
 
         // Helper rule to check if we're at an ordered list marker ahead (after newlines)
         rule at_ordered_marker_ahead() = eol()+ whitespace()* ordered_list_marker()
@@ -3544,7 +3582,7 @@ peg::parser! {
         rule at_dlist_block_boundary()
         = eol()*<2,> &(
             ("[" ![']' | '['] [^']' | '\n']+ "]" whitespace()* eol())
-            / ("[[" [^']']+ "]]" whitespace()* eol())
+            / ("[[" [^(']' | '\n')]+ "]]" whitespace()* eol())
         )
 
         rule unordered_list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_ordered_marker: Option<&'input str>, allow_continuation: bool, is_nested: bool) -> Result<Block<'input>, Error>
@@ -3672,7 +3710,7 @@ peg::parser! {
         first_line:$((!(eol()) [_])*)
         // Parse continuation lines that are part of the same paragraph
         // Stop at: blank line, list item start, explicit continuation marker, section heading, or list separator
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         // Try to parse nested list (ordered, or unordered with deeper markers)
         // Don't consume newlines if we're at a list separator (comment or [])
@@ -3687,8 +3725,8 @@ peg::parser! {
         // - Ancestor continuations (1+ empty lines) for content that bubbles up from nested items
         // Use * to match a mixed sequence of immediate and ancestor continuations
         explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata)
-            / list_explicit_continuation_ancestor(offset, block_metadata)
+            list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_ordered_marker))
+            / list_explicit_continuation_ancestor(offset, block_metadata, (marker, parent_ordered_marker))
         ) { cont })*
         list_dangling_continuation()?
         {
@@ -3710,7 +3748,7 @@ peg::parser! {
                 blocks.push(nested_list);
             }
             // Collect all continuation blocks (each is a Result<Block<'input>, Error>)
-            blocks.extend(explicit_continuations.into_iter().flatten());
+            blocks.extend(explicit_continuations.into_iter().flatten().flatten());
 
             // Use end position after all blocks if we have any, otherwise use item_end
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
@@ -3735,7 +3773,7 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         // Nested items can still have nested lists, but those also cannot consume parent continuations
         // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
@@ -3743,7 +3781,7 @@ peg::parser! {
         nested:(!at_list_separator() eol()+ nested_content:unordered_list_item_nested_content(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
         // Parse immediate continuations (0 empty lines) - these attach to this item
         // Ancestor continuations (1+ empty lines) bubble up to parent items
-        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata) { cont })*
+        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_ordered_marker)) { cont })*
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found unordered list item (immediate continuation only)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3762,7 +3800,7 @@ peg::parser! {
                 blocks.push(nested_list);
             }
             // Collect all immediate continuation blocks
-            blocks.extend(immediate_continuations.into_iter().flatten());
+            blocks.extend(immediate_continuations.into_iter().flatten().flatten());
 
             // Use end position after all blocks if we have any, otherwise use item_end
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
@@ -3785,12 +3823,12 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         nested:(!at_list_separator() eol()+ nested_content:unordered_list_item_nested_content(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
         explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata)
-            / list_explicit_continuation_ancestor(offset, block_metadata)
+            list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_ordered_marker))
+            / list_explicit_continuation_ancestor(offset, block_metadata, (marker, parent_ordered_marker))
         ) { cont })*
         list_dangling_continuation()?
         {
@@ -3809,7 +3847,7 @@ peg::parser! {
             if let Some(Some(Ok(nested_list))) = nested {
                 blocks.push(nested_list);
             }
-            blocks.extend(explicit_continuations.into_iter().flatten());
+            blocks.extend(explicit_continuations.into_iter().flatten().flatten());
 
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
 
@@ -3828,10 +3866,10 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         nested:(!at_list_separator() eol()+ nested_content:unordered_list_item_nested_content(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
-        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata) { cont })*
+        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_ordered_marker)) { cont })*
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found unordered list item (after marker, immediate only)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -3848,7 +3886,7 @@ peg::parser! {
             if let Some(Some(Ok(nested_list))) = nested {
                 blocks.push(nested_list);
             }
-            blocks.extend(immediate_continuations.into_iter().flatten());
+            blocks.extend(immediate_continuations.into_iter().flatten().flatten());
 
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
 
@@ -3957,7 +3995,7 @@ peg::parser! {
         first_line:$((!(eol()) [_])*)
         // Parse continuation lines that are part of the same paragraph
         // Stop at: blank line, list item start, explicit continuation marker, section heading, or list separator
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         // Try to parse nested list (unordered, or ordered with deeper markers)
         // Don't consume newlines if we're at a list separator (comment or [])
@@ -3972,8 +4010,8 @@ peg::parser! {
         // - Ancestor continuations (1+ empty lines) for content that bubbles up from nested items
         // Use * to match a mixed sequence of immediate and ancestor continuations
         explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata)
-            / list_explicit_continuation_ancestor(offset, block_metadata)
+            list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_unordered_marker))
+            / list_explicit_continuation_ancestor(offset, block_metadata, (marker, parent_unordered_marker))
         ) { cont })*
         list_dangling_continuation()?
         {
@@ -3995,7 +4033,7 @@ peg::parser! {
                 blocks.push(nested_list);
             }
             // Collect all continuation blocks (each is a Result<Block<'input>, Error>)
-            blocks.extend(explicit_continuations.into_iter().flatten());
+            blocks.extend(explicit_continuations.into_iter().flatten().flatten());
 
             // Use end position after all blocks if we have any, otherwise use item_end
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
@@ -4020,7 +4058,7 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         // Nested items can still have nested lists, but those also cannot consume parent continuations
         // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
@@ -4028,7 +4066,7 @@ peg::parser! {
         nested:(!at_list_separator() eol()+ nested_content:ordered_list_item_nested_content(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
         // Parse immediate continuations (0 empty lines) - these attach to this item
         // Ancestor continuations (1+ empty lines) bubble up to parent items
-        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata) { cont })*
+        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_unordered_marker)) { cont })*
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found ordered list item (immediate continuation only)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -4047,7 +4085,7 @@ peg::parser! {
                 blocks.push(nested_list);
             }
             // Collect all immediate continuation blocks
-            blocks.extend(immediate_continuations.into_iter().flatten());
+            blocks.extend(immediate_continuations.into_iter().flatten().flatten());
 
             // Use end position after all blocks if we have any, otherwise use item_end
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
@@ -4068,12 +4106,12 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         nested:(!at_list_separator() eol()+ nested_content:ordered_list_item_nested_content(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
         explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata)
-            / list_explicit_continuation_ancestor(offset, block_metadata)
+            list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_unordered_marker))
+            / list_explicit_continuation_ancestor(offset, block_metadata, (marker, parent_unordered_marker))
         ) { cont })*
         list_dangling_continuation()?
         {
@@ -4092,7 +4130,7 @@ peg::parser! {
             if let Some(Some(Ok(nested_list))) = nested {
                 blocks.push(nested_list);
             }
-            blocks.extend(explicit_continuations.into_iter().flatten());
+            blocks.extend(explicit_continuations.into_iter().flatten().flatten());
 
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
 
@@ -4111,10 +4149,10 @@ peg::parser! {
         checked:checklist_item()?
         first_line_start:position!()
         first_line:$((!(eol()) [_])*)
-        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_section_start() / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
+        continuation_lines:(eol() !(&eol() / &at_list_item_start() / &"+" / &at_list_separator_content()) cont_line:$((!(eol()) [_])*) { cont_line })*
         first_line_end:position!()
         nested:(!at_list_separator() eol()+ nested_content:ordered_list_item_nested_content(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
-        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata) { cont })*
+        immediate_continuations:(!at_list_separator() cont:list_explicit_continuation_immediate(offset, block_metadata, (marker, parent_unordered_marker)) { cont })*
         {
             tracing::debug!(%first_line, ?continuation_lines, %marker, ?checked, "found ordered list item (after marker, immediate only)");
             let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
@@ -4131,7 +4169,7 @@ peg::parser! {
             if let Some(Some(Ok(nested_list))) = nested {
                 blocks.push(nested_list);
             }
-            blocks.extend(immediate_continuations.into_iter().flatten());
+            blocks.extend(immediate_continuations.into_iter().flatten().flatten());
 
             let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
 
@@ -4458,7 +4496,7 @@ peg::parser! {
         }
 
         rule description_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<DescriptionListItem<'input>, Error>
-        = term:$((!(description_list_marker() (eol() / " ") / eol()*<2,2>) [_])+)
+        = term:$((!(description_list_marker() (eol() / " ") / eol()) [_])+)
         delim_start:position!() delimiter:description_list_marker() delim_end:position!()
         whitespace()?
         principal_start:position!()
@@ -4484,12 +4522,12 @@ peg::parser! {
              !(open_delimiter() (whitespace()* eol()))
              !markdown_code_delimiter()
              !attributes_line()                           // not a block attributes line
-             !((anchor() / attributes_line())* section_level_at_line_start(offset, None) (whitespace() / eol() / ![_]))  // not a section heading
+             !anchor()
              (!eol() [_])+                             // continuation line content
             )*
         )
         // Now handle auto-attachment and explicit continuation
-        attached_content:description_list_attached_content(offset, block_metadata)*
+        attached_content:description_list_attached_content(offset, block_metadata, delimiter)*
         {
             tracing::debug!(%term, %delimiter, "parsing description list item with auto-attachment");
 
@@ -4552,11 +4590,11 @@ peg::parser! {
             })
         }
 
-        rule description_list_attached_content(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Vec<Block<'input>>, Error>
+        rule description_list_attached_content(offset: usize, block_metadata: &BlockParsingMetadata<'input>, delimiter: &'input str) -> Result<Vec<Block<'input>>, Error>
         = eol() content:(
             // Explicit continuation - this uses +, allows any content including delimited
             // blocks
-            description_list_explicit_continuation(offset, block_metadata)
+            description_list_explicit_continuation(offset, block_metadata, delimiter)
             // Auto-attach lists (even with blank lines before them)
             / description_list_auto_attached_list(offset, block_metadata)
         )
@@ -4578,10 +4616,10 @@ peg::parser! {
         // Same pattern as list_explicit_continuation: + marker followed by a single block
         // Uses block_in_continuation to prevent lists inside continuations from consuming
         // further continuations that belong to the parent item
-        rule description_list_explicit_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Vec<Block<'input>>, Error>
+        rule description_list_explicit_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, delimiter: &'input str) -> Result<Vec<Block<'input>>, Error>
         = continuations:(
             eol()* "+" eol()
-            block:block_in_continuation(offset, block_metadata.parent_section_level)
+            block:block_in_continuation(offset, block_metadata.parent_section_level, (delimiter, None))
             { block }
           )+
         {
@@ -4594,13 +4632,27 @@ peg::parser! {
         // Uses block_in_continuation to prevent lists inside continuations from consuming
         // further continuations that belong to the parent item.
         // Pattern: exactly one newline before + (content\n+\nblock)
-        rule list_explicit_continuation_immediate(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+        rule list_explicit_continuation_immediate(offset: usize, block_metadata: &BlockParsingMetadata<'input>, item: ItemMarkers<'input>) -> Vec<Result<Block<'input>, Error>>
         = eol() !eol() "+" eol()
-          block:block_in_continuation(offset, block_metadata.parent_section_level)
+          block:block_in_continuation(offset, block_metadata.parent_section_level, item)
+          adjacent:list_adjacent_block(offset, block_metadata, item)*
         {
             tracing::debug!("List immediate continuation block (0 empty lines)");
-            block
+            std::iter::once(block).chain(adjacent).collect()
         }
+
+        // A block right after an attached one, no blank line between, belongs to the same
+        // item (asciidoctor `read_lines_for_list_item` keeps reading the item's lines),
+        // unless it starts the item's end or a delimited block, which ends the list.
+        rule list_adjacent_block(offset: usize, block_metadata: &BlockParsingMetadata<'input>, item: ItemMarkers<'input>) -> Result<Block<'input>, Error>
+        = eol() !eol() !("+" (whitespace() / eol() / ![_])) !at_item_boundary(Some(item)) !at_delimiter_line() !at_list_separator_content()
+          block:block_in_continuation(offset, block_metadata.parent_section_level, item)
+        { block }
+
+        rule at_delimiter_line()
+        = example_delimiter() / listing_delimiter() / literal_delimiter() / sidebar_delimiter() / quote_delimiter()
+        / pass_delimiter() / table_delimiter() / markdown_code_delimiter() / comment_delimiter()
+        / open_delimiter() &(whitespace()* eol())
 
         // Parse a single ancestor continuation (1+ empty lines before +)
         // Per AsciiDoc spec: each empty line before + moves attachment up one nesting level.
@@ -4608,12 +4660,13 @@ peg::parser! {
         // Uses block_in_continuation to prevent lists inside continuations from consuming
         // further continuations that belong to the parent item.
         // Pattern: two or more newlines before + (content\n\n+\nblock)
-        rule list_explicit_continuation_ancestor(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+        rule list_explicit_continuation_ancestor(offset: usize, block_metadata: &BlockParsingMetadata<'input>, item: ItemMarkers<'input>) -> Vec<Result<Block<'input>, Error>>
         = eol() eol()+ "+" eol()
-          block:block_in_continuation(offset, block_metadata.parent_section_level)
+          block:block_in_continuation(offset, block_metadata.parent_section_level, item)
+          adjacent:list_adjacent_block(offset, block_metadata, item)*
         {
             tracing::debug!("List ancestor continuation block (1+ empty lines)");
-            block
+            std::iter::once(block).chain(adjacent).collect()
         }
 
         // Consume a "dangling" list continuation marker: a `+` on its own line with no
@@ -4688,7 +4741,7 @@ peg::parser! {
             };
 
             // Parse the quoted content as blocks
-            let blocks = document_parser::blocks(quoted_content, state, content_start + offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
+            let blocks = document_parser::block_content(quoted_content, state, content_start + offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
                 adjust_and_log_parse_error(&e, quoted_content, content_start + offset, state, "Error parsing content as blocks in quoted paragraph");
                 Ok(Vec::new())
             })?;
@@ -4777,7 +4830,7 @@ peg::parser! {
             let blocks = if content.trim().is_empty() {
                 Vec::new()
             } else {
-                document_parser::blocks(content, state, content_start + offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
+                document_parser::block_content(content, state, content_start + offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
                     adjust_and_log_parse_error(&e, content, content_start + offset, state, "Error parsing content as blocks in markdown blockquote");
                     Ok(Vec::new())
                 })?
@@ -4816,13 +4869,23 @@ peg::parser! {
             (author.trim().to_string(), author_start, None)
         }
 
-        rule paragraph(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+        /// A line starting an item that ends `item` (its sibling, or its parent's):
+        /// where asciidoctor's `read_lines_for_list_item` ends the item's lines.
+        rule at_item_boundary(item: Option<ItemMarkers<'input>>)
+        = whitespace()* line:$(unordered_list_marker() / ordered_list_marker()) whitespace() {? item_boundary(line, item) }
+        / (!(description_list_marker() (eol() / " ") / eol()) [_])+ line:description_list_marker() (eol() / " " / ![_]) {? item_boundary(line, item) }
+
+        // A paragraph ends at a list line only in a block attached to a list item, and
+        // there only where the item ends (asciidoctor `Parser.read_paragraph_lines` reads
+        // the item's lines alone); a section title never ends a paragraph.
+        rule paragraph(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, item: Option<ItemMarkers<'input>>) -> Result<Block<'input>, Error>
         = admonition:admonition()?
         content_start:position!()
         content:$((!(
             eol()*<2,>
             / eol()* ![_]
             / eol() &attributes_line()
+            / eol() &anchor()
             / eol() example_delimiter()
             / eol() listing_delimiter()
             / eol() literal_delimiter()
@@ -4833,9 +4896,8 @@ peg::parser! {
             / eol() markdown_code_delimiter()
             / eol() comment_delimiter()
             / eol() open_delimiter() &(whitespace()* eol())
-            / eol() list(start, offset, block_metadata)
+            / eol() at_item_boundary(item)
             / eol() &("+" (whitespace() / eol() / ![_]))  // Stop at list continuation marker
-            / eol()* &((anchor() / attributes_line())* section_level_at_line_start(offset, None) (whitespace() / eol() / ![_]))
         ) [_])+)
         {
             // Reset the verbatim flag since paragraph is not a verbatim block
@@ -4942,7 +5004,7 @@ peg::parser! {
             //
             // Whitespace is excluded per AsciiDoc documentation at
             // https://docs.asciidoctor.org/asciidoc/latest/attributes/id/#valid-id-characters
-            double_open_square_bracket() warn_anchor_id_with_whitespace()? id:$([^'\'' | ',' | ']' | ' ' | '\t' | '\n' | '\r']+) comma() reftext:$([^']']+) double_close_square_bracket() {
+            double_open_square_bracket() warn_anchor_id_with_whitespace()? id:$([^'\'' | ',' | ']' | ' ' | '\t' | '\n' | '\r']+) comma() reftext:$([^(']' | '\n')]+) double_close_square_bracket() {
                 (id, Some(reftext))
             } /
             double_open_square_bracket() warn_anchor_id_with_whitespace()? id:$([^'\'' | ',' | ']' | ' ' | '\t' | '\n' | '\r']+) double_close_square_bracket() {
@@ -4964,7 +5026,7 @@ peg::parser! {
             }
         )
         end:position!()
-        eol()
+        (eol() / ![_])
         {
             let (id, reftext) = result;
             let substituted_id = state.intern_cow(substitute(id, HEADER, &state.document_attributes));
@@ -5005,7 +5067,7 @@ peg::parser! {
         }
 
         rule inline_anchor_match() -> ()
-        = double_open_square_bracket() [^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+ (comma() [^']']+)? double_close_square_bracket()
+        = double_open_square_bracket() [^'\'' | ',' | ']' | '.' | ' ' | '\t' | '\n' | '\r']+ (comma() [^(']' | '\n')]+)? double_close_square_bracket()
 
         /// Bibliography anchor: `[[[id]]]` or `[[[id,reftext]]]`
         /// Must be parsed before inline_anchor to avoid capturing `[id` as the ID
@@ -5030,7 +5092,7 @@ peg::parser! {
             // Don't match empty [] followed by blank line - that's a list separator, not
             // block attributes. Without this, `[]\n\n` would be parsed as an empty
             // attributes line, breaking list separation
-            = !empty_list_separator() attributes:attributes() eol() {
+            = !empty_list_separator() attributes:attributes() (eol() / ![_]) {
                 let (discrete, metadata, _title_position) = attributes;
                 (discrete, metadata)
             }
@@ -5207,7 +5269,7 @@ peg::parser! {
                 let trimmed = strip_quotes(&quoted);
                 if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
             }
-            / s:$([^('"' | ',' | ']' | '=')]+) {
+            / s:$([^('"' | ',' | ']' | '=' | '\n')]+) {
                 let trimmed = s.trim();
                 if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
             }
@@ -5226,7 +5288,9 @@ peg::parser! {
         rule comma() = ","
         rule period() = "."
         rule empty_style() = ""
-        rule role() -> &'input str = $([^(',' | ']' | '#' | '.' | '%')]+)
+        // A block attribute list is one line (asciidoctor `BlockAttributeListRx`), as is
+        // a block macro's: no value below runs past the line's end.
+        rule role() -> &'input str = $([^(',' | ']' | '#' | '.' | '%' | '\n')]+)
 
         /// Parse a single attribute shorthand: .role, #id, or %option
         /// Used by block_style() for block-level attributes
@@ -5242,7 +5306,7 @@ peg::parser! {
         // it can contain commas, which we then look for and extract the options in the
         // `attributes()` rule.
         rule option() -> &'input str =
-        $(("\"" [^('"' | ']' | '#' | '.' | '%')]+ "\"") / ([^('"' | ',' | ']' | '#' | '.' | '%')]+))
+        $(("\"" [^('"' | ']' | '#' | '.' | '%' | '\n')]+ "\"") / ([^('"' | ',' | ']' | '#' | '.' | '%' | '\n')]+))
 
         rule attribute_name() -> &'input str = $((['A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_'])+)
 
@@ -5300,6 +5364,11 @@ peg::parser! {
         // matter, except for the style, which must come first.
         pub(crate) rule block_style() -> (Option<Cow<'input, str>>, Option<Anchor<'input>>, Vec<Cow<'input, str>>, Vec<Cow<'input, str>>)
             = content:(
+                // A first positional holding a space is the style as written, with no
+                // shorthands read from it (asciidoctor `Parser.parse_style_attribute`).
+                raw:$([^(',' | ']' | '"' | '\'' | '=' | '\n')]+) &(comma() / close_square_bracket())
+                {? if raw.trim().contains(' ') { Ok((Some(Cow::Borrowed(raw.trim())), Vec::new())) } else { Err("no space in style") } }
+                /
                 style:positional_attribute_value() shorthands:(
                     "#" id_start:position!() id:block_style_id() id_end:position!() {
                         (Shorthand::Id(Cow::Owned(id.to_string())), Some((id_start, id_end)))
@@ -5359,7 +5428,7 @@ peg::parser! {
             tracing::debug!(%inner, %trimmed, "Found named attribute value (inner)");
             trimmed.to_string()
         }
-        / s:$([^(',' | '"' | '\'' | ']')]+)
+        / s:$([^(',' | '"' | '\'' | ']' | '\n')]+)
         {
             tracing::debug!(%s, "Found named attribute value");
             s.to_string()
@@ -5371,7 +5440,7 @@ peg::parser! {
             tracing::debug!(%quoted, %trimmed, "Found quoted positional attribute value");
             trimmed.to_string()
         }
-        / s:$([^('"' | ',' | ']' | '#' | '.' | '%')] [^(',' | ']' | '#' | '.' | '%' | '=')]*)
+        / s:$([^('"' | ',' | ']' | '#' | '.' | '%' | '\n')] [^(',' | ']' | '#' | '.' | '%' | '=' | '\n')]*)
         {
             let trimmed = s.trim();
             tracing::debug!(%s, %trimmed, "Found unquoted positional attribute value");
@@ -5379,8 +5448,8 @@ peg::parser! {
         }
 
         rule inner_attribute_value() -> String
-        = s:$("\"" [^'"']* "\"") { s.to_string() }
-        / s:$("'" [^'\'']* "'") { s.to_string() }
+        = s:$("\"" [^('"' | '\n')]* "\"") { s.to_string() }
+        / s:$("'" [^('\'' | '\n')]* "'") { s.to_string() }
 
         /// URL rule matches both web URLs (proto://) and mailto: URLs
         pub rule url() -> String =
@@ -5577,7 +5646,19 @@ peg::parser! {
         rule eol() = quiet!{ "\n" }
 
         rule comment_line() = quiet!{ comment() (eol() / ![_]) }
-        rule comment() = quiet!{ "//" [^'\n']+ (&eol() / ![_]) }
+        rule comment() = quiet!{ !comment_delimiter_line() "//" [^'\n']* (&eol() / ![_]) }
+        rule comment_delimiter_line() = comment_delimiter() (&eol() / ![_])
+
+        /// A header comment as asciidoctor's `Reader#skip_comment_lines` reads one: a `//`
+        /// line not starting `///`, or a whole `////` block.
+        rule header_comment() = quiet!{ header_line_comment() / header_comment_block() (&eol() / ![_]) }
+        rule header_line_comment() = quiet!{ "//" !"/" [^'\n']* (&eol() / ![_]) }
+
+        /// What may sit between a block's metadata lines and the block: blank lines and
+        /// comments, skipped as asciidoctor's `parse_block_metadata_lines` skips them.
+        rule metadata_gap() = (eol() / header_line_comment() (eol() / ![_]) / header_comment_block() (eol() / ![_]))*
+        rule header_comment_block()
+            = delim:comment_delimiter() &(eol() / ![_]) until_block_close(delim) (eol() block_close_delim(delim))?
 
         // Value parsing for document attributes
         // Handles both single-line values and values with continuation markers (" \" or " + \")

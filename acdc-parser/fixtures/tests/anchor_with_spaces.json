@@ -70,15 +70,15 @@
         {
           "name": "text",
           "type": "string",
-          "value": "[[my section id]]",
+          "value": "[[my section id]]\n== Section with Space in Anchor",
           "location": [
             {
               "line": 6,
               "col": 1
             },
             {
-              "line": 6,
-              "col": 17
+              "line": 7,
+              "col": 31
             }
           ]
         }
@@ -89,54 +89,19 @@
           "col": 1
         },
         {
-          "line": 6,
-          "col": 17
+          "line": 7,
+          "col": 31
         }
       ]
     },
     {
-      "name": "section",
+      "name": "paragraph",
       "type": "block",
-      "id": "_section_with_space_in_anchor",
-      "title": [
+      "inlines": [
         {
           "name": "text",
           "type": "string",
-          "value": "Section with Space in Anchor",
-          "location": [
-            {
-              "line": 7,
-              "col": 4
-            },
-            {
-              "line": 7,
-              "col": 31
-            }
-          ]
-        }
-      ],
-      "level": 1,
-      "blocks": [
-        {
-          "name": "paragraph",
-          "type": "block",
-          "inlines": [
-            {
-              "name": "text",
-              "type": "string",
-              "value": "This section's anchor has spaces, so it should NOT be parsed as an anchor.\nInstead, the [[...]] should become literal text in the preamble.",
-              "location": [
-                {
-                  "line": 9,
-                  "col": 1
-                },
-                {
-                  "line": 10,
-                  "col": 64
-                }
-              ]
-            }
-          ],
+          "value": "This section's anchor has spaces, so it should NOT be parsed as an anchor.\nInstead, the [[...]] should become literal text in the preamble.",
           "location": [
             {
               "line": 9,
@@ -147,47 +112,16 @@
               "col": 64
             }
           ]
-        },
-        {
-          "name": "paragraph",
-          "type": "block",
-          "inlines": [
-            {
-              "name": "text",
-              "type": "string",
-              "value": "[#another space id]",
-              "location": [
-                {
-                  "line": 12,
-                  "col": 1
-                },
-                {
-                  "line": 12,
-                  "col": 19
-                }
-              ]
-            }
-          ],
-          "location": [
-            {
-              "line": 12,
-              "col": 1
-            },
-            {
-              "line": 12,
-              "col": 19
-            }
-          ]
         }
       ],
       "location": [
         {
-          "line": 7,
+          "line": 9,
           "col": 1
         },
         {
-          "line": 12,
-          "col": 19
+          "line": 10,
+          "col": 64
         }
       ]
     },
@@ -213,6 +147,9 @@
         }
       ],
       "level": 1,
+      "metadata": {
+        "style": "#another space id"
+      },
       "blocks": [
         {
           "name": "paragraph",
@@ -248,7 +185,7 @@
       ],
       "location": [
         {
-          "line": 13,
+          "line": 12,
           "col": 1
         },
         {
