@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A section marker with no title after it (`== `, `==`), the document title's included
+  (`= `, `# `), is paragraph text, as `asciidoctor` reads it; it used to fail the whole
+  document or make an untitled header. Spaces between the marker and the title are not part
+  of the title (`==  Title` is titled `Title`).
+- Inline locations name exactly the source the node is drawn from. Formatted text with
+  an attribute list (`[.role]*bold*`, `[#id]_em_`, `[.line-through]#gone#`) starts at
+  the `[`, which `asciidoctor` reads as part of the span. The text inside a `+...+`,
+  `++...++`, `+++...+++` or `pass:[]` passthrough, and the plain text right before
+  one, end at their last character instead of one past it, as every other inline
+  location does; so does a one-character text (`q`, the `a` in `` `a` ``). Inside a
+  Markdown-style quote (`> ...`) every location counts the `>` prefix of its line, after any
+  title, anchor or role line above the quote; its footnotes, warnings and table of contents
+  entries stand there too. The text right after a `{counter:...}` or an attribute reference
+  that is empty starts at its own first character. The text around a passthrough is located
+  in every paragraph, after any attribute reference, and ends where it ends. A `pass:`
+  macro's content starts after its own substitutions (`pass:quotes[...]`, `pass:q,a[...]`);
+  content its substitutions changed spans what it was read from, and an attribute in
+  `pass:a[...]` that expands longer than its reference no longer panics. An escaped marker
+  (`\*`, `\<<id>>`) and a link text of white space only end at their last character. Line
+  and column are where the characters stand: in a passthrough that runs over a line end,
+  after a character wider than a byte, after an escaped `\|` in a table cell, and for text
+  an attribute expanded.
 - Cross reference and link targets are read the way `asciidoctor` reads them. A
   `<<target>>` target runs to the first `,` or `>>` and starts with a word character
   or one of `#/.:{`, so `<<../guide.adoc#install>>`, `<<my guide.adoc#x>>` and

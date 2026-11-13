@@ -75,11 +75,11 @@
                   "location": [
                     {
                       "line": 5,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 5,
-                      "col": 43
+                      "col": 45
                     }
                   ]
                 }
@@ -87,11 +87,11 @@
               "location": [
                 {
                   "line": 5,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 5,
-                  "col": 43
+                  "col": 45
                 }
               ]
             }
@@ -196,11 +196,11 @@
                   "location": [
                     {
                       "line": 9,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 10,
-                      "col": 64
+                      "col": 68
                     }
                   ]
                 }
@@ -208,11 +208,11 @@
               "location": [
                 {
                   "line": 9,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 10,
-                  "col": 64
+                  "col": 68
                 }
               ]
             }
@@ -300,11 +300,11 @@
                   "location": [
                     {
                       "line": 15,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 15,
-                      "col": 41
+                      "col": 43
                     }
                   ]
                 }
@@ -312,11 +312,11 @@
               "location": [
                 {
                   "line": 15,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 15,
-                  "col": 41
+                  "col": 43
                 }
               ]
             }
@@ -387,11 +387,11 @@
                   "location": [
                     {
                       "line": 20,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 20,
-                      "col": 29
+                      "col": 31
                     }
                   ]
                 }
@@ -399,11 +399,11 @@
               "location": [
                 {
                   "line": 20,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 20,
-                  "col": 29
+                  "col": 31
                 }
               ]
             },
@@ -417,24 +417,24 @@
                   "value": "Second paragraph of the quote.",
                   "location": [
                     {
-                      "line": 20,
-                      "col": 32
+                      "line": 22,
+                      "col": 3
                     },
                     {
                       "line": 22,
-                      "col": 27
+                      "col": 32
                     }
                   ]
                 }
               ],
               "location": [
                 {
-                  "line": 20,
-                  "col": 32
+                  "line": 22,
+                  "col": 3
                 },
                 {
                   "line": 22,
-                  "col": 27
+                  "col": 32
                 }
               ]
             }
@@ -505,11 +505,11 @@
                   "location": [
                     {
                       "line": 26,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 26,
-                      "col": 24
+                      "col": 26
                     }
                   ]
                 }
@@ -517,11 +517,11 @@
               "location": [
                 {
                   "line": 26,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 26,
-                  "col": 24
+                  "col": 26
                 }
               ]
             },
@@ -542,24 +542,24 @@
                       "value": "Clean syntax",
                       "location": [
                         {
-                          "line": 27,
-                          "col": 2
+                          "line": 28,
+                          "col": 5
                         },
                         {
                           "line": 28,
-                          "col": 11
+                          "col": 16
                         }
                       ]
                     }
                   ],
                   "location": [
                     {
-                      "line": 26,
-                      "col": 27
+                      "line": 28,
+                      "col": 3
                     },
                     {
                       "line": 28,
-                      "col": 11
+                      "col": 16
                     }
                   ]
                 },
@@ -574,24 +574,24 @@
                       "value": "Powerful features",
                       "location": [
                         {
-                          "line": 28,
-                          "col": 15
+                          "line": 29,
+                          "col": 5
                         },
                         {
                           "line": 29,
-                          "col": 14
+                          "col": 21
                         }
                       ]
                     }
                   ],
                   "location": [
                     {
-                      "line": 28,
-                      "col": 13
+                      "line": 29,
+                      "col": 3
                     },
                     {
                       "line": 29,
-                      "col": 14
+                      "col": 21
                     }
                   ]
                 },
@@ -606,36 +606,36 @@
                       "value": "Great tooling",
                       "location": [
                         {
-                          "line": 29,
-                          "col": 18
+                          "line": 30,
+                          "col": 5
                         },
                         {
                           "line": 30,
-                          "col": 8
+                          "col": 17
                         }
                       ]
                     }
                   ],
                   "location": [
                     {
-                      "line": 29,
-                      "col": 16
+                      "line": 30,
+                      "col": 3
                     },
                     {
                       "line": 30,
-                      "col": 8
+                      "col": 17
                     }
                   ]
                 }
               ],
               "location": [
                 {
-                  "line": 26,
-                  "col": 27
+                  "line": 28,
+                  "col": 3
                 },
                 {
                   "line": 30,
-                  "col": 8
+                  "col": 17
                 }
               ]
             }

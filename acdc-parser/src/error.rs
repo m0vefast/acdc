@@ -119,6 +119,37 @@ impl Error {
         }
     }
 
+    /// [`source_location`](Self::source_location), to move it.
+    pub(crate) fn source_location_mut(&mut self) -> Option<&mut SourceLocation> {
+        match self {
+            Self::NestedSectionLevelMismatch(detail, ..)
+            | Self::MismatchedDelimiters(detail, ..)
+            | Self::InvalidAdmonitionVariant(detail, ..)
+            | Self::Parse(detail, ..)
+            | Self::PegParse(detail, ..)
+            | Self::InvalidIncludePath(detail, ..)
+            | Self::InvalidLineRange(detail, ..)
+            | Self::InvalidConditionalDirective(detail)
+            | Self::InvalidIncludeDirective(detail, ..)
+            | Self::InvalidIndent(detail, ..)
+            | Self::IncludeIndentTooLarge(detail, ..)
+            | Self::InvalidLevelOffset(detail, ..)
+            | Self::InvalidIfEvalDirectiveMismatchedTypes(detail)
+            | Self::NonConformingManpageTitle(detail, ..) => Some(detail),
+            Self::ParseGrammar(_)
+            | Self::Io(_)
+            | Self::Url(_)
+            | Self::ParseInt(_)
+            | Self::UnknownEncoding(_)
+            | Self::UnrecognizedEncodingInFile(_)
+            | Self::TryFromIntError(_) => None,
+            #[cfg(feature = "network")]
+            Self::HttpRequest(_) => None,
+            #[cfg(not(feature = "network"))]
+            Self::NetworkDisabled => None,
+        }
+    }
+
     /// Get advice for this error if available.
     /// Returns helpful information for resolving the error.
     #[must_use]

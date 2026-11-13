@@ -10,10 +10,6 @@ use super::{
 /// For `*s*`, position 1 is where 's' starts.
 const CONSTRAINED_CONTENT_START_OFFSET: usize = 1;
 
-/// End offset for single character content after opening delimiter.
-/// For `*s*`, position 2 is where 's' ends.
-const CONSTRAINED_CONTENT_END_OFFSET: usize = 2;
-
 /// Clamp a Location's byte offsets to valid bounds within the input string
 /// and ensure they fall on UTF-8 character boundaries.
 ///
@@ -107,32 +103,16 @@ pub(crate) fn create_location_mapper<'a>(
         let mut processed_abs_start = base_location.absolute_start + loc.absolute_start;
         let mut processed_abs_end = base_location.absolute_start + loc.absolute_end;
 
-        // Fix for collapsed locations (where absolute_start == absolute_end)
-        if loc.absolute_start == loc.absolute_end {
-            if loc.absolute_start == 0 && base_location.absolute_start < base_location.absolute_end
-            {
-                // Special case: single character inside constrained formatting like "*s*"
-                // (constrained formatting has single-character delimiters).
-                if matches!(form, Some(Form::Constrained)) {
-                    // Constrained formatting: skip single-char delimiter to point at content
-                    processed_abs_start =
-                        base_location.absolute_start + CONSTRAINED_CONTENT_START_OFFSET;
-                    processed_abs_end =
-                        base_location.absolute_start + CONSTRAINED_CONTENT_END_OFFSET;
-                } else {
-                    // General case: expand collapsed locations to the next UTF-8 boundary
-                    processed_abs_end = crate::grammar::utf8_utils::safe_increment_offset(
-                        state.input,
-                        processed_abs_end,
-                    );
-                }
-            } else {
-                // General case: expand collapsed locations to the next UTF-8 boundary
-                processed_abs_end = crate::grammar::utf8_utils::safe_increment_offset(
-                    state.input,
-                    processed_abs_end,
-                );
-            }
+        // Ends are inclusive: a location whose start is its end is one character. Single
+        // character content inside constrained formatting like "*s*" arrives at the opening
+        // delimiter: skip it to point at the content.
+        if loc.absolute_start == loc.absolute_end
+            && loc.absolute_start == 0
+            && base_location.absolute_start < base_location.absolute_end
+            && matches!(form, Some(Form::Constrained))
+        {
+            processed_abs_start = base_location.absolute_start + CONSTRAINED_CONTENT_START_OFFSET;
+            processed_abs_end = processed_abs_start;
         }
 
         // Map those through the preprocessor source map back to original source
@@ -153,19 +133,9 @@ pub(crate) fn create_location_mapper<'a>(
         let start_pos = state
             .line_map
             .offset_to_position(mapped_abs_start, state.input);
-        let mut end_pos = state
+        let end_pos = state
             .line_map
             .offset_to_position(mapped_abs_end, state.input);
-
-        // For single-character content inside constrained formatting, ensure both start and end column point to the same character
-        let is_single_char_fix = mapped_abs_end == mapped_abs_start + 1
-            && loc.absolute_start == 0
-            && base_location.absolute_start < base_location.absolute_end;
-        // For single-character content inside constrained formatting, point both
-        // start and end column at the same character.
-        if is_single_char_fix && matches!(form, Some(Form::Constrained)) {
-            end_pos.column = start_pos.column;
-        }
 
         Ok(Location {
             absolute_start: mapped_abs_start,
@@ -247,9 +217,7 @@ pub(crate) fn map_inner_content_locations<'a>(
                     {
                         mapped_nodes.extend(
                             super::passthrough_processing::process_passthrough_with_quotes(
-                                state.arena,
-                                text,
-                                pass,
+                                state, text, pass,
                             ),
                         );
                         continue;
@@ -262,12 +230,7 @@ pub(crate) fn map_inner_content_locations<'a>(
                     inner_plain.content = state.intern_str(&content);
 
                     // Map to document coordinates first (use normal location mapping for inner content)
-                    let mut mapped = map_loc(&inner_plain.location)?;
-
-                    // For single-character content, ensure start and end columns are the same
-                    if inner_plain.content.chars().count() == 1 {
-                        mapped.end.column = mapped.start.column;
-                    }
+                    let mapped = map_loc(&inner_plain.location)?;
 
                     // Apply attribute location extension if needed
                     inner_plain.location =
@@ -318,91 +281,6 @@ fn placeholder_only_pass<'a, 'p>(
     processed.passthroughs.get(index)
 }
 
-/// Helper macro to remap locations for simple nodes (`PlainText`, etc.)
-macro_rules! remap_simple_location {
-    ($node:expr, $base_offset:expr) => {{
-        $node.location.absolute_start += $base_offset;
-        $node.location.absolute_end += $base_offset;
-        let col_shift = u32::try_from($base_offset).unwrap_or(u32::MAX);
-        $node.location.start.column += col_shift;
-        $node.location.end.column += col_shift;
-    }};
-}
-
-/// Helper macro to remap locations for formatted nodes with content
-macro_rules! remap_formatted_location {
-    ($node:expr, $base_offset:expr) => {{
-        remap_simple_location!($node, $base_offset);
-        // Recursively remap nested content
-        for nested_node in &mut $node.content {
-            remap_inline_node_location(nested_node, $base_offset);
-        }
-    }};
-}
-
-/// Remap the location of an inline node to final document coordinates
-pub(crate) fn remap_inline_node_location(node: &mut InlineNode, base_offset: usize) {
-    match node {
-        InlineNode::PlainText(plain) => remap_simple_location!(plain, base_offset),
-        InlineNode::BoldText(bold) => remap_formatted_location!(bold, base_offset),
-        InlineNode::ItalicText(italic) => remap_formatted_location!(italic, base_offset),
-        InlineNode::SuperscriptText(superscript) => {
-            remap_formatted_location!(superscript, base_offset);
-        }
-        InlineNode::SubscriptText(subscript) => remap_formatted_location!(subscript, base_offset),
-        InlineNode::CurvedQuotationText(curved_quotation) => {
-            remap_formatted_location!(curved_quotation, base_offset);
-        }
-        InlineNode::CurvedApostropheText(curved_apostrophe) => {
-            remap_formatted_location!(curved_apostrophe, base_offset);
-        }
-        InlineNode::MonospaceText(monospace) => remap_formatted_location!(monospace, base_offset),
-        InlineNode::HighlightText(highlight) => remap_formatted_location!(highlight, base_offset),
-        // Add other inline node types as needed
-        InlineNode::RawText(_)
-        | InlineNode::VerbatimText(_)
-        | InlineNode::StandaloneCurvedApostrophe(_)
-        | InlineNode::LineBreak(_)
-        | InlineNode::InlineAnchor(_)
-        | InlineNode::CalloutRef(_)
-        | InlineNode::Macro(_) => {
-            // No location remapping needed for these types
-        }
-    }
-}
-
-/// Create a location that maps back to original source coordinates when content has been
-/// modified by passthrough replacement.
-///
-/// When we replace passthrough placeholders with their content, we need to map the location
-/// back to the original source text coordinates rather than the preprocessed coordinates.
-pub(crate) fn create_original_source_location(
-    plain_content: &str,
-    plain_location: &Location,
-    processed: &ProcessedContent<'_>,
-    base_location: &Location,
-) -> Location {
-    // Check if this PlainText content actually contains passthrough placeholders
-    let contains_passthroughs = !processed.passthroughs.is_empty()
-        && processed.passthroughs.iter().enumerate().any(|(index, _)| {
-            let placeholder = format!("���{index}���");
-            plain_content.contains(&placeholder)
-        });
-
-    if contains_passthroughs {
-        // For a PlainText that contains passthrough placeholders and spans the entire content,
-        // we should map back to the original source location
-        if plain_location.absolute_start == 0 {
-            // Use the base location which represents the original source coordinates
-            return base_location.clone();
-        }
-    }
-
-    // For other cases, use the existing location mapping
-    // This is a fallback - in practice we might need more sophisticated logic here
-    plain_location.clone()
-}
-
 /// Map inline node locations from preprocessed coordinates to original document coordinates.
 ///
 /// This is the main entry point for location mapping during inline processing. It handles
@@ -432,8 +310,7 @@ pub(crate) fn map_inline_locations<'a>(
         match inline {
             InlineNode::PlainText(plain) => {
                 // May expand to N nodes (placeholder splits); push in place.
-                let nodes =
-                    map_plain_text_inline_locations(plain, state, processed, location, &map_loc)?;
+                let nodes = map_plain_text_inline_locations(plain, state, processed, &map_loc)?;
                 acc.extend(nodes);
             }
             marked_text @ (InlineNode::ItalicText(_)
@@ -561,7 +438,6 @@ fn map_plain_text_inline_locations<'a>(
     plain: &Plain<'a>,
     state: &ParserState<'a>,
     processed: &'a ProcessedContent<'a>,
-    location: &Location,
     map_loc: &LocationMapper<'_>,
 ) -> Result<Vec<InlineNode<'a>>, crate::Error> {
     // Extract plain text at `'a` so the passthrough-processing path can hand
@@ -576,31 +452,18 @@ fn map_plain_text_inline_locations<'a>(
         });
 
     if contains_passthroughs {
-        // Use multi-pass processing for passthroughs with quote substitutions
-        let base_location =
-            create_original_source_location(original_content, &plain.location, processed, location);
-
         tracing::debug!(content = ?original_content, "Processing passthrough placeholders in PlainText");
-        Ok(
-            super::passthrough_processing::process_passthrough_placeholders(
-                original_content,
-                processed,
-                state,
-                &base_location,
-            ),
+        super::passthrough_processing::process_passthrough_placeholders(
+            original_content,
+            processed,
+            state,
+            &plain.location,
+            map_loc,
         )
     } else {
-        // No passthroughs, handle normally
-        let mut mapped_location = map_loc(&plain.location)?;
-
-        // For single-character content, ensure start and end columns are the same
-        if original_content.chars().count() == 1 {
-            mapped_location.end.column = mapped_location.start.column;
-        }
-
         Ok(vec![InlineNode::PlainText(Plain {
             content: original_content,
-            location: mapped_location,
+            location: map_loc(&plain.location)?,
             escaped: plain.escaped,
         })])
     }

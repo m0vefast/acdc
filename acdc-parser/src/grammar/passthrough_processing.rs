@@ -8,15 +8,58 @@ use crate::{
 use super::{
     ParserState,
     inlines::inline_parser,
-    location_mapping::{clamp_inline_node_locations, remap_inline_node_location},
+    location_mapping::{LocationMapper, clamp_inline_node_locations},
 };
+
+/// The source bytes a passthrough's content was read from, `[start, end)`: past its opening
+/// delimiter (`+`, `++`, `+++`, or `pass:` with its substitutions and `[`) and before its
+/// closing one. An attribute-ref passthrough's content is its whole `{name}`.
+fn content_span(passthrough: &Pass, input: &str) -> (usize, usize) {
+    let (start, end) = (
+        passthrough.location.absolute_start,
+        passthrough.location.absolute_end,
+    );
+    let (open, close) = match passthrough.kind {
+        PassthroughKind::Single => (1, 1),
+        PassthroughKind::Double => (2, 2),
+        PassthroughKind::Triple => (3, 3),
+        PassthroughKind::Macro => (
+            input
+                .get(start..end)
+                .and_then(|s| s.find('['))
+                .map_or(0, |i| i + 1),
+            1,
+        ),
+        PassthroughKind::AttributeRef => (0, 0),
+    };
+    let from = (start + open).min(end);
+    (from, end.saturating_sub(close).max(from))
+}
+
+/// A location over source bytes `[from, to]` (inclusive), its line and column read from them.
+fn location_at(state: &ParserState<'_>, from: usize, to: usize) -> Location {
+    Location {
+        absolute_start: from,
+        absolute_end: to,
+        start: state.line_map.offset_to_position(from, state.input),
+        end: state.line_map.offset_to_position(to, state.input),
+    }
+}
 
 /// Process passthrough content that contains quote substitutions, parsing nested markup
 pub(crate) fn process_passthrough_with_quotes<'a>(
-    arena: &'a Bump,
+    state: &ParserState<'a>,
     content: &'a str,
     passthrough: &Pass,
 ) -> Vec<InlineNode<'a>> {
+    let (from, to) = content_span(passthrough, state.input);
+    let source = state.input.get(from..to).unwrap_or("");
+    // The whole content's span, inclusive: its first byte to its last character's.
+    let whole = location_at(
+        state,
+        from,
+        to - source.chars().last().map_or(0, char::len_utf8),
+    );
     let has_quotes = passthrough.substitutions.contains(&Substitution::Quotes);
 
     // If no quotes processing needed
@@ -29,42 +72,9 @@ pub(crate) fn process_passthrough_with_quotes<'a>(
         // adjacent PlainText nodes (which would lose the passthrough's substitution info).
         // Carry the passthrough's own subs (minus Quotes, already handled) so the
         // converter applies exactly those instead of the block's subs.
-        // Compute content-only location by stripping the delimiter prefix/suffix
-        // from the full passthrough macro location. For attribute-ref passthroughs,
-        // the location spans the `{attr}` reference with no delimiters to strip.
-        let suffix_len = match passthrough.kind {
-            PassthroughKind::Macro | PassthroughKind::Single => Some(1), // ] or +
-            PassthroughKind::Double => Some(2),                          // ++
-            PassthroughKind::Triple => Some(3),                          // +++
-            PassthroughKind::AttributeRef => None,
-        };
-
-        let content_location = if let Some(suffix_len) = suffix_len {
-            let total_span =
-                passthrough.location.absolute_end - passthrough.location.absolute_start;
-            let prefix_len = total_span - content.len() - suffix_len;
-
-            let content_abs_start = passthrough.location.absolute_start + prefix_len;
-            let content_col_start =
-                passthrough.location.start.column + u32::try_from(prefix_len).unwrap_or(u32::MAX);
-            let content_line = passthrough.location.start.line;
-
-            Location {
-                absolute_start: content_abs_start,
-                absolute_end: content_abs_start + content.len(),
-                start: crate::Position::new(content_line, content_col_start),
-                end: crate::Position::new(
-                    content_line,
-                    content_col_start + u32::try_from(content.len()).unwrap_or(u32::MAX),
-                ),
-            }
-        } else {
-            passthrough.location.clone()
-        };
-
         return vec![InlineNode::RawText(Raw {
             content,
-            location: content_location,
+            location: whole,
             subs: passthrough
                 .substitutions
                 .iter()
@@ -76,7 +86,20 @@ pub(crate) fn process_passthrough_with_quotes<'a>(
 
     tracing::debug!(content = ?content, "Parsing passthrough content with quotes");
 
-    parse_text_for_quotes_in(arena, content)
+    let mut nodes = parse_text_for_quotes_in(state.arena, content);
+    // Content its substitutions changed (`pass:q,a[{x}]`) has no byte of its own in the
+    // source: every node is the span it was read from.
+    let verbatim = source == content;
+    for node in &mut nodes {
+        super::location_walk::walk_inline_locations_mut(node, &mut |loc| {
+            *loc = if verbatim {
+                location_at(state, from + loc.absolute_start, from + loc.absolute_end)
+            } else {
+                whole.clone()
+            };
+        });
+    }
+    nodes
 }
 
 /// Parse text for inline formatting markup (bold, italic, monospace, etc.).
@@ -130,11 +153,7 @@ pub(crate) fn parse_text_for_quotes_in<'a>(
         .bytes()
         .any(|b| matches!(b, b'*' | b'_' | b'`' | b'#' | b'^' | b'~' | b'"' | b'\''))
     {
-        return vec![InlineNode::PlainText(Plain {
-            content,
-            location: Location::default(),
-            escaped: false,
-        })];
+        return whole_text(content);
     }
 
     let mut state = ParserState::new_quotes_only(content, arena);
@@ -146,160 +165,119 @@ pub(crate) fn parse_text_for_quotes_in<'a>(
                 ?content,
                 "quotes-only PEG parse failed, falling back to plain text"
             );
-            vec![InlineNode::PlainText(Plain {
-                content,
-                location: Location::default(),
-                escaped: false,
-            })]
+            whole_text(content)
         }
     }
 }
 
-/// Build an `InlineNode::PlainText` at `text`, located at
-/// `base_location.start + offset` and extending over `text.len()` columns on
-/// the same line.
-fn plain_text_at<'a>(text: &'a str, base_location: &Location, offset: usize) -> InlineNode<'a> {
-    let abs_start = base_location.absolute_start + offset;
-    let col_start = base_location.start.column + u32::try_from(offset).unwrap_or(u32::MAX);
-    let line = base_location.start.line;
-    InlineNode::PlainText(Plain {
-        content: text,
+/// `content` as one text located over all of it.
+fn whole_text(content: &str) -> Vec<InlineNode<'_>> {
+    let last = content.len() - content.chars().last().map_or(0, char::len_utf8);
+    let before = &content[..last];
+    let line = u32::try_from(before.matches('\n').count() + 1).unwrap_or(u32::MAX);
+    let column = u32::try_from(before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1)
+        .unwrap_or(u32::MAX);
+    vec![InlineNode::PlainText(Plain {
+        content,
         location: Location {
-            absolute_start: abs_start,
-            absolute_end: abs_start + text.len(),
-            start: crate::Position::new(line, col_start),
-            end: crate::Position::new(
-                line,
-                col_start + u32::try_from(text.len()).unwrap_or(u32::MAX),
-            ),
+            absolute_start: 0,
+            absolute_end: last,
+            start: crate::Position::new(1, 1),
+            end: crate::Position::new(line, column),
         },
         escaped: false,
-    })
+    })]
 }
 
 /// Process passthrough placeholders in content, returning expanded `InlineNode`s.
 ///
-/// This function handles the multi-pass parsing needed for passthroughs with quote substitutions.
-/// It splits the content around placeholders and processes each passthrough according to its
-/// substitution settings.
+/// `content` is a plain text of the preprocessed paragraph at `plain_location` (in its
+/// coordinates); each run of text around a placeholder is located through the source map
+/// (`map_loc`), as every other inline is, and each passthrough at the bytes it was read from.
 pub(crate) fn process_passthrough_placeholders<'a>(
     content: &'a str,
     processed: &'a ProcessedContent<'a>,
     state: &ParserState<'a>,
-    base_location: &Location,
-) -> Vec<InlineNode<'a>> {
+    plain_location: &Location,
+    map_loc: &LocationMapper<'_>,
+) -> Result<Vec<InlineNode<'a>>, crate::Error> {
+    // The text `text` at byte `at` of `content`, located in the source.
+    let text_at = |text: &'a str, at: usize| -> Result<Plain<'a>, crate::Error> {
+        let from = plain_location.absolute_start + at;
+        let last = text.chars().last().map_or(0, char::len_utf8);
+        Ok(Plain {
+            content: text,
+            location: map_loc(&Location {
+                absolute_start: from,
+                absolute_end: from + text.len() - last,
+                ..Location::default()
+            })?,
+            escaped: false,
+        })
+    };
+
     // Each passthrough produces at most (placeholder-count × small factor) +
     // one trailing-plain. Upper-bound at 2 × placeholders + 1 so a paragraph
     // full of passthroughs doesn't trigger log-N reallocs.
     let mut result = Vec::with_capacity(processed.passthroughs.len() * 2 + 1);
     let mut remaining = content;
-    let mut processed_offset = 0; // Position in the processed content (with placeholders)
+    let mut at = 0; // byte of `content` where `remaining` starts
 
-    // Process each passthrough placeholder in order
     for (index, passthrough) in processed.passthroughs.iter().enumerate() {
         let placeholder = format!("���{index}���");
-
-        if let Some(placeholder_pos) = remaining.find(&placeholder) {
-            let before_content = if placeholder_pos > 0 {
-                Some(&remaining[..placeholder_pos])
-            } else {
-                None
-            };
-
-            // Add content before the placeholder if any, using original string positions
-            if let Some(before) = before_content
-                && !before.is_empty()
-            {
-                result.push(plain_text_at(before, base_location, processed_offset));
-                processed_offset += before.len();
-            }
-
-            // Process the passthrough content using original string positions from passthrough.location
-            if let Some(passthrough_content) = &passthrough.text {
-                let processed_nodes =
-                    process_passthrough_with_quotes(state.arena, passthrough_content, passthrough);
-
-                // Remap locations of processed nodes to use original string coordinates
-                // The passthrough content starts after "pass:q[" so we need to account for that offset
-                let macro_prefix_len = "pass:q[".len(); // 7 characters
-                let has_quotes = passthrough.substitutions.contains(&Substitution::Quotes);
-                let remaining_subs: Vec<Substitution> = passthrough
-                    .substitutions
-                    .iter()
-                    .filter(|s| **s != Substitution::Quotes)
-                    .cloned()
-                    .collect();
-                for mut node in processed_nodes {
-                    remap_inline_node_location(
-                        &mut node,
-                        passthrough.location.absolute_start + macro_prefix_len,
-                    );
-                    // For passthroughs with quotes, convert PlainText to RawText so
-                    // HTML content passes through unescaped. Must happen AFTER
-                    // remapping since remap_inline_node_location handles PlainText
-                    // but not RawText (RawText from non-quotes path already has
-                    // correct locations from passthrough.location).
-                    if has_quotes {
-                        if let InlineNode::PlainText(p) = node {
-                            node = InlineNode::RawText(Raw {
-                                content: p.content,
-                                location: p.location,
-                                subs: remaining_subs.clone(),
-                            });
-                        }
-                    }
-                    result.push(node);
-                }
-            }
-
-            // Move past the placeholder in the processed content
-            let skip_len = placeholder_pos + placeholder.len();
-            remaining = &remaining[skip_len..];
-            // Update processed_offset to account for the original passthrough macro length
-            processed_offset +=
-                passthrough.location.absolute_end - passthrough.location.absolute_start;
+        let Some(placeholder_pos) = remaining.find(&placeholder) else {
+            continue;
+        };
+        if placeholder_pos > 0 {
+            result.push(InlineNode::PlainText(text_at(
+                &remaining[..placeholder_pos],
+                at,
+            )?));
         }
+        if let Some(passthrough_content) = &passthrough.text {
+            let has_quotes = passthrough.substitutions.contains(&Substitution::Quotes);
+            let remaining_subs: Vec<Substitution> = passthrough
+                .substitutions
+                .iter()
+                .filter(|s| **s != Substitution::Quotes)
+                .cloned()
+                .collect();
+            for mut node in process_passthrough_with_quotes(state, passthrough_content, passthrough)
+            {
+                // For passthroughs with quotes, convert PlainText to RawText so HTML
+                // content passes through unescaped.
+                if has_quotes && let InlineNode::PlainText(p) = node {
+                    node = InlineNode::RawText(Raw {
+                        content: p.content,
+                        location: p.location,
+                        subs: remaining_subs.clone(),
+                    });
+                }
+                result.push(node);
+            }
+        }
+        let skip_len = placeholder_pos + placeholder.len();
+        remaining = &remaining[skip_len..];
+        at += skip_len;
     }
 
-    // Add any remaining content as plain text
     if !remaining.is_empty() {
-        // Check if the last node is PlainText and merge if so
+        let tail = text_at(remaining, at)?;
         if let Some(InlineNode::PlainText(last_plain)) = result.last_mut() {
-            // Merge remaining content with the last plain text node
             last_plain.content =
                 state.intern_fmt(format_args!("{}{remaining}", last_plain.content));
-            // Extend the location to include the remaining content
-            last_plain.location.absolute_end = base_location.absolute_end;
-            last_plain.location.end = base_location.end.clone();
+            last_plain.location.absolute_end = tail.location.absolute_end;
+            last_plain.location.end = tail.location.end;
         } else {
-            // Add as separate node if last node is not plain text. Extend
-            // the end to cover `base_location.end` (this is the final
-            // trailing segment).
-            let mut node = plain_text_at(remaining, base_location, processed_offset);
-            if let InlineNode::PlainText(ref mut p) = node {
-                p.location.absolute_end = base_location.absolute_end;
-                p.location.end = base_location.end.clone();
-            }
-            result.push(node);
+            result.push(InlineNode::PlainText(tail));
         }
     }
 
-    // If no placeholders were found, return the original content as plain text
-    if result.is_empty() {
-        result.push(InlineNode::PlainText(Plain {
-            content,
-            location: base_location.clone(),
-            escaped: false,
-        }));
-    }
-
-    // Clamp all locations to valid bounds within the input string
     for node in &mut result {
         clamp_inline_node_locations(node, state.input);
     }
 
-    // Merge adjacent plain text nodes
-    merge_adjacent_plain_text_nodes(state, result)
+    Ok(merge_adjacent_plain_text_nodes(state, result))
 }
 
 /// Merge adjacent plain text nodes into single nodes to simplify the output.

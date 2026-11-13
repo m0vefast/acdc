@@ -306,6 +306,14 @@ pub(crate) fn process_inlines_no_autolinks<'a>(
         // falling back to the target. Emit one `PlainText` carrying the
         // substituted whitespace and skip the inline parser entirely.
         let text = processed_text_as_outer(&processed, state);
+        let last = processed.text.chars().last().map_or(0, char::len_utf8);
+        let location = super::location_mapping::create_location_mapper(
+            state, &processed, &location, None,
+        )(&Location {
+            absolute_start: 0,
+            absolute_end: processed.text.len() - last,
+            ..Location::default()
+        })?;
         return Ok(vec![InlineNode::PlainText(Plain {
             content: text,
             location,

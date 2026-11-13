@@ -321,8 +321,11 @@ impl SourceMap {
             let rep_processed_start = rep_start + adjustment;
             let rep_processed_end = rep_processed_start + replacement_length;
 
-            // Position is before this replacement - done adjusting
-            if signed_pos < rep_processed_start || (signed_pos == rep_processed_start && !end_bias)
+            // Position is before this replacement - done adjusting. At the start of one that
+            // inserted text a start maps to its reference; one that inserted nothing holds no
+            // character there, so the character is the first after it.
+            if signed_pos < rep_processed_start
+                || (signed_pos == rep_processed_start && !end_bias && replacement_length > 0)
             {
                 break;
             }
@@ -415,13 +418,27 @@ parser!(
         /// "a disaster" that they want to redesign or remove. We detect them, emit a warning,
         /// and return empty string (the counter syntax is silently removed from output).
         rule counter_reference() -> String
-            = start_offset:byte_offset() "{"
-              counter_type:$("counter2" / "counter") ":"
-              name:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']+)
-              (":" ['a'..='z' | 'A'..='Z' | '0'..='9']+)?
-              "}" end_offset:byte_offset()
+            = start:position() "{"
+              inner:$(
+                  ("counter2" / "counter") ":"
+                  ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']+
+                  (":" ['a'..='z' | 'A'..='Z' | '0'..='9']+)?
+              )
+              "}"
             {
-                let source_location = state.source_location_for(start_offset, end_offset);
+                // Removed like an attribute whose value is empty: the source map and the
+                // offset move past it, so the text after it keeps its own bytes.
+                let location = state.calculate_location(start, inner, 2);
+                state.source_map.borrow_mut().add_replacement(
+                    location.absolute_start,
+                    location.absolute_end,
+                    0,
+                    ProcessedKind::Attribute,
+                );
+                let mut parts = inner.split(':');
+                let counter_type = parts.next().unwrap_or_default();
+                let name = parts.next().unwrap_or_default();
+                let source_location = state.source_location_for(location.absolute_start, location.absolute_end);
                 state.add_warning(Warning::new(
                     WarningKind::Other(Cow::Owned(format!(
                         "Counters ({{{counter_type}:{name}}}) are not supported and will be removed from output"
@@ -1571,6 +1588,25 @@ mod tests {
         assert!(msg.contains("mycount"), "got: {msg}");
         // Counter warning should carry a location pointing at the `{counter:..}` span.
         assert!(warnings[0].source_location().is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_counter_reference_keeps_the_source_map() -> Result<(), Error> {
+        let attributes = setup_attributes();
+        let input = "n {counter:n} then {counter:n}";
+        let state = setup_state(input);
+        let result = inline_preprocessing::run(input, &attributes, &state)?;
+        assert_eq!(result.text, "n  then ");
+        // The text after a removed counter maps back to its own bytes.
+        assert_eq!(result.source_map.map_position(3)?, input.find("then").unwrap_or(0));
+        // Each warning spans its counter.
+        let warnings = state.warnings.borrow();
+        let spans: Vec<(usize, usize)> = warnings
+            .iter()
+            .filter_map(|w| w.source_location().map(|l| (l.location.absolute_start, l.location.absolute_end)))
+            .collect();
+        assert_eq!(spans, vec![(2, 13), (19, 30)]);
         Ok(())
     }
 

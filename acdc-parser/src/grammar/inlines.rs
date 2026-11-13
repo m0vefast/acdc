@@ -379,7 +379,7 @@ peg::parser! {
         = "\\" content:escaped_super_sub_pattern() {
             InlineNode::PlainText(Plain {
                 content,
-                location: state.create_location(span_start + state.inline_ctx.offset, span_end + state.inline_ctx.offset),
+                location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
                 escaped: true,
             })
         }
@@ -397,7 +397,7 @@ peg::parser! {
         = "\\" content:escaped_content() {
             InlineNode::PlainText(Plain {
                 content,
-                location: state.create_location(span_start + state.inline_ctx.offset, span_end + state.inline_ctx.offset),
+                location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
                 escaped: false,
             })
         }
@@ -1288,7 +1288,7 @@ peg::parser! {
         = "xref:" cross_reference_macro_target() "[" (!"]" [_])* "]"
 
         rule bold_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$((!(eol() / ![_] / "**") [_])+) "**" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$((!(eol() / ![_] / "**") [_])+) "**" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1313,7 +1313,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1344,7 +1344,7 @@ peg::parser! {
         }
 
         rule bold_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = span:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "*"
@@ -1396,7 +1396,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Constrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1418,7 +1418,7 @@ peg::parser! {
         }
 
         rule italic_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = span:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "_"
@@ -1468,7 +1468,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Constrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1490,7 +1490,7 @@ peg::parser! {
         }
 
         rule italic_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "__" content_start:position!() content:$((!(eol() / ![_] / "__") [_])+) "__" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "__" content_start:position!() content:$((!(eol() / ![_] / "__") [_])+) "__" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1515,7 +1515,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1524,7 +1524,7 @@ peg::parser! {
         = inline_attributes()? "__" (!(eol() / ![_] / "__") [_])+ "__"
 
         rule monospace_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "``" content_start:position!() content:$((!(eol() / ![_] / "``") [_])+) "``" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "``" content_start:position!() content:$((!(eol() / ![_] / "``") [_])+) "``" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1549,7 +1549,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1558,7 +1558,7 @@ peg::parser! {
         = inline_attributes()? "``" (!(eol() / ![_] / "``") [_])+ "``"
 
         rule monospace_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = span:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "`"
@@ -1625,7 +1625,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Constrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1655,7 +1655,7 @@ peg::parser! {
         }
 
         rule highlight_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "##" content_start:position!() content:$((!(eol() / ![_] / "##") [_])+) "##" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "##" content_start:position!() content:$((!(eol() / ![_] / "##") [_])+) "##" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1680,7 +1680,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1689,7 +1689,7 @@ peg::parser! {
         = inline_attributes()? "##" (!(eol() / ![_] / "##") [_])+ "##"
 
         rule highlight_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = span:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "#"
@@ -1741,7 +1741,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Constrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1764,7 +1764,7 @@ peg::parser! {
 
         /// Parse superscript text (^text^)
         rule superscript_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "^" content_start:position!() content:$([^('^' | ' ' | '\t' | '\n')]+) "^" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "^" content_start:position!() content:$([^('^' | ' ' | '\t' | '\n')]+) "^" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1789,7 +1789,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1799,7 +1799,7 @@ peg::parser! {
 
         /// Parse subscript text (~text~)
         rule subscript_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "~" content_start:position!() content:$([^('~' | ' ' | '\t' | '\n')]+) "~" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "~" content_start:position!() content:$([^('~' | ' ' | '\t' | '\n')]+) "~" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1824,7 +1824,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1834,7 +1834,7 @@ peg::parser! {
 
         /// Parse curved quotation text (`"text"`)
         rule curved_quotation_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "\"`" content_start:position!() content:$((!("`\"") [_])+) "`\"" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "\"`" content_start:position!() content:$((!("`\"") [_])+) "`\"" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1859,7 +1859,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 
@@ -1869,7 +1869,7 @@ peg::parser! {
 
         /// Parse curved apostrophe text (`'text'`)
         rule curved_apostrophe_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "'`" content_start:position!() content:$((!("`'") [_])+) "`'" end:position!()
+            = span:position!() attrs:inline_attributes()? start:position!() "'`" content_start:position!() content:$((!("`'") [_])+) "`'" end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1894,7 +1894,7 @@ peg::parser! {
                 role,
                 id,
                 form: Form::Unconstrained,
-                location: state.create_block_location(start, end, state.inline_ctx.offset),
+                location: state.create_block_location(span, end, state.inline_ctx.offset),
             }))
         }
 

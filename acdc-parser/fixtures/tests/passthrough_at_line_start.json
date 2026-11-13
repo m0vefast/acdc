@@ -17,7 +17,7 @@
             },
             {
               "line": 1,
-              "col": 17
+              "col": 16
             }
           ]
         },
@@ -32,7 +32,7 @@
             },
             {
               "line": 1,
-              "col": 19
+              "col": 18
             }
           ],
           "subs": [
@@ -50,7 +50,7 @@
             },
             {
               "line": 1,
-              "col": 42
+              "col": 41
             }
           ]
         },
@@ -65,7 +65,7 @@
             },
             {
               "line": 1,
-              "col": 44
+              "col": 43
             }
           ],
           "subs": [
@@ -83,7 +83,7 @@
             },
             {
               "line": 1,
-              "col": 49
+              "col": 48
             }
           ]
         },
@@ -98,7 +98,7 @@
             },
             {
               "line": 2,
-              "col": 3
+              "col": 2
             }
           ],
           "subs": [
@@ -111,8 +111,8 @@
           "value": ") will be translated into HTML entities.",
           "location": [
             {
-              "line": 1,
-              "col": 52
+              "line": 2,
+              "col": 4
             },
             {
               "line": 2,

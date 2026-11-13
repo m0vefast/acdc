@@ -162,6 +162,70 @@ fn parse_block_content<'input>(
     }
 }
 
+/// Where a Markdown-style quote's content stands in the source. The quote parses its lines
+/// with their `>` prefixes removed and joined by `\n`, in that content's own coordinates;
+/// its first `>` is at source byte `base`.
+struct QuoteOrigin {
+    base: usize,
+    /// Per line: content offset where it starts, prefix bytes up to and including its own,
+    /// and its own prefix's length.
+    lines: Vec<(usize, usize, usize)>,
+}
+
+impl QuoteOrigin {
+    /// `lines`: each line's prefix length and content.
+    fn new(lines: &[(usize, &str)], base: usize) -> Self {
+        let mut out = Vec::with_capacity(lines.len());
+        let (mut at, mut removed) = (0usize, 0usize);
+        for (prefix, content) in lines {
+            removed += prefix;
+            out.push((at, removed, *prefix));
+            at += content.len() + 1;
+        }
+        Self { base, lines: out }
+    }
+
+    fn to_source(&self, local: usize) -> usize {
+        let removed = self
+            .lines
+            .iter()
+            .take_while(|(s, ..)| *s <= local)
+            .last()
+            .map_or(0, |(_, r, _)| *r);
+        self.base + local + removed
+    }
+
+    /// The content offset of source byte `source`; a byte of a line's prefix is that line's
+    /// start, one before the quote its start.
+    fn to_local(&self, source: usize) -> usize {
+        let line = self
+            .lines
+            .iter()
+            .take_while(|(s, r, p)| self.base + s + r - p <= source)
+            .last();
+        line.map_or(0, |(s, r, _)| source.saturating_sub(self.base + r).max(*s))
+    }
+
+    /// `loc`, in the content's coordinates, moved to the source; line and column read there.
+    fn restore(&self, loc: &mut Location, state: &ParserState<'_>) {
+        loc.absolute_start = self.to_source(loc.absolute_start);
+        loc.absolute_end = self.to_source(loc.absolute_end);
+        loc.start = state
+            .line_map
+            .offset_to_position(loc.absolute_start, state.input);
+        loc.end = state
+            .line_map
+            .offset_to_position(loc.absolute_end, state.input);
+    }
+
+    /// A diagnostic's location raised in the content, moved to the source and its file.
+    fn restore_diagnostic(&self, at: &mut crate::SourceLocation, state: &ParserState<'_>) {
+        let mut loc = at.location.clone();
+        self.restore(&mut loc, state);
+        *at = state.create_error_source_location(loc);
+    }
+}
+
 /// Whether a quote block's attribution/citetitle text looks like it contains
 /// inline markup worth re-parsing through the inline pipeline (#373).
 fn quote_needs_inline_processing(content: &str) -> bool {
@@ -2072,7 +2136,7 @@ peg::parser! {
 
         /// ATX-style document title: `= Title` or `# Title`
         rule document_title_atx() -> (Title<'input>, Option<Subtitle<'input>>)
-        = document_title_token() whitespace() start:position!() title:$([^'\n']*) end:position!()
+        = document_title_token() whitespace()+ start:position!() title:$([^(' ' | '\t' | '\n')] [^'\n']*) end:position!()
         {?
             tracing::debug!(?title, "Processing ATX document title");
             let block_metadata = BlockParsingMetadata::default();
@@ -2437,7 +2501,7 @@ peg::parser! {
           (
             // ATX-style section check - require space after marker to avoid matching
             // description list items like `#term::` as sections
-            level:section_level(offset, parent_section_level) &" "
+            level:section_level(offset, parent_section_level) &(whitespace()+ [^(' ' | '\t' | '\n')])
             {?
                 if let Some(parent_level) = parent_section_level {
                     let upcoming_level = level.1 + 1; // Convert to 1-based
@@ -2513,7 +2577,7 @@ peg::parser! {
             }
             Ok(bm)
         })
-        section_level:section_level(offset, None) whitespace()
+        section_level:section_level(offset, None) whitespace()+
         title_start:position!() title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_])
         {
             let title = title?;
@@ -2569,7 +2633,7 @@ peg::parser! {
         section_level_start:position!()
         section_level:section_level(offset, parent_section_level)
         section_level_end:position!()
-        whitespace()
+        whitespace()+
         title_start:position!()
         section_header:(title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_]) {
             let title = title?;
@@ -2926,8 +2990,9 @@ peg::parser! {
             Ok((level, apply_leveloffset(base_level, byte_offset, &state.leveloffset_ranges, &state.document_attributes)))
         }
 
+        // asciidoctor `SectionTitleRx`: a marker is a heading only with a title after it.
         rule section_title(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Title<'input>, Error>
-        = title:$([^'\n']*)
+        = title:$([^(' ' | '\t' | '\n')] [^'\n']*)
         {
             tracing::debug!(?title, title_start = span_start, title_end = span_end, offset, "Found section title");
             let content = process_inlines(state, block_metadata, span_start, span_end, offset, title)?;
@@ -4484,7 +4549,7 @@ peg::parser! {
              !(open_delimiter() (whitespace()* eol()))
              !markdown_code_delimiter()
              !attributes_line()                           // not a block attributes line
-             !((anchor() / attributes_line())* section_level_at_line_start(offset, None) (whitespace() / eol() / ![_]))  // not a section heading
+             !((anchor() / attributes_line())* section_level_at_line_start(offset, None) whitespace()+ [^(' ' | '\t' | '\n')])  // not a section heading
              (!eol() [_])+                             // continuation line content
             )*
         )
@@ -4724,12 +4789,12 @@ peg::parser! {
         /// The content after `> ` on each line is joined and parsed as blocks.
         /// Attribution is extracted from a line matching `> -- Author[, Citation]`.
         rule markdown_blockquote(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = lines:markdown_blockquote_content_line()+ attribution:markdown_blockquote_attribution()?
+        = content_start:position!() lines:markdown_blockquote_content_line()+ attribution:markdown_blockquote_attribution()?
         {
             tracing::debug!(?lines, ?attribution, "found markdown blockquote");
 
-            let content: &'input str = state.intern_join(lines.iter(), "\n");
-            let content_start = start;
+            // `start` is before the block's metadata lines; the content counts from the first `>`.
+            let content: &'input str = state.intern_join(lines.iter().map(|(_, l)| l), "\n");
 
             // Build metadata with quote style and attribution
             let mut metadata = block_metadata.metadata.clone();
@@ -4773,15 +4838,56 @@ peg::parser! {
 
             let location = state.create_block_location(start, span_end, offset);
 
-            // Parse the content as blocks
-            let blocks = if content.trim().is_empty() {
+            // Parse the content as blocks, in the joined content's own coordinates: every
+            // offset, boundary check and UTF-8 snap reads the text it counts in. What the
+            // parse records beside the blocks (footnotes, sections for the table of contents,
+            // warnings, an error) is moved to the source with them.
+            let origin = QuoteOrigin::new(&lines, content_start + offset);
+            let footnotes_before = state.footnote_tracker.borrow().footnotes.len();
+            let toc_before = state.toc_entries.len();
+            let warnings_before = state.warnings.borrow().len();
+            let mut blocks = if content.trim().is_empty() {
                 Vec::new()
             } else {
-                document_parser::blocks(content, state, content_start + offset, block_metadata.parent_section_level).unwrap_or_else(|e| {
-                    adjust_and_log_parse_error(&e, content, content_start + offset, state, "Error parsing content as blocks in markdown blockquote");
+                let outer_input = state.input;
+                let outer_map = std::mem::replace(&mut state.line_map, Rc::new(crate::grammar::LineMap::new(content)));
+                let local_offsets = state
+                    .leveloffset_ranges
+                    .iter()
+                    .map(|r| crate::model::LeveloffsetRange::new(origin.to_local(r.start_offset), origin.to_local(r.end_offset), r.value))
+                    .collect();
+                let outer_offsets = std::mem::replace(&mut state.leveloffset_ranges, local_offsets);
+                state.input = content;
+                let parsed = document_parser::blocks(content, state, 0, block_metadata.parent_section_level).unwrap_or_else(|e| {
+                    adjust_and_log_parse_error(&e, content, 0, state, "Error parsing content as blocks in markdown blockquote");
                     Ok(Vec::new())
+                });
+                state.input = outer_input;
+                state.line_map = outer_map;
+                state.leveloffset_ranges = outer_offsets;
+                parsed.map_err(|mut e| {
+                    if let Some(at) = e.source_location_mut() {
+                        origin.restore_diagnostic(at, state);
+                    }
+                    e
                 })?
             };
+            crate::grammar::location_walk::walk_blocks(&mut blocks, &mut |loc| origin.restore(loc, state));
+            for footnote in state.footnote_tracker.borrow_mut().footnotes.iter_mut().skip(footnotes_before) {
+                origin.restore(&mut footnote.location, state);
+                crate::grammar::location_walk::walk_inlines(&mut footnote.content, &mut |loc| origin.restore(loc, state));
+            }
+            let mut toc_entries = std::mem::take(&mut state.toc_entries);
+            for entry in toc_entries.iter_mut().skip(toc_before) {
+                origin.restore(&mut entry.location, state);
+                crate::grammar::location_walk::walk_inlines(entry.title.inlines_mut(), &mut |loc| origin.restore(loc, state));
+            }
+            state.toc_entries = toc_entries;
+            for warning in state.warnings.borrow_mut().iter_mut().skip(warnings_before) {
+                if let Some(at) = &mut warning.location {
+                    origin.restore_diagnostic(at, state);
+                }
+            }
 
             Ok(Block::DelimitedBlock(DelimitedBlock {
                 metadata,
@@ -4798,12 +4904,12 @@ peg::parser! {
         /// A line is content if:
         /// 1. It's followed by another `>` line (so `> -- ...` mid-blockquote is content)
         /// 2. OR it doesn't start with `-- ` (so it can't be attribution)
-        rule markdown_blockquote_content_line() -> &'input str
-        = "> " content:$([^'\n']*) eol() &">" { content }
-        / "> " !("-- ") content:$([^'\n']*) (eol() / ![_]) { content }
-        / ">" eol() &">" { "" }
-        / ">" eol() { "" }
-        / ">" ![_] { "" }
+        rule markdown_blockquote_content_line() -> (usize, &'input str)
+        = "> " content:$([^'\n']*) eol() &">" { (2, content) }
+        / "> " !("-- ") content:$([^'\n']*) (eol() / ![_]) { (2, content) }
+        / ">" eol() &">" { (1, "") }
+        / ">" eol() { (1, "") }
+        / ">" ![_] { (1, "") }
 
         /// Match an attribution line: `> -- Author[, Citation]`
         /// Only matches at the END of a blockquote (not followed by more `>` lines)
@@ -4835,7 +4941,7 @@ peg::parser! {
             / eol() open_delimiter() &(whitespace()* eol())
             / eol() list(start, offset, block_metadata)
             / eol() &("+" (whitespace() / eol() / ![_]))  // Stop at list continuation marker
-            / eol()* &((anchor() / attributes_line())* section_level_at_line_start(offset, None) (whitespace() / eol() / ![_]))
+            / eol()* &((anchor() / attributes_line())* section_level_at_line_start(offset, None) whitespace()+ [^(' ' | '\t' | '\n')])
         ) [_])+)
         {
             // Reset the verbatim flag since paragraph is not a verbatim block
