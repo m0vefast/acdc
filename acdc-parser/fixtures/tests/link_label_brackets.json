@@ -1163,11 +1163,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Expanded ",
+              "value": "Expanded",
               "location": [
                 {
                   "line": 25,
                   "col": 26
+                },
+                {
+                  "line": 25,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 32
                 },
                 {
                   "line": 25,

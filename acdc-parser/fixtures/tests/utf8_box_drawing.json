@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_ascii_art_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -169,6 +170,7 @@
             }
           ],
           "level": 2,
+          "id": "_subsection_after_box_drawing",
           "blocks": [
             {
               "name": "section",
@@ -191,6 +193,7 @@
                 }
               ],
               "level": 3,
+              "id": "_level_4_section",
               "blocks": [
                 {
                   "name": "paragraph",

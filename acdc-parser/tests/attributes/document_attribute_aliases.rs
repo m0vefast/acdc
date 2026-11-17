@@ -1,6 +1,6 @@
 use acdc_parser::{
     Options,
-    ast::{BlockKind, BlockRef, InlineKind, InlineRef},
+    ast::{BlockKind, BlockRef, InlineKind},
     parse,
 };
 
@@ -67,9 +67,9 @@ fn literal_true_attribute_value_remains_text() -> Result<(), Error> {
         return Err("expected a paragraph".into());
     };
 
-    assert!(matches!(
-        paragraph.content().inlines().map(InlineRef::kind).collect::<Vec<_>>().as_slice(),
-        [InlineKind::Plain(text)] if text.text() == "XtrueX"
-    ));
+    assert_eq!(
+        crate::plain_text::plain_text(paragraph.content().inlines()).as_deref(),
+        Some("XtrueX")
+    );
     Ok(())
 }

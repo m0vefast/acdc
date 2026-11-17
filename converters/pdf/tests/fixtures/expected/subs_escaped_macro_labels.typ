@@ -89,9 +89,9 @@
 
 #text("S02 indexterm2:[Disabled \\] text] and ((Disabled short \\] text)).")
 
-#text("S03 ")#text("indexterm2:[Attribute \\] text]")#text(".")
+#text("S03 ")#text("indexterm2:[")#text("Attribute \\] text")#text("]")#text(".")
 
-#text("S04 ")#text("indexterm2:[Attribute \\] text]")#text(".")
+#text("S04 ")#text("indexterm2:[")#text("Attribute \\] text")#text("]")#text(".")
 
 #{
   // Slice highlighted text without discarding its syntax styles.
@@ -139,4 +139,4 @@
 
 #text("S10 ")#counter(footnote).update(1)#footnote[#text("Frozen {label} ")#text("]")#text(" note")]#text(".")
 
-#text("S11 ")#counter(footnote).update(2)#footnote[#text("Early Attribute ")#text("]")#text(" text ")#text("]")#text(" note")]#text(".")
+#text("S11 ")#counter(footnote).update(2)#footnote[#text("Early ")#text("Attribute ")#text("]")#text(" text")#text(" ")#text("]")#text(" note")]#text(".")

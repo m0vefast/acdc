@@ -33,6 +33,14 @@
   "attributes": {
     "part": "includes/document_attribute_pass.txt"
   },
+  "attribute_parts": {
+    "part": [
+      {
+        "text": "includes/document_attribute_pass.txt",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "paragraph",

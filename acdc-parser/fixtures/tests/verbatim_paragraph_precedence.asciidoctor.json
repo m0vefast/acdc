@@ -34,7 +34,9 @@
     "doctype": "manpage",
     "manmanual": "Parser checks",
     "manname": "paragraph-precedence",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "paragraph-precedence",
     "manpurpose": "retain explicit verbatim paragraphs",
     "mansource": "acdc",
     "mantitle": "paragraph-precedence",
@@ -63,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -257,7 +261,7 @@
             },
             {
               "line": 17,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -386,7 +390,7 @@
             },
             {
               "line": 24,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -515,7 +519,7 @@
             },
             {
               "line": 31,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -803,7 +807,7 @@
             },
             {
               "line": 42,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1091,7 +1095,7 @@
             },
             {
               "line": 53,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1223,7 +1227,7 @@
             },
             {
               "line": 60,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1511,7 +1515,7 @@
             },
             {
               "line": 71,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1593,6 +1597,37 @@
                     {
                       "line": 76,
                       "col": 19
+                    }
+                  ]
+                },
+                {
+                  "name": "paragraph",
+                  "type": "block",
+                  "inlines": [
+                    {
+                      "name": "text",
+                      "type": "string",
+                      "value": "+",
+                      "location": [
+                        {
+                          "line": 77,
+                          "col": 1
+                        },
+                        {
+                          "line": 77,
+                          "col": 1
+                        }
+                      ]
+                    }
+                  ],
+                  "location": [
+                    {
+                      "line": 77,
+                      "col": 1
+                    },
+                    {
+                      "line": 77,
+                      "col": 1
                     }
                   ]
                 },
@@ -1695,7 +1730,7 @@
             },
             {
               "line": 80,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1800,7 +1835,7 @@
             },
             {
               "line": 84,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -2010,7 +2045,7 @@
             },
             {
               "line": 100,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -2124,6 +2159,37 @@
                     ]
                   },
                   {
+                    "name": "paragraph",
+                    "type": "block",
+                    "inlines": [
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "+",
+                        "location": [
+                          {
+                            "line": 106,
+                            "col": 1
+                          },
+                          {
+                            "line": 106,
+                            "col": 1
+                          }
+                        ]
+                      }
+                    ],
+                    "location": [
+                      {
+                        "line": 106,
+                        "col": 1
+                      },
+                      {
+                        "line": 106,
+                        "col": 1
+                      }
+                    ]
+                  },
+                  {
                     "name": "list",
                     "type": "block",
                     "variant": "callout",
@@ -2233,7 +2299,7 @@
             },
             {
               "line": 109,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -2445,7 +2511,7 @@
             },
             {
               "line": 120,
-              "col": 4
+              "col": 3
             }
           ]
         },

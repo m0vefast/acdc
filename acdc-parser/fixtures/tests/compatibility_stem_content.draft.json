@@ -478,11 +478,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " and expanded.",
+          "value": " and ",
           "location": [
             {
               "line": 13,
               "col": 43
+            },
+            {
+              "line": 13,
+              "col": 47
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 13,
+              "col": 48
+            },
+            {
+              "line": 13,
+              "col": 54
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 13,
+              "col": 55
             },
             {
               "line": 13,

@@ -61,6 +61,27 @@
           ],
           "blocks": [
             {
+              "name": "comment",
+              "type": "block",
+              "content": " Leading include comment.",
+              "location": [
+                {
+                  "line": 3,
+                  "col": 1,
+                  "file": [
+                    "includes/list_continuation_comment_selected.adoc"
+                  ]
+                },
+                {
+                  "line": 3,
+                  "col": 27,
+                  "file": [
+                    "includes/list_continuation_comment_selected.adoc"
+                  ]
+                }
+              ]
+            },
+            {
               "name": "paragraph",
               "type": "block",
               "inlines": [
@@ -392,6 +413,21 @@
                           }
                         ],
                         "blocks": [
+                          {
+                            "name": "comment",
+                            "type": "block",
+                            "content": " Cell comment.",
+                            "location": [
+                              {
+                                "line": 18,
+                                "col": 1
+                              },
+                              {
+                                "line": 18,
+                                "col": 16
+                              }
+                            ]
+                          },
                           {
                             "name": "paragraph",
                             "type": "block",

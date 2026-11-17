@@ -105,9 +105,9 @@
 
 #context link(query(<id-746172676574>).first().location())[#text("Before ")#counter(footnote).update(8)#footnote[#text("Note with [nested] brackets.")]#text(" after")]
 
-#context link(query(<id-746172676574>).first().location())[#text("Before ")#counter(footnote).update(9)#footnote[#text("Note for Éva.")]#text(" after")]
+#context link(query(<id-746172676574>).first().location())[#text("Before ")#counter(footnote).update(9)#footnote[#text("Note for ")#text("Éva")#text(".")]#text(" after")]
 
-#context link(query(<id-746172676574>).first().location())[#text("Éva \"quoted\" ")#counter(footnote).update(10)#footnote[#text("Note Éva, with commas.")]#text(" after")]
+#context link(query(<id-746172676574>).first().location())[#text("Éva \"quoted\" ")#counter(footnote).update(10)#footnote[#text("Note ")#text("Éva")#text(", with commas.")]#text(" after")]
 
 #context link(query(<id-746172676574>).first().location())[#text("Before ")#counter(footnote).update(11)#footnote[#text("First line second line.")]#text(" after")]
 

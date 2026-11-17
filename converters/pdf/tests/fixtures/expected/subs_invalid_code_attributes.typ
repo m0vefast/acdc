@@ -85,31 +85,31 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("B01 A`café`B.")
+#text("B01 A`")#text("café")#text("`B.")
 
-#text("B02 A`café`.")
+#text("B02 A`")#text("café")#text("`.")
 
-#text("B03 `café`B.")
+#text("B03 `")#text("café")#text("`B.")
 
-#text("B04 é`café`日.")
+#text("B04 é`")#text("café")#text("`日.")
 
-#text("B05 ")#emph[#text("`café`")]#text(".")
+#text("B05 ")#emph[#text("`")#text("café")#text("`")]#text(".")
 
-#text("B06 :`café`; ;`café`; }`café`.")
+#text("B06 :`")#text("café")#text("`; ;`")#text("café")#text("`; }`")#text("café")#text("`.")
 
-#text("B07 `café `.")
+#text("B07 `")#text("café")#text(" `.")
 
-#text("B08 ` café`.")
+#text("B08 ` ")#text("café")#text("`.")
 
-#text("B09 ")#text("`")#text("café`.")
+#text("B09 ")#text("`")#text("café")#text("`.")
 
-#text("B10 ")#text("`")#text("café`.")
+#text("B10 ")#text("`")#text("café")#text("`.")
 
-#text("B11 `café`\".")
+#text("B11 `")#text("café")#text("`\".")
 
 #text("B12 ")#raw("\"café\"")#text(".")
 
-#text("B13 A``B | A` `B | A`{unknown}`B.")
+#text("B13 A`")#text("`B | A`")#text(" ")#text("`B | A`{unknown}`B.")
 
 #text("B14 A`")#text("{word}")#text("`B | A`")#text("{word}")#text("`B.")
 
@@ -121,7 +121,7 @@
 
 #text("B18 ")#raw("café ` then *Bold*")#text(".")
 
-#text("B19 A`café` then ")#raw("café")#text(".")
+#text("B19 A`")#text("café")#text("` then ")#raw("café")#text(".")
 
 #text("B20 A`")#text("{word}")#raw("B | A")#text("{word}")#text("`B.")
 
@@ -129,51 +129,51 @@
 
 #text("B22 ")#raw("{word}")#text(" | ")#raw("{word}")#text(".")
 
-#text("B23 ")#text(fill: rgb("#bf0000"))[#raw("café`X | [red]")]#text("café`.")
+#text("B23 ")#text(fill: rgb("#bf0000"))[#raw("café`X | [red]")]#text("café")#text("`.")
 
-#text("B24 ")#strong[#text("A`café`B")]#text(" | ")#emph[#text("A`café`B")]#text(".")
+#text("B24 ")#strong[#text("A`")#text("café")#text("`B")]#text(" | ")#emph[#text("A`")#text("café")#text("`B")]#text(".")
 
-#text("B25 A`café`B | ")#raw("café ` | `café")#text(".")
+#text("B25 A`")#text("café")#text("`B | ")#raw("café ` | \\`café")#text(".")
 
-#text("B26 A`café`B | ")#raw("café ` | \\")#text("café`.")
+#text("B26 A`")#text("café")#text("`B | ")#raw("café ` | \\")#text("café")#text("`.")
 
 #text("B27 A`{word}`B.")
 
-#text("B28 A`café`B.")
+#text("B28 A`")#text("café")#text("`B.")
 
-#text("B29 A`café more`B.")
+#text("B29 A`")#text("café")#text(" more`B.")
 
-#text("B30 <tag>")#raw("café")#text(" | «")#raw("café")#text("» | (")#raw("café")#text(").")
+#text("B30 <tag>`{word}` | «")#raw("café")#text("» | (")#raw("café")#text(").")
 
-#text("B31 ")#strong[#raw("café")]#text(" | ")#emph[#text("`café`")]#text(" | ")#text(fill: rgb("#bf0000"))[#raw("café")]#text(".")
+#text("B31 ")#strong[#raw("café")]#text(" | ")#emph[#text("`")#text("café")#text("`")]#text(" | ")#text(fill: rgb("#bf0000"))[#raw("café")]#text(".")
 
 #text("B32 A`{word}`B | `{word} ` | \\`{word}`.")
 
-#text("B33 A`café`B.")
+#text("B33 A`")#text("café")#text("`B.")
 
-#text("B34 A`café`B.")
+#text("B34 A`")#text("café")#text("`B.")
 
-#text("B35 A`")#raw("B | A")#text(" `B.")
+#text("B35 A`")#raw("B | A")#text(" ")#text("`B.")
 
-#text("B36 A``B | A` `B.")
+#text("B36 A`")#text("`B | A`")#text(" ")#text("`B.")
 
-#text("B37 ")#link("https://example.org")[#text("A`café`B")]#text(".")
+#text("B37 ")#link("https://example.org")[#text("A`")#text("café")#text("`B")]#text(".")
 
-#text("B38 ")#counter(footnote).update(0)#footnote[#text("A`café`B")]#text(".")
+#text("B38 ")#counter(footnote).update(0)#footnote[#text("A`")#text("café")#text("`B")]#text(".")
 
-#text("B39 ")#metadata(none)<id-746172676574>#text("See ")#context link(query(<id-746172676574>).first().location())[#text("A`café`B")]#text(".")
+#text("B39 ")#metadata(none)<id-746172676574>#text("See ")#context link(query(<id-746172676574>).first().location())[#text("A`")#text("café")#text("`B")]#text(".")
 
-#blocktitle[#text("A`café`B")]
+#blocktitle[#text("A`")#text("café")#text("`B")]
 #text("Example with a title.")
 
-#heading(level: 1)[#text("B40 A`café`B")] <id-5f6234305f61636166c3a962>
+#heading(level: 1)[#text("B40 A`")#text("café")#text("`B")] <id-5f6234305f61636166c3a962>
 
 #raw(block: true, "B41 A`café`B | café | `café `.")
 
 #raw(block: true, "B42 A`café`B | café.")
 
-#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("B43 A`café`B.")
+#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("B43 A`")#text("café")#text("`B.")
 
 ])
 
-#text("B44 A`late`B.")
+#text("B44 A`")#text("late")#text("`B.")

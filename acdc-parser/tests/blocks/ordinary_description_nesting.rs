@@ -136,14 +136,7 @@ fn nested_description_continuations_keep_the_existing_paragraph_policy(
         &Options::builder().with_compatibility_mode(mode).build()?,
     )?;
     let items = ordinary_items(parsed.document().blocks().next().ok_or("list")?)?;
-    assert_eq!(
-        items.len(),
-        if mode == CompatibilityMode::Asciidoctor {
-            2
-        } else {
-            1
-        }
-    );
+    assert_eq!(items.len(), 2, "{mode:?}");
     let BlockKind::DescriptionList(list) = items
         .first()
         .ok_or("first ordinary item")?

@@ -91,7 +91,7 @@
 
 #text("S01 x")#metadata(none)<__indexterm-1>#text("AttributeTerm")#text("y.")
 
-#text("S02 x")#metadata(none)<__indexterm-2>#text("Late")#text("y.")
+#text("S02 x")#metadata(none)<__indexterm-2>#text("Late")#text("y")#text(".")
 
 #text("S03 x((Disabled))y.")
 

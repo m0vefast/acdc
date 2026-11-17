@@ -84,6 +84,7 @@
         }
       ],
       "level": 1,
+      "id": "_block_image",
       "blocks": [
         {
           "name": "image",
@@ -154,6 +155,7 @@
         }
       ],
       "level": 1,
+      "id": "_inline_macros",
       "blocks": [
         {
           "name": "paragraph",
@@ -308,6 +310,7 @@
         }
       ],
       "level": 1,
+      "id": "_audio_and_video",
       "blocks": [
         {
           "name": "audio",
@@ -388,6 +391,7 @@
         }
       ],
       "level": 1,
+      "id": "_edge_cases",
       "blocks": [
         {
           "name": "paragraph",

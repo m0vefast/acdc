@@ -185,11 +185,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Before  and  after.",
+          "value": "Before ",
           "location": [
             {
               "line": 10,
               "col": 1
+            },
+            {
+              "line": 10,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " and ",
+          "location": [
+            {
+              "line": 10,
+              "col": 23
+            },
+            {
+              "line": 10,
+              "col": 27
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " after.",
+          "location": [
+            {
+              "line": 10,
+              "col": 47
             },
             {
               "line": 10,
@@ -510,11 +540,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Before  after.",
+          "value": "Before ",
           "location": [
             {
               "line": 20,
               "col": 1
+            },
+            {
+              "line": 20,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " after.",
+          "location": [
+            {
+              "line": 20,
+              "col": 26
             },
             {
               "line": 20,
@@ -552,11 +597,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Before  after.",
+              "value": "Before ",
               "location": [
                 {
                   "line": 22,
                   "col": 15
+                },
+                {
+                  "line": 22,
+                  "col": 21
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.",
+              "location": [
+                {
+                  "line": 22,
+                  "col": 36
                 },
                 {
                   "line": 22,
@@ -709,11 +769,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Before  after.",
+                        "value": "Before ",
                         "location": [
                           {
                             "line": 30,
                             "col": 1
+                          },
+                          {
+                            "line": 30,
+                            "col": 7
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": " after.",
+                        "location": [
+                          {
+                            "line": 30,
+                            "col": 22
                           },
                           {
                             "line": 30,

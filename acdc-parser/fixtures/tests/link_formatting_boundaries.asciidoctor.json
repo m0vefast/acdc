@@ -35,7 +35,9 @@
     "doctype": "manpage",
     "label": "*Expanded*",
     "manname": "link-formatting",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "link-formatting",
     "manpurpose": "preserve formatting and complete links",
     "mantitle": "link-formatting",
     "manvolnum": "1",
@@ -63,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -2687,11 +2691,26 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": "*Expanded* after",
+                      "value": "*Expanded*",
                       "location": [
                         {
                           "line": 40,
                           "col": 43
+                        },
+                        {
+                          "line": 40,
+                          "col": 49
+                        }
+                      ]
+                    },
+                    {
+                      "name": "text",
+                      "type": "string",
+                      "value": " after",
+                      "location": [
+                        {
+                          "line": 40,
+                          "col": 50
                         },
                         {
                           "line": 40,
@@ -3438,41 +3457,11 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": "Literal",
+                      "value": "Literal\\* after",
                       "location": [
                         {
                           "line": 52,
                           "col": 43
-                        },
-                        {
-                          "line": 52,
-                          "col": 49
-                        }
-                      ]
-                    },
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": "*",
-                      "location": [
-                        {
-                          "line": 52,
-                          "col": 50
-                        },
-                        {
-                          "line": 52,
-                          "col": 51
-                        }
-                      ]
-                    },
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": " after",
-                      "location": [
-                        {
-                          "line": 52,
-                          "col": 52
                         },
                         {
                           "line": 52,
@@ -4671,6 +4660,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -4682,7 +4672,7 @@
               },
               {
                 "line": 69,
-                "col": 11
+                "col": 10
               }
             ]
           }
@@ -4753,6 +4743,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

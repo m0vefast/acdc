@@ -45,6 +45,14 @@
     "revdate": "2026-10-07",
     "word": "café"
   },
+  "attribute_parts": {
+    "literal": [
+      {
+        "text": "{word}",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -67,6 +75,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -132,6 +141,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -140,11 +150,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C01 ``.",
+              "value": "C01 `",
               "location": [
                 {
                   "line": 18,
                   "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 13
                 },
                 {
                   "line": 18,
@@ -177,11 +202,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C02 `code `.",
+              "value": "C02 `code",
               "location": [
                 {
                   "line": 21,
                   "col": 1
+                },
+                {
+                  "line": 21,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 10
+                },
+                {
+                  "line": 21,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 14
                 },
                 {
                   "line": 21,
@@ -214,11 +269,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C03 ` code`.",
+              "value": "C03 `",
               "location": [
                 {
                   "line": 24,
                   "col": 1
+                },
+                {
+                  "line": 24,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 6
+                },
+                {
+                  "line": 24,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "code`.",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 10
                 },
                 {
                   "line": 24,
@@ -251,11 +336,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C04 `code `.",
+              "value": "C04 `code ",
               "location": [
                 {
                   "line": 27,
                   "col": 1
+                },
+                {
+                  "line": 27,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 27,
+                  "col": 18
                 },
                 {
                   "line": 27,
@@ -288,11 +388,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C05 ` code`.",
+              "value": "C05 `",
               "location": [
                 {
                   "line": 30,
                   "col": 1
+                },
+                {
+                  "line": 30,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " code`.",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 13
                 },
                 {
                   "line": 30,
@@ -346,11 +461,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "code `; tail",
+                  "value": "code",
                   "location": [
                     {
                       "line": 33,
                       "col": 6
+                    },
+                    {
+                      "line": 33,
+                      "col": 9
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 33,
+                      "col": 10
+                    },
+                    {
+                      "line": 33,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`; tail",
+                  "location": [
+                    {
+                      "line": 33,
+                      "col": 14
                     },
                     {
                       "line": 33,
@@ -431,11 +576,71 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "` `code ` ` code",
+                  "value": "` `code",
                   "location": [
                     {
                       "line": 35,
-                      "col": 6
+                      "col": 13
+                    },
+                    {
+                      "line": 35,
+                      "col": 19
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 35,
+                      "col": 20
+                    },
+                    {
+                      "line": 35,
+                      "col": 23
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "` `",
+                  "location": [
+                    {
+                      "line": 35,
+                      "col": 24
+                    },
+                    {
+                      "line": 35,
+                      "col": 26
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 35,
+                      "col": 27
+                    },
+                    {
+                      "line": 35,
+                      "col": 30
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "code",
+                  "location": [
+                    {
+                      "line": 35,
+                      "col": 31
                     },
                     {
                       "line": 35,
@@ -510,11 +715,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "``",
+                  "value": "`",
                   "location": [
                     {
                       "line": 38,
                       "col": 6
+                    },
+                    {
+                      "line": 38,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 38,
+                      "col": 14
                     },
                     {
                       "line": 38,
@@ -595,11 +815,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "code ",
+                  "value": "code",
                   "location": [
                     {
                       "line": 41,
                       "col": 7
+                    },
+                    {
+                      "line": 41,
+                      "col": 10
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 41,
+                      "col": 11
                     },
                     {
                       "line": 41,
@@ -671,11 +906,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C10 ``.",
+              "value": "C10 `",
               "location": [
                 {
                   "line": 45,
                   "col": 1
+                },
+                {
+                  "line": 45,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 13
                 },
                 {
                   "line": 45,
@@ -714,11 +964,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C11 `code `.",
+              "value": "C11 `code",
               "location": [
                 {
                   "line": 50,
                   "col": 1
+                },
+                {
+                  "line": 50,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 10
+                },
+                {
+                  "line": 50,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 14
                 },
                 {
                   "line": 50,
@@ -884,11 +1164,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "``",
+                  "value": "`",
                   "location": [
                     {
                       "line": 57,
                       "col": 6
+                    },
+                    {
+                      "line": 57,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 57,
+                      "col": 14
                     },
                     {
                       "line": 57,
@@ -1157,11 +1452,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café `; café",
+                  "value": "café",
                   "location": [
                     {
                       "line": 66,
                       "col": 6
+                    },
+                    {
+                      "line": 66,
+                      "col": 11
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 66,
+                      "col": 12
+                    },
+                    {
+                      "line": 66,
+                      "col": 15
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`; café",
+                  "location": [
+                    {
+                      "line": 66,
+                      "col": 16
                     },
                     {
                       "line": 66,
@@ -1341,11 +1666,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C18 [.token#literal]``.",
+              "value": "C18 [.token#literal]`",
               "location": [
                 {
                   "line": 72,
                   "col": 1
+                },
+                {
+                  "line": 72,
+                  "col": 21
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 72,
+                  "col": 29
                 },
                 {
                   "line": 72,
@@ -1908,11 +2248,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "``",
+                  "value": "`",
                   "location": [
                     {
                       "line": 90,
                       "col": 25
+                    },
+                    {
+                      "line": 90,
+                      "col": 25
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 90,
+                      "col": 33
                     },
                     {
                       "line": 90,
@@ -2123,11 +2478,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C26 `café`.",
+              "value": "C26 `",
               "location": [
                 {
                   "line": 96,
                   "col": 1
+                },
+                {
+                  "line": 96,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 96,
+                  "col": 6
+                },
+                {
+                  "line": 96,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 96,
+                  "col": 12
                 },
                 {
                   "line": 96,
@@ -2296,11 +2681,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "code ",
+                  "value": "code",
                   "location": [
                     {
                       "line": 102,
                       "col": 16
+                    },
+                    {
+                      "line": 102,
+                      "col": 19
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 102,
+                      "col": 20
                     },
                     {
                       "line": 102,
@@ -2344,11 +2744,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": " code",
+                  "value": " ",
                   "location": [
                     {
                       "line": 102,
                       "col": 27
+                    },
+                    {
+                      "line": 102,
+                      "col": 30
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "code",
+                  "location": [
+                    {
+                      "line": 102,
+                      "col": 31
                     },
                     {
                       "line": 102,
@@ -2441,11 +2856,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "``",
+                  "value": "`",
                   "location": [
                     {
                       "line": 106,
                       "col": 6
+                    },
+                    {
+                      "line": 106,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 106,
+                      "col": 14
                     },
                     {
                       "line": 106,
@@ -2584,11 +3014,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C31 ``.",
+              "value": "C31 `",
               "location": [
                 {
                   "line": 113,
                   "col": 1
+                },
+                {
+                  "line": 113,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 113,
+                  "col": 20
                 },
                 {
                   "line": 113,
@@ -2642,11 +3087,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "first `;\ntail",
+                  "value": "first",
                   "location": [
                     {
                       "line": 116,
                       "col": 6
+                    },
+                    {
+                      "line": 116,
+                      "col": 10
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 116,
+                      "col": 11
+                    },
+                    {
+                      "line": 116,
+                      "col": 14
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`;\ntail",
+                  "location": [
+                    {
+                      "line": 116,
+                      "col": 15
                     },
                     {
                       "line": 117,
@@ -2706,11 +3181,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C33 ` code`.",
+              "value": "C33 `",
               "location": [
                 {
                   "line": 120,
                   "col": 1
+                },
+                {
+                  "line": 120,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 120,
+                  "col": 6
+                },
+                {
+                  "line": 120,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "code`.",
+              "location": [
+                {
+                  "line": 120,
+                  "col": 10
                 },
                 {
                   "line": 120,
@@ -2830,11 +3335,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C35 `code `.",
+              "value": "C35 `code",
               "location": [
                 {
                   "line": 126,
                   "col": 1
+                },
+                {
+                  "line": 126,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 126,
+                  "col": 10
+                },
+                {
+                  "line": 126,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 126,
+                  "col": 14
                 },
                 {
                   "line": 126,
@@ -2867,11 +3402,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C36 `café`.",
+              "value": "C36 `",
               "location": [
                 {
                   "line": 129,
                   "col": 1
+                },
+                {
+                  "line": 129,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 129,
+                  "col": 6
+                },
+                {
+                  "line": 129,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 129,
+                  "col": 12
                 },
                 {
                   "line": 129,
@@ -2924,11 +3489,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café ",
+                  "value": "café",
                   "location": [
                     {
                       "line": 132,
                       "col": 6
+                    },
+                    {
+                      "line": 132,
+                      "col": 11
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ",
+                  "location": [
+                    {
+                      "line": 132,
+                      "col": 12
                     },
                     {
                       "line": 132,
@@ -3021,7 +3601,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": " `.",
+              "value": " ",
               "location": [
                 {
                   "line": 135,
@@ -3029,7 +3609,22 @@
                 },
                 {
                   "line": 135,
-                  "col": 15
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 135,
+                  "col": 17
+                },
+                {
+                  "line": 135,
+                  "col": 18
                 }
               ]
             }
@@ -3058,11 +3653,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C39 ` ",
+              "value": "C39 `",
               "location": [
                 {
                   "line": 138,
                   "col": 1
+                },
+                {
+                  "line": 138,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 138,
+                  "col": 6
                 },
                 {
                   "line": 138,

@@ -1,6 +1,6 @@
 use acdc_parser::{
     Options, WarningKind,
-    ast::{BlockKind, BlockRef, FootnoteDefinitionRef, InlineKind, InlineRef},
+    ast::{BlockKind, BlockRef, InlineKind, InlineRef},
     parse,
 };
 
@@ -128,29 +128,42 @@ fn metadata_attributes_apply_before_the_selected_title_registers() -> Result<(),
     Ok(())
 }
 
+/// asciidoctor 2.0.26 (measured 2026-11-16): a title above a section heading is the next
+/// block's and its note is numbered when that block draws it, after the heading's; a
+/// discrete heading's title is never drawn.
 #[test]
 fn selected_heading_macros_register_once() -> Result<(), Error> {
-    for metadata in [
-        "",
-        "[#heading]\n",
-        "[discrete]\n",
-        "[float]\n",
-        ".Unused footnote:[Unused note.]\n[#heading]\n",
-        "[discrete]\n.Unused footnote:[Unused note.]\n",
+    const HEADING: &str = "footnote:[Heading note.]";
+    const UNUSED: &str = "footnote:[Unused note.]";
+    const BODY: &str = "footnote:[Body note.]";
+    for (metadata, expected) in [
+        ("", &[HEADING, BODY][..]),
+        ("[#heading]\n", &[HEADING, BODY]),
+        ("[discrete]\n", &[HEADING, BODY]),
+        ("[float]\n", &[HEADING, BODY]),
+        (".Unused footnote:[Unused note.]\n[#heading]\n", &[HEADING, UNUSED, BODY]),
+        ("[discrete]\n.Unused footnote:[Unused note.]\n", &[HEADING, BODY]),
     ] {
         let source = format!(
             "= T\n\n{metadata}== Heading footnote:[Heading note.]\n\nBody footnote:[Body note.]\n"
         );
         let parsed = parse(&source, &Options::default())?;
-        assert_eq!(parsed.document().footnotes().count(), 2, "{metadata}");
-        assert_eq!(
-            parsed
-                .document()
-                .footnotes()
-                .map(FootnoteDefinitionRef::number)
-                .collect::<Vec<_>>(),
-            [1, 2]
-        );
+        let notes = parsed
+            .document()
+            .footnotes()
+            .map(|note| {
+                (
+                    note.number(),
+                    source.get(note.location().absolute_start()..=note.location().absolute_end()),
+                )
+            })
+            .collect::<Vec<_>>();
+        let want = expected
+            .iter()
+            .enumerate()
+            .map(|(index, text)| (u32::try_from(index + 1).unwrap_or(u32::MAX), Some(*text)))
+            .collect::<Vec<_>>();
+        assert_eq!(notes, want, "{metadata}");
     }
     Ok(())
 }

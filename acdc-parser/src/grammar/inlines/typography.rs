@@ -76,6 +76,13 @@ fn resolve_plain_with_context<'a>(
             && matches!(&term.kind, IndexTermKind::Flow(nodes) if nodes.iter().any(|node| neighbors::needs_resolution(node, ordinary)))
         {
             let original = term.catalog.is_none().then(|| Box::new((**term).clone()));
+            // Replacements before macros: the label's neighbors are its own delimiters
+            // (`indexterm2:[`, `((`), never the words around the macro.
+            let words = if state.label_delimits_replacements() {
+                WordContext { before: Some(('[', true)), after: Some((']', true)) }
+            } else {
+                words
+            };
             if let IndexTermKind::Flow(nodes) = &mut term.kind {
                 *nodes = resolve_plain_with_context(take(nodes), state, false, words);
             }
@@ -88,6 +95,24 @@ fn resolve_plain_with_context<'a>(
             continue;
         }
         if let InlineNode::RawText(raw) = node {
+            // asciidoctor substitutes a passthrough alone: passthrough processing resolved its own
+            // edges, and what is left pending meets no word. Resolve it here, so no converter
+            // applies its replacements against the characters around it.
+            if raw.subs.contains(&Substitution::Replacements)
+                && neighbors::isolated_passthrough(&raw, state)
+            {
+                result.extend(
+                    resolve_raw_with_context(raw, state, Edges::default(), WordContext::default())
+                        .into_iter()
+                        .map(|mut node| {
+                            if let InlineNode::RawText(raw) = &mut node {
+                                raw.subs.retain(|sub| *sub != Substitution::Replacements);
+                            }
+                            node
+                        }),
+                );
+                continue;
+            }
             if raw.subs.contains(&Substitution::Replacements)
                 && (words.before.is_some() || words.after.is_some())
             {
@@ -413,7 +438,13 @@ fn replacement_at(
     }
     if suffix.starts_with("--") && !suffix.starts_with("---") && previous != Some('-') {
         let next = suffix[2..].chars().next();
-        if text[..start].ends_with('\\')
+        // asciidoctor `(^|\n| |\\)--( |\n|$)`: an escape stands for the leading space only.
+        let escaped_spaced = text[..start].ends_with('\\')
+            && (next
+                .or(words.after.map(|(character, _)| character))
+                .is_some_and(|character| matches!(character, ' ' | '\n'))
+                || start + 2 == text.len() && edges.end);
+        if escaped_spaced
             || previous
                 .or(words.before.map(|(character, _)| character))
                 .is_some_and(is_word)

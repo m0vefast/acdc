@@ -962,11 +962,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Expanded prefix \"quote\" ",
+              "value": "Expanded prefix",
               "location": [
                 {
                   "line": 20,
                   "col": 31
+                },
+                {
+                  "line": 20,
+                  "col": 38
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " \"quote\" ",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 39
                 },
                 {
                   "line": 20,
@@ -1094,11 +1109,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\"quote\" *attribute* ",
+              "value": "\"quote\" ",
               "location": [
                 {
                   "line": 22,
                   "col": 35
+                },
+                {
+                  "line": 22,
+                  "col": 44
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*attribute*",
+              "location": [
+                {
+                  "line": 22,
+                  "col": 45
+                },
+                {
+                  "line": 22,
+                  "col": 52
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 22,
+                  "col": 53
                 },
                 {
                   "line": 22,
@@ -1234,7 +1279,7 @@
                 },
                 {
                   "line": 24,
-                  "col": 47
+                  "col": 49
                 }
               ]
             },
@@ -1694,6 +1739,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -1705,7 +1751,7 @@
               },
               {
                 "line": 32,
-                "col": 11
+                "col": 10
               }
             ]
           }

@@ -239,11 +239,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": "Ada ",
+            "value": "Ada",
             "location": [
               {
                 "line": 11,
                 "col": 9
+              },
+              {
+                "line": 11,
+                "col": 16
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": " ",
+            "location": [
+              {
+                "line": 11,
+                "col": 17
               },
               {
                 "line": 11,

@@ -79,7 +79,7 @@
 ]
 #v(1em)
 
-#text(size: 1.25em)[#text("Escaped concealed: ")#text("(")#metadata(none)<__indexterm-1>#text("Hidden")#text("). Escaped visible: ")#text("((Visible))")#text(". Ordinary concealed: ")#metadata(none)<__indexterm-2>#text(". Ordinary visible: ")#metadata(none)<__indexterm-3>#text("OrdinaryVisible")#text(". Two backslashes: \\")#text("(")#metadata(none)<__indexterm-4>#text("DoubleEscape")#text("). Four open parentheses: ")#text("(")#metadata(none)<__indexterm-5>#text("(Nested)")#text(").")]
+#text(size: 1.25em)[#text("Escaped concealed: ")#text("(")#metadata(none)<__indexterm-1>#text("Hidden)")#text(". Escaped visible: ")#text("((Visible))")#text(". Ordinary concealed: ")#metadata(none)<__indexterm-2>#text(". Ordinary visible: ")#metadata(none)<__indexterm-3>#text("OrdinaryVisible")#text(". Two backslashes: \\")#text("(")#metadata(none)<__indexterm-4>#text("DoubleEscape)")#text(". Four open parentheses: ")#text("(")#metadata(none)<__indexterm-5>#text("(Nested))")#text(".")]
 
 #heading(level: 1)[#text("Index")] <id-5f696e646578>
 
@@ -122,15 +122,15 @@
 #columns(2, gutter: 12pt)[
 #text(weight: "bold")[#text("@")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("(Nested)")#_acdc_index_pages((<__indexterm-5>,), "term")]
+#par(hanging-indent: 1em)[#text("(Nested))")#_acdc_index_pages((<__indexterm-5>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("D")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("DoubleEscape")#_acdc_index_pages((<__indexterm-4>,), "term")]
+#par(hanging-indent: 1em)[#text("DoubleEscape)")#_acdc_index_pages((<__indexterm-4>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("H")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Hidden")#_acdc_index_pages((<__indexterm-1>,), "term")]
+#par(hanging-indent: 1em)[#text("Hidden)")#_acdc_index_pages((<__indexterm-1>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("O")]
 #v(0.25em)

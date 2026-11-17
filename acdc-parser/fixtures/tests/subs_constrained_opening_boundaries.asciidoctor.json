@@ -34,7 +34,9 @@
     "doctype": "manpage",
     "manmanual": "Formatting boundaries",
     "manname": "opening-contexts",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "opening-contexts",
     "manpurpose": "constrained punctuation in substitution contexts",
     "mansource": "acdc",
     "mantitle": "opening-contexts",
@@ -42,6 +44,14 @@
     "prepared": "<del>*Bold*</del>",
     "raw": "<del>*literal*</del>",
     "revdate": "2026-10-03"
+  },
+  "attribute_parts": {
+    "raw": [
+      {
+        "text": "<del>*literal*</del>",
+        "special_chars": 0
+      }
+    ]
   },
   "blocks": [
     {
@@ -65,6 +75,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +141,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -1633,59 +1645,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P11 >",
+              "value": "P11 >*Bold* =",
               "location": [
                 {
                   "line": 39,
                   "col": 1
-                },
-                {
-                  "line": 39,
-                  "col": 5
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "strong",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Bold",
-                  "location": [
-                    {
-                      "line": 39,
-                      "col": 7
-                    },
-                    {
-                      "line": 39,
-                      "col": 10
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 39,
-                  "col": 6
-                },
-                {
-                  "line": 39,
-                  "col": 11
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": " =",
-              "location": [
-                {
-                  "line": 39,
-                  "col": 12
                 },
                 {
                   "line": 39,
@@ -1729,59 +1693,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": " &",
+              "value": " &`Code`.",
               "location": [
                 {
                   "line": 39,
                   "col": 22
-                },
-                {
-                  "line": 39,
-                  "col": 23
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "code",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Code",
-                  "location": [
-                    {
-                      "line": 39,
-                      "col": 25
-                    },
-                    {
-                      "line": 39,
-                      "col": 28
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 39,
-                  "col": 24
-                },
-                {
-                  "line": 39,
-                  "col": 29
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": ".",
-              "location": [
-                {
-                  "line": 39,
-                  "col": 30
                 },
                 {
                   "line": 39,
@@ -1808,59 +1724,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P12 >",
+              "value": "P12 >*Bold* =",
               "location": [
                 {
                   "line": 43,
                   "col": 1
-                },
-                {
-                  "line": 43,
-                  "col": 5
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "strong",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Bold",
-                  "location": [
-                    {
-                      "line": 43,
-                      "col": 7
-                    },
-                    {
-                      "line": 43,
-                      "col": 10
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 43,
-                  "col": 6
-                },
-                {
-                  "line": 43,
-                  "col": 11
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": " =",
-              "location": [
-                {
-                  "line": 43,
-                  "col": 12
                 },
                 {
                   "line": 43,
@@ -1904,59 +1772,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": " &",
+              "value": " &`Code`.",
               "location": [
                 {
                   "line": 43,
                   "col": 22
-                },
-                {
-                  "line": 43,
-                  "col": 23
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "code",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Code",
-                  "location": [
-                    {
-                      "line": 43,
-                      "col": 25
-                    },
-                    {
-                      "line": 43,
-                      "col": 28
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 43,
-                  "col": 24
-                },
-                {
-                  "line": 43,
-                  "col": 29
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": ".",
-              "location": [
-                {
-                  "line": 43,
-                  "col": 30
                 },
                 {
                   "line": 43,
@@ -2044,107 +1864,11 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": " >",
+                  "value": " >_Italic_ &`Code`.",
                   "location": [
                     {
                       "line": 45,
                       "col": 14
-                    },
-                    {
-                      "line": 45,
-                      "col": 15
-                    }
-                  ]
-                },
-                {
-                  "name": "span",
-                  "type": "inline",
-                  "variant": "emphasis",
-                  "form": "constrained",
-                  "inlines": [
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": "Italic",
-                      "location": [
-                        {
-                          "line": 45,
-                          "col": 17
-                        },
-                        {
-                          "line": 45,
-                          "col": 22
-                        }
-                      ]
-                    }
-                  ],
-                  "location": [
-                    {
-                      "line": 45,
-                      "col": 16
-                    },
-                    {
-                      "line": 45,
-                      "col": 23
-                    }
-                  ]
-                },
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": " &",
-                  "location": [
-                    {
-                      "line": 45,
-                      "col": 24
-                    },
-                    {
-                      "line": 45,
-                      "col": 25
-                    }
-                  ]
-                },
-                {
-                  "name": "span",
-                  "type": "inline",
-                  "variant": "code",
-                  "form": "constrained",
-                  "inlines": [
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": "Code",
-                      "location": [
-                        {
-                          "line": 45,
-                          "col": 27
-                        },
-                        {
-                          "line": 45,
-                          "col": 30
-                        }
-                      ]
-                    }
-                  ],
-                  "location": [
-                    {
-                      "line": 45,
-                      "col": 26
-                    },
-                    {
-                      "line": 45,
-                      "col": 31
-                    }
-                  ]
-                },
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": ".",
-                  "location": [
-                    {
-                      "line": 45,
-                      "col": 32
                     },
                     {
                       "line": 45,
@@ -2244,107 +1968,11 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": " >",
+                            "value": " >_Italic_ &`Code`.",
                             "location": [
                               {
                                 "line": 48,
                                 "col": 13
-                              },
-                              {
-                                "line": 48,
-                                "col": 14
-                              }
-                            ]
-                          },
-                          {
-                            "name": "span",
-                            "type": "inline",
-                            "variant": "emphasis",
-                            "form": "constrained",
-                            "inlines": [
-                              {
-                                "name": "text",
-                                "type": "string",
-                                "value": "Italic",
-                                "location": [
-                                  {
-                                    "line": 48,
-                                    "col": 16
-                                  },
-                                  {
-                                    "line": 48,
-                                    "col": 21
-                                  }
-                                ]
-                              }
-                            ],
-                            "location": [
-                              {
-                                "line": 48,
-                                "col": 15
-                              },
-                              {
-                                "line": 48,
-                                "col": 22
-                              }
-                            ]
-                          },
-                          {
-                            "name": "text",
-                            "type": "string",
-                            "value": " &",
-                            "location": [
-                              {
-                                "line": 48,
-                                "col": 23
-                              },
-                              {
-                                "line": 48,
-                                "col": 24
-                              }
-                            ]
-                          },
-                          {
-                            "name": "span",
-                            "type": "inline",
-                            "variant": "code",
-                            "form": "constrained",
-                            "inlines": [
-                              {
-                                "name": "text",
-                                "type": "string",
-                                "value": "Code",
-                                "location": [
-                                  {
-                                    "line": 48,
-                                    "col": 26
-                                  },
-                                  {
-                                    "line": 48,
-                                    "col": 29
-                                  }
-                                ]
-                              }
-                            ],
-                            "location": [
-                              {
-                                "line": 48,
-                                "col": 25
-                              },
-                              {
-                                "line": 48,
-                                "col": 30
-                              }
-                            ]
-                          },
-                          {
-                            "name": "text",
-                            "type": "string",
-                            "value": ".",
-                            "location": [
-                              {
-                                "line": 48,
-                                "col": 31
                               },
                               {
                                 "line": 48,
@@ -2398,59 +2026,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P15 >",
+              "value": "P15 >*Bold* =",
               "location": [
                 {
                   "line": 51,
                   "col": 2
-                },
-                {
-                  "line": 51,
-                  "col": 6
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "strong",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Bold",
-                  "location": [
-                    {
-                      "line": 51,
-                      "col": 8
-                    },
-                    {
-                      "line": 51,
-                      "col": 11
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 51,
-                  "col": 7
-                },
-                {
-                  "line": 51,
-                  "col": 12
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": " =",
-              "location": [
-                {
-                  "line": 51,
-                  "col": 13
                 },
                 {
                   "line": 51,
@@ -2494,59 +2074,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": " &",
+              "value": " &`Code`.",
               "location": [
                 {
                   "line": 51,
                   "col": 23
-                },
-                {
-                  "line": 51,
-                  "col": 24
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "code",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Code",
-                  "location": [
-                    {
-                      "line": 51,
-                      "col": 26
-                    },
-                    {
-                      "line": 51,
-                      "col": 29
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 51,
-                  "col": 25
-                },
-                {
-                  "line": 51,
-                  "col": 30
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": ".",
-              "location": [
-                {
-                  "line": 51,
-                  "col": 31
                 },
                 {
                   "line": 51,
@@ -2590,59 +2122,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P16 >",
+              "value": "P16 >*Bold* =",
               "location": [
                 {
                   "line": 54,
                   "col": 5
-                },
-                {
-                  "line": 54,
-                  "col": 9
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "strong",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Bold",
-                  "location": [
-                    {
-                      "line": 54,
-                      "col": 11
-                    },
-                    {
-                      "line": 54,
-                      "col": 14
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 54,
-                  "col": 10
-                },
-                {
-                  "line": 54,
-                  "col": 15
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": " =",
-              "location": [
-                {
-                  "line": 54,
-                  "col": 16
                 },
                 {
                   "line": 54,
@@ -2686,59 +2170,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": " &",
+              "value": " &`Code`.",
               "location": [
                 {
                   "line": 54,
                   "col": 26
-                },
-                {
-                  "line": 54,
-                  "col": 27
-                }
-              ]
-            },
-            {
-              "name": "span",
-              "type": "inline",
-              "variant": "code",
-              "form": "constrained",
-              "inlines": [
-                {
-                  "name": "text",
-                  "type": "string",
-                  "value": "Code",
-                  "location": [
-                    {
-                      "line": 54,
-                      "col": 29
-                    },
-                    {
-                      "line": 54,
-                      "col": 32
-                    }
-                  ]
-                }
-              ],
-              "location": [
-                {
-                  "line": 54,
-                  "col": 28
-                },
-                {
-                  "line": 54,
-                  "col": 33
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": ".",
-              "location": [
-                {
-                  "line": 54,
-                  "col": 34
                 },
                 {
                   "line": 54,
@@ -2748,6 +2184,7 @@
             }
           ],
           "level": 2,
+          "id": "_p16_bold_italic_code",
           "blocks": [
             {
               "name": "paragraph",

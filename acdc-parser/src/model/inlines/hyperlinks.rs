@@ -4,6 +4,23 @@ use crate::{
     model::metadata::{InlineMetadataView, MacroAttributes},
 };
 
+/// Where a link's target is written: source provenance, so equality and
+/// `Debug` leave it out, as they do a cross reference's `target_location`.
+#[derive(Clone, Default)]
+pub(crate) struct TargetLocation(pub(crate) Location);
+
+impl PartialEq for TargetLocation {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for TargetLocation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("..")
+    }
+}
+
 /// An explicit link with optional label content.
 ///
 /// ```compile_fail,E0616
@@ -33,6 +50,7 @@ pub struct Link<'a> {
     pub(crate) metadata: InlineMetadata<'a>,
     pub(crate) macro_attributes: MacroAttributes<'a>,
     pub(crate) location: Location,
+    pub(crate) target_location: TargetLocation,
     pub(crate) hide_uri_scheme: bool,
 }
 
@@ -46,6 +64,7 @@ impl<'a> Link<'a> {
             target,
             metadata: InlineMetadata::default(),
             macro_attributes: MacroAttributes::default(),
+            target_location: TargetLocation(location.clone()),
             location,
             hide_uri_scheme: false,
         }
@@ -88,6 +107,7 @@ pub struct UrlMacro<'a> {
     pub(crate) metadata: InlineMetadata<'a>,
     pub(crate) macro_attributes: MacroAttributes<'a>,
     pub(crate) location: Location,
+    pub(crate) target_location: TargetLocation,
     pub(crate) hide_uri_scheme: bool,
 }
 
@@ -120,6 +140,7 @@ pub struct Mailto<'a> {
     pub(crate) metadata: InlineMetadata<'a>,
     pub(crate) macro_attributes: MacroAttributes<'a>,
     pub(crate) location: Location,
+    pub(crate) target_location: TargetLocation,
 }
 
 impl<'a> UrlMacro<'a> {
@@ -130,6 +151,7 @@ impl<'a> UrlMacro<'a> {
             text: Vec::new(),
             tooltip: None,
             target,
+            target_location: TargetLocation(location.clone()),
             location,
             metadata: InlineMetadata::default(),
             macro_attributes: MacroAttributes::default(),
@@ -146,6 +168,7 @@ impl<'a> Mailto<'a> {
             text: Vec::new(),
             tooltip: None,
             target,
+            target_location: TargetLocation(location.clone()),
             location,
             subject: None,
             body: None,

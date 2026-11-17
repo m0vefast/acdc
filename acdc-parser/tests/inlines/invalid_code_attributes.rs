@@ -1,6 +1,6 @@
 use acdc_parser::{
     Options,
-    ast::{BlockKind, BlockRef, InlineKind, InlineRef},
+    ast::{BlockKind, BlockRef, InlineKind},
     parse,
 };
 
@@ -32,19 +32,16 @@ fn invalid_code_boundaries_do_not_hide_attribute_references() -> Result<(), Erro
                 else {
                     return Err("expected one paragraph".into());
                 };
-                let [InlineKind::Plain(text)] = &*paragraph
-                    .content()
-                    .inlines()
-                    .map(InlineRef::kind)
-                    .collect::<Vec<_>>()
+                let Some((text, first, last)) =
+                    crate::plain_run(paragraph.content().inlines(), parsed.preprocessed_source())
                 else {
                     return Err(format!("expected literal backticks: {source:?}").into());
                 };
-                assert_eq!(text.text(), body.replace("{word}", expected), "{source:?}");
+                assert_eq!(text, body.replace("{word}", expected), "{source:?}");
                 assert_eq!(
                     parsed
                         .preprocessed_source()
-                        .get(text.location().absolute_start()..=text.location().absolute_end()),
+                        .get(first.absolute_start()..=last.absolute_end()),
                     Some(body.as_str())
                 );
             }
@@ -115,19 +112,22 @@ fn deferred_code_uses_the_later_valid_closer() -> Result<(), Error> {
                 }
             })
             .ok_or("missing code")?;
-        let [InlineKind::Plain(text), InlineKind::Raw(raw)] = &*code
-            .content()
-            .inlines()
-            .map(InlineRef::kind)
-            .collect::<Vec<_>>()
-        else {
+        let nodes = code.content().inlines().collect::<Vec<_>>();
+        let (Some((text, first, last)), Some(InlineKind::Raw(raw))) = (
+            crate::plain_run(nodes.iter().copied().take(nodes.len().saturating_sub(1)), &source),
+            nodes.last().map(|node| node.kind()),
+        ) else {
             return Err(format!(
                 "expected ordinary text and protected reference: {:?}",
                 code.content()
             )
             .into());
         };
-        assert_eq!(text.text(), format!("café{rejected} then "));
+        assert_eq!(text, format!("café{rejected} then "));
+        assert_eq!(
+            source.get(first.absolute_start()..=last.absolute_end()),
+            Some(format!("{{word}}{rejected} then ").as_str())
+        );
         assert_eq!(raw.text(), "{word}");
         assert_eq!(
             source.get(code.location().absolute_start()..=code.location().absolute_end()),
@@ -186,19 +186,22 @@ fn expanded_references_do_not_create_new_code_boundaries() -> Result<(), Error> 
     else {
         return Err("expected paragraph".into());
     };
-    let [InlineKind::Monospace(code), InlineKind::Plain(tail)] = &*paragraph
-        .content()
-        .inlines()
-        .map(InlineRef::kind)
-        .collect::<Vec<_>>()
-    else {
+    let nodes = paragraph.content().inlines().collect::<Vec<_>>();
+    let (Some(InlineKind::Monospace(code)), Some((tail, first, last))) = (
+        nodes.first().map(|node| node.kind()),
+        crate::plain_run(nodes.iter().copied().skip(1), source),
+    ) else {
         return Err(format!(
             "expected one code span and its tail: {:?}",
             paragraph.content()
         )
         .into());
     };
-    assert_eq!(tail.text(), "café`.");
+    assert_eq!(tail, "café`.");
+    assert_eq!(
+        source.get(first.absolute_start()..=last.absolute_end()),
+        Some("{word}`.")
+    );
     assert_eq!(
         source.get(code.location().absolute_start()..=code.location().absolute_end()),
         Some("`{word}`X | [red]`")
@@ -214,7 +217,8 @@ fn invalid_code_expansion_retains_include_origins() -> Result<(), Error> {
             .with_safe_mode(acdc_parser::SafeMode::Unsafe)
             .build()?,
     )?;
-    let text = parsed
+    let source = include_str!("../../fixtures/tests/includes/invalid_code_attributes.adoc");
+    let (text, first, last) = parsed
         .document()
         .blocks()
         .find_map(|block| {
@@ -225,37 +229,26 @@ fn invalid_code_expansion_retains_include_origins() -> Result<(), Error> {
                 let BlockKind::Paragraph(paragraph) = block.kind() else {
                     return None;
                 };
-                paragraph.content().inlines().find_map(|node| {
-                    let InlineKind::Plain(text) = node.kind() else {
-                        return None;
-                    };
-                    text.text().starts_with("B44 ").then_some(text)
-                })
+                crate::plain_run(paragraph.content().inlines(), source)
+                    .filter(|(text, _, _)| text.starts_with("B44 "))
             })
         })
         .ok_or("missing included content")?;
-    assert_eq!(text.text(), "B44 A`late`B.");
-    let source = include_str!("../../fixtures/tests/includes/invalid_code_attributes.adoc");
+    assert_eq!(text, "B44 A`late`B.");
     assert_eq!(
-        source.get(text.location().absolute_start()..=text.location().absolute_end()),
+        source.get(first.absolute_start()..=last.absolute_end()),
         Some("B44 A`{word}`B.")
     );
     assert!(
-        text.location()
+        first
             .start()
             .include_chain()
             .and_then(Iterator::last)
             .is_some_and(|file| file.ends_with("includes/invalid_code_attributes.adoc"))
     );
     assert_eq!(
-        text.location()
-            .start()
-            .include_chain()
-            .map(Iterator::collect::<Vec<_>>),
-        text.location()
-            .end()
-            .include_chain()
-            .map(Iterator::collect::<Vec<_>>)
+        first.start().include_chain().map(Iterator::collect::<Vec<_>>),
+        last.end().include_chain().map(Iterator::collect::<Vec<_>>)
     );
     Ok(())
 }

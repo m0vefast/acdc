@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("I01 Hello World: ")#strong[#text("bold")]#text(", ")#emph[#text("italic")]#text(", ")#raw("code")#text(". //// I01 ")#link("https://example.org/table")[#text("Visit")]#text(". ////")
+#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("I01 Hello ")#text("World")#text(": ")#strong[#text("bold")]#text(", ")#emph[#text("italic")]#text(", ")#raw("code")#text(". //// I01 ")#link("https://example.org/table")[#text("Visit")]#text(". ////")
 
 #text("I01 Second paragraph with ")#counter(footnote).update(0)#footnote[#text("Plain cell note.")]#text(".")
 
@@ -93,7 +93,7 @@
 
 #text("A02 Second paragraph.")
 
-], table.cell(x: 0, y: 1, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("[role=example] I03 Visible metadata-looking text. :value: cell I03 value=outer.")
+], table.cell(x: 0, y: 1, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("[role=example] I03 Visible metadata-looking text. :value: cell I03 value=")#text("outer")#text(".")
 
 ], table.cell(x: 1, y: 1, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("A04 Paragraph with ")#link("https://example.org/nested")[#text("Nested")]#text(".")
 
@@ -112,4 +112,4 @@
 
 ])
 
-#text("I07 Outside value=outer; ")#context link(query(<id-706c61696e2d63656c6c2d746172676574>).first().location())[#text("Target")]#text(".")
+#text("I07 Outside value=")#text("outer")#text("; ")#context link(query(<id-706c61696e2d63656c6c2d746172676574>).first().location())[#text("Target")]#text(".")

@@ -1,0 +1,5 @@
+{
+  "/blocks/id : acdc \"_name\" / asciidoctor missing": "Manpage with :manname: and :manpurpose: set: Asciidoctor skips the Name section (Parser.parse_manpage_header), keeps the source `== Name` as an ordinary section and still draws its own Name section (html5 generate_manname_section), so its document shows Name twice. acdc keeps the one source section.",
+  "/blocks/blocks/id : acdc \"_discrete_heading_6\" / asciidoctor \"_discrete_heading_2\"": "Footnote numbering order: Asciidoctor numbers a footnote in a section title when the title is converted for its ID during parsing, ahead of body footnotes, and can give two footnotes the same number. acdc numbers footnotes in document order.",
+  "/blocks/inlines/value : acdc \"C++ deprecated: C++\" / asciidoctor \"C++ deprecated: {cxx}\"": "acdc defines the intrinsic attribute `cxx` (C++); Asciidoctor 2.0.26 defines only `cpp`, so `{cxx}` stays as written."
+}

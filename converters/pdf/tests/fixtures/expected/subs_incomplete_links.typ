@@ -130,17 +130,17 @@
 
 #text("S06 link:https://unfinished.example[Unfinished *bold* and https://other.example.")
 
-#text("S07 ")#text("link:https://unfinished.example")#text("[Late]")
+#text("S07 ")#text("link:https://unfinished.example")#text("[Late")#text("]")
 
 #text("S08 ")#link("https://complete.example")[#text("Early")]
 
-#text("S09 ")#text("link:https://unfinished.example")#text("[Late]")
+#text("S09 ")#text("link:https://unfinished.example")#text("[")#text("Late]")
 
 #text("S10 ")#link("https://complete.example")[#text("Early")]
 
 #text("S11 ")#link("https://attribute.example")[#text("Complete")]
 
-#text("S12 ")#text("link:https://attribute.example")#text("[Unfinished")
+#text("S12 ")#text("link:")#text("https://attribute.example")#text("[Unfinished")
 
 #text("S13 ")#text("link:https://unfinished.example")#text("[Unfinished")
 

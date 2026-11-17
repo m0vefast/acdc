@@ -2450,8 +2450,9 @@ fn index_dash_context_keeps_catalog_labels_independent_of_body_context() -> Resu
 fn index_dash_context_preserves_code_destinations_and_link_positions() -> Result<(), Error> {
     let input = "= Context\n\n[source,text,subs=\"specialchars,macros,replacements\"]\n----\n\
         12anchor:before[]indexterm2:[--]anchor:after[]34 link:https://next.example/context[Next]\n----\n";
+    // asciidoctor 2.0.26 (measured 2026-11-16): macros first make the anchors tags, so `--` stays.
     let control = "= Context\n\n[source,text,subs=\"specialchars,macros,replacements\"]\n----\n\
-        12anchor:before[]—\u{200b}anchor:after[]34 link:https://next.example/context[Next]\n----\n";
+        12anchor:before[]--anchor:after[]34 link:https://next.example/context[Next]\n----\n";
     let actual = render_input(input)?;
     let expected = render_input(control)?;
     let actual_links = external_link_rects(&actual, 1)?;
@@ -2496,22 +2497,24 @@ fn index_dash_context_preserves_code_destinations_and_link_positions() -> Result
 
 #[test]
 fn index_replacement_context_keeps_code_anchor_ownership() -> Result<(), Error> {
+    // asciidoctor 2.0.26 (measured 2026-11-16): macros first make the anchors tags, so no token
+    // joins across them and each control draws the same plain characters.
     for (body, control) in [
         (
             "12 anchor:before[]indexterm2:[--]anchor:after[] 34",
-            "12anchor:before[]\u{2009}—\u{2009}anchor:after[]34",
+            "12 anchor:before[]--anchor:after[] 34",
         ),
         (
             "12anchor:before[]-indexterm2:[-]anchor:after[]34",
-            "12anchor:before[]—\u{200b}anchor:after[]34",
+            "12anchor:before[]--anchor:after[]34",
         ),
         (
             "12anchor:before[]indexterm2:[-]-anchor:after[]34",
-            "12anchor:before[]—\u{200b}anchor:after[]34",
+            "12anchor:before[]--anchor:after[]34",
         ),
         (
             "12anchor:before[]indexterm2:[']anchor:after[]s",
-            "12anchor:before[]’anchor:after[]s",
+            "12anchor:before[]'anchor:after[]s",
         ),
     ] {
         let document = |text| {
@@ -2570,21 +2573,20 @@ fn index_replacement_context_keeps_code_anchor_ownership() -> Result<(), Error> 
 
 #[test]
 fn index_dash_context_preserves_following_pdf_link_positions() -> Result<(), Error> {
-    // Digits avoid the kerning changes caused by a zero-width index marker.
+    // Digits avoid the kerning changes caused by a zero-width index marker. Each control is
+    // source that draws the text asciidoctor 2.0.26 draws for the marked line (measured
+    // 2026-11-16): `12--34`, `12\--34`, `12 -- 34`, `12's`.
     for (marked, plain) in [
-        ("12indexterm2:[--]34", "12—\u{200b}34"),
-        ("12indexterm2:[--34]", "12—\u{200b}34"),
-        ("indexterm2:[12--]34", "12—\u{200b}34"),
-        ("12indexterm:[Hidden]indexterm2:[--]34", "12—\u{200b}34"),
-        (
-            "12anchor:before[]indexterm2:[--]anchor:after[]34",
-            "12—\u{200b}34",
-        ),
-        (r"12indexterm2:[\--]34", r"12\--34"),
-        ("12 indexterm2:[--] 34", "12\u{2009}—\u{2009}34"),
-        ("12-indexterm2:[-]34", "12—\u{200b}34"),
-        ("12indexterm2:[-]-34", "12—\u{200b}34"),
-        ("12indexterm2:[']s", "12’s"),
+        ("12indexterm2:[--]34", r"12\--34"),
+        ("12indexterm2:[--34]", r"12\--34"),
+        ("indexterm2:[12--]34", r"12\--34"),
+        ("12indexterm:[Hidden]indexterm2:[--]34", r"12\--34"),
+        ("12anchor:before[]indexterm2:[--]anchor:after[]34", r"12\--34"),
+        (r"12indexterm2:[\--]34", r"pass:[12\--34]"),
+        ("12 indexterm2:[--] 34", r"12 \-- 34"),
+        ("12-indexterm2:[-]34", r"12\--34"),
+        ("12indexterm2:[-]-34", r"12\--34"),
+        ("12indexterm2:[']s", r"12\'s"),
     ] {
         let marked_pdf = render_input(&format!(
             "= Context\n\n{marked} link:https://next.example/context[Next]\n"

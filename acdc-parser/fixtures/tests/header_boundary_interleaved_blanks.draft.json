@@ -41,6 +41,7 @@
         }
       ],
       "level": 0,
+      "id": "top",
       "metadata": {
         "roles": [
           "role"
@@ -55,7 +56,7 @@
               },
               {
                 "line": 3,
-                "col": 8
+                "col": 7
               }
             ]
           }

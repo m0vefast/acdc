@@ -12,11 +12,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Acme Guide",
+          "value": "Acme",
           "location": [
             {
               "line": 3,
               "col": 3
+            },
+            {
+              "line": 3,
+              "col": 11
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " Guide",
+          "location": [
+            {
+              "line": 3,
+              "col": 12
             },
             {
               "line": 3,
@@ -26,6 +41,7 @@
         }
       ],
       "level": 0,
+      "id": "_acme_guide",
       "blocks": [
         {
           "name": "paragraph",

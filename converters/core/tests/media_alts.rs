@@ -25,22 +25,22 @@ fn image_and_icon_fallbacks_keep_distinct_target_policies() -> Result<(), TestEr
         (
             Source::Url(SourceUrl::new(
                 "https://example.test/a/../my_photo.svg?download=1#part",
-            )?),
+            )),
             "my photo",
             "https://example.test/a/../my photo.svg?download=1#part",
         ),
         (
-            Source::Url(SourceUrl::new("https://example.test/a%20b_c.png?x=1#frag")?),
+            Source::Url(SourceUrl::new("https://example.test/a%20b_c.png?x=1#frag")),
             "a%20b c",
             "https://example.test/a%20b c.png?x=1#frag",
         ),
         (
-            Source::Url(SourceUrl::new("https://example.test/")?),
+            Source::Url(SourceUrl::new("https://example.test/")),
             "",
             "https://example.test/",
         ),
         (
-            Source::Url(SourceUrl::new("mailto:team@example.test")?),
+            Source::Url(SourceUrl::new("mailto:team@example.test")),
             "",
             "mailto:team@example.test",
         ),

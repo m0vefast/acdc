@@ -59,6 +59,7 @@
         }
       ],
       "level": 1,
+      "id": "_preface",
       "metadata": {
         "style": "preface"
       },
@@ -285,6 +286,7 @@
         }
       ],
       "level": 1,
+      "id": "outer",
       "metadata": {
         "anchors": [
           {
@@ -296,7 +298,7 @@
               },
               {
                 "line": 17,
-                "col": 10
+                "col": 9
               }
             ]
           }
@@ -532,6 +534,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "inner",
                         "metadata": {
                           "anchors": [
                             {
@@ -543,7 +546,7 @@
                                 },
                                 {
                                   "line": 29,
-                                  "col": 10
+                                  "col": 9
                                 }
                               ]
                             }
@@ -571,6 +574,7 @@
                               }
                             ],
                             "level": 2,
+                            "id": "deep",
                             "metadata": {
                               "anchors": [
                                 {
@@ -582,7 +586,7 @@
                                     },
                                     {
                                       "line": 32,
-                                      "col": 9
+                                      "col": 8
                                     }
                                   ]
                                 }
@@ -728,6 +732,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "second",
                         "metadata": {
                           "anchors": [
                             {
@@ -739,7 +744,7 @@
                                 },
                                 {
                                   "line": 39,
-                                  "col": 11
+                                  "col": 10
                                 }
                               ]
                             }
@@ -911,6 +916,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "sibling",
                         "metadata": {
                           "anchors": [
                             {
@@ -922,7 +928,7 @@
                                 },
                                 {
                                   "line": 47,
-                                  "col": 12
+                                  "col": 11
                                 }
                               ]
                             }
@@ -1073,6 +1079,7 @@
         }
       ],
       "level": 1,
+      "id": "after",
       "metadata": {
         "anchors": [
           {
@@ -1084,7 +1091,7 @@
               },
               {
                 "line": 53,
-                "col": 10
+                "col": 9
               }
             ]
           }

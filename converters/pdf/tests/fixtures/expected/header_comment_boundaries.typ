@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Checks")] <id-5f636865636b73>
 
-#text("B01 kept=header; body=body-value; hidden={hidden}.")
+#text("B01 kept=")#text("header")#text("; body=")#text("body-value")#text("; hidden={hidden}.")
 
 #raw(block: true, "////\nlet text = \"{kept}\";\n////")
 

@@ -113,7 +113,7 @@
 
 #text(fill: rgb("#006000"))[#link("https://example.org")[#strong[#text("Bold ")#text("\"")#text("quote")#text("\"")#text(" label")]#text(" and ")#emph[#text("italic")]]]
 
-#text(fill: rgb("#006000"))[#link("https://example.org")[#text("Expanded ")#text("\"")#text("quote")#text("\"")]]
+#text(fill: rgb("#006000"))[#link("https://example.org")[#text("Expanded")#text(" ")#text("\"")#text("quote")#text("\"")]]
 
 #text(fill: rgb("#006000"))[#link("https://example.org")[#text("Window ")#text("\"")#text("label")#text("\"")]]
 

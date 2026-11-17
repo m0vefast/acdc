@@ -210,7 +210,9 @@ impl<'a, 'doc> Export<'a, 'doc> {
                     .collect::<Result<_, _>>()?,
             ),
         );
-        let blocks = if let Some(definition) = &value.definition {
+        // Asciidoctor pairs a term without a definition with `nil`: the item
+        // has neither text nor blocks.
+        if let Some(definition) = &value.definition {
             if let Some(principal) = &definition.principal {
                 result.insert(
                     "principal".into(),
@@ -222,11 +224,9 @@ impl<'a, 'doc> Export<'a, 'doc> {
                     "an explicitly empty definition needs the acdc profile",
                 ));
             }
-            self.nonsection_blocks(&definition.blocks, &pointer(path, "blocks"))?
-        } else {
-            Value::Array(Vec::new())
-        };
-        result.insert("blocks".into(), blocks);
+            let blocks = self.nonsection_blocks(&definition.blocks, &pointer(path, "blocks"))?;
+            result.insert("blocks".into(), blocks);
+        }
         if self.profile == Profile::Acdc {
             let metadata = value
                 .terms

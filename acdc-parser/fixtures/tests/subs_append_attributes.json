@@ -19,11 +19,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Content with a *bold* attribute",
+          "value": "Content with ",
           "location": [
             {
               "line": 5,
               "col": 1
+            },
+            {
+              "line": 5,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "a *bold* attribute",
+          "location": [
+            {
+              "line": 5,
+              "col": 14
             },
             {
               "line": 5,

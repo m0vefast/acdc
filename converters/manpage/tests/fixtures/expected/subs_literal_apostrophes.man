@@ -38,7 +38,7 @@ S01 Sam\(aqs
 .sp
 S02 Sam\(cqs
 .sp
-S03 Sam\(cqs
+S03 Sam\(aqs
 .sp
 S04 Sam\(aqs
 .sp

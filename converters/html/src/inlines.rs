@@ -14,8 +14,7 @@ use acdc_converters_core::{
     link::{autolink_fallback, link_fallback, mailto_fallback, mailto_target},
     substitutions::{Replacements, TextBoundaries, apply_passthrough_replacements_iter},
     xref::{
-        XrefDisplay, interdocument_xref, interdocument_xref_with_suffix, resolve_reference,
-        with_caption_prefix,
+        XrefDisplay, interdocument_link, resolve_reference, with_caption_prefix,
     },
 };
 use acdc_parser::{
@@ -1131,6 +1130,25 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
         let w = self.writer_mut();
         let number = f.number();
 
+        // asciidoctor html5 / html5s 0.5.1 (measured 2026-11-16) for a reference to no note.
+        if !f.is_resolved() {
+            let label = escape_pcdata(f.id().unwrap_or_default());
+            if options.inlines_basic {
+                write!(w, "[{label}]")?;
+            } else if is_semantic {
+                write!(
+                    w,
+                    "<a class=\"footnote-ref broken\" title=\"Unresolved footnote reference.\">[{label}]</a>"
+                )?;
+            } else {
+                write!(
+                    w,
+                    "<sup class=\"footnoteref red\" title=\"Unresolved footnote reference.\">[{label}]</sup>"
+                )?;
+            }
+            return Ok(());
+        }
+
         if options.inlines_basic {
             write!(w, "[{number}]")?;
             return Ok(());
@@ -1401,25 +1419,12 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
         traversal: &TraversalContext<'a>,
         target: &str,
     ) -> Option<(String, String)> {
-        let (mut destination, mut text) =
-            if let Some(suffix) = document_attribute_text(traversal.get("relfilesuffix")) {
-                interdocument_xref_with_suffix(target, suffix)
-            } else {
-                let extension = traversal
-                    .get("outfilesuffix")
-                    .and_then(|value| value.text())
-                    .unwrap_or("html");
-                interdocument_xref(target, extension.strip_prefix('.').unwrap_or(extension))
-            }?;
-        if let Some(prefix) = document_attribute_text(traversal.get("relfileprefix"))
-            && !prefix.is_empty()
-            && !target.starts_with("//")
-            && url::Url::parse(target).is_err()
-        {
-            destination.insert_str(0, prefix);
-            text.insert_str(0, prefix);
-        }
-        Some((destination, text))
+        interdocument_link(
+            target,
+            document_attribute_text(traversal.get("relfilesuffix")),
+            traversal.get("outfilesuffix").and_then(|value| value.text()),
+            document_attribute_text(traversal.get("relfileprefix")),
+        )
     }
 
     fn render_stem(

@@ -95,8 +95,9 @@ fn named_titles_use_the_attributes_at_their_declaration() -> Result<(), Error> {
                     if text.text().starts_with("Before"))
                 );
             }
-            assert!(
-                matches!(block.content().inlines().next().map(InlineRef::kind), Some(InlineKind::Plain(text)) if text.text() == "After.")
+            assert_eq!(
+                crate::plain_text::plain_text(block.content().inlines()).as_deref(),
+                Some("After.")
             );
             assert_eq!(
                 parsed.document().footnotes().count(),

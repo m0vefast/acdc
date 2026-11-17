@@ -929,6 +929,12 @@
       "name": "ordinary",
       "type": "attribute",
       "value": "->",
+      "parts": [
+        {
+          "text": "->",
+          "special_chars": 0
+        }
+      ],
       "location": [
         {
           "line": 24,
@@ -944,6 +950,12 @@
       "name": "quot",
       "type": "attribute",
       "value": "->",
+      "parts": [
+        {
+          "text": "->",
+          "special_chars": 0
+        }
+      ],
       "location": [
         {
           "line": 25,

@@ -6,16 +6,26 @@ use acdc_parser::{
 
 type Error = Box<dyn std::error::Error>;
 
+/// asciidoctor 2.0.26 (measured 2026-11-16): special characters are replaced before quotes,
+/// so `<` `>` `&` stand as entities ending in `;` and open no constrained quote; Draft mode
+/// judges the source punctuation.
 #[test]
 fn constrained_opening_punctuation_keeps_formatting_and_source_spans() -> Result<(), Error> {
-    for prefix in ["=", "%", "$", "@", "<", ">", "&", "!", "«"] {
+    let draft = Options::builder()
+        .with_compatibility_mode(acdc_parser::CompatibilityMode::Draft)
+        .build()?;
+    let cases = ["=", "%", "$", "@", "!", "«"]
+        .map(|prefix| (prefix, Options::default()))
+        .into_iter()
+        .chain(["<", ">", "&"].map(|prefix| (prefix, draft.clone())));
+    for (prefix, options) in cases {
         for (marker, variant) in [("*", "bold"), ("_", "italic"), ("`", "code"), ("#", "mark")] {
             if prefix == "&" && marker == "#" {
                 continue;
             }
             let quoted = format!("{marker}café{marker}");
             let source = format!("P {prefix}{quoted} Q.\n");
-            let parsed = parse(&source, &Options::default())?;
+            let parsed = parse(&source, &options)?;
             let [BlockKind::Paragraph(paragraph)] = &*parsed
                 .document()
                 .blocks()
@@ -50,7 +60,7 @@ fn constrained_opening_punctuation_keeps_formatting_and_source_spans() -> Result
 
 #[test]
 fn constrained_opening_barriers_stay_literal() -> Result<(), Error> {
-    for prefix in [":", ";", "}", "A", "1", "_", "café", "日", "&amp;", "&#42;"] {
+    for prefix in [":", ";", "}", "A", "1", "_", "café", "日", "&amp;", "&#42;", "<", ">", "&"] {
         for marker in ["*", "_", "`", "#"] {
             if prefix == "_" && marker == "_" {
                 continue;

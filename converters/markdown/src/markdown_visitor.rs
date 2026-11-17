@@ -2411,6 +2411,12 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
         traversal: &mut TraversalContext<'a>,
         footnote: FootnoteRef<'_>,
     ) -> Result<(), Error> {
+        // An unresolved reference has no note to link to: its bracketed key, as asciidoctor's
+        // text backends write it.
+        if !footnote.is_resolved() {
+            write!(self.writer, "[{}]", footnote.mark())?;
+            return Ok(());
+        }
         let id = self.record_footnote(traversal, footnote)?;
         if self.in_link_text {
             write!(self.writer, "[{}]", footnote.number())?;

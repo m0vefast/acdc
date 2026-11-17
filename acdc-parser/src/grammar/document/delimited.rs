@@ -172,7 +172,9 @@ pub(super) fn build_delimited_block<'input>(
         ..*p
     };
     let p = &resolved;
-    let location = state.create_block_location(p.start, p.end, p.offset);
+    // Without its closing delimiter a block runs to the end of its parent's
+    // content, line breaks included; it still ends on its last character.
+    let location = state.create_block_location(p.start, state.end_before_line_breaks(p.start, p.end, p.offset), p.offset);
     let open_delimiter_location = state.create_location(
         p.open_start + p.offset,
         p.open_start + p.offset + p.open_delim.len().saturating_sub(1),
@@ -284,12 +286,37 @@ fn comment_inner<'input>(
     p: &DelimitedParams<'input>,
 ) -> DelimitedBlockType<'input> {
     metadata.move_positional_attributes_to_attributes();
-    let content_location = state.create_block_location(p.content_start, p.content_end, p.offset);
-    DelimitedBlockType::DelimitedComment(vec![InlineNode::PlainText(Plain {
-        content: p.content,
-        location: content_location,
-        escaped: false,
-    })])
+    DelimitedBlockType::DelimitedComment(comment_text(state, p))
+}
+
+/// A comment's raw text, cut where the source does not continue, or nothing
+/// when the comment is empty.
+fn comment_text<'input>(
+    state: &ParserState<'input>,
+    p: &DelimitedParams<'input>,
+) -> Vec<InlineNode<'input>> {
+    let start = p.content_start + p.offset;
+    let gaps = state.text_gaps();
+    let gaps = &gaps[gaps.partition_point(|&gap| gap <= start)..];
+    let cuts = gaps
+        .iter()
+        .map(|&gap| gap - start)
+        .take_while(|&cut| cut < p.content.len())
+        .filter(|&cut| p.content.is_char_boundary(cut));
+    let mut nodes = Vec::new();
+    let mut from = 0;
+    for to in cuts.chain([p.content.len()]) {
+        let text = &p.content[from..to];
+        if let Some(last) = text.chars().next_back() {
+            nodes.push(InlineNode::PlainText(Plain {
+                content: text,
+                location: state.create_location(start + from, start + to - last.len_utf8()),
+                escaped: false,
+            }));
+        }
+        from = to;
+    }
+    nodes
 }
 
 /// `--` open block, or a non-rendering comment when carrying a `[comment]` style.
@@ -302,15 +329,7 @@ fn open_inner<'input>(
     metadata.move_positional_attributes_to_attributes();
     if block_metadata.metadata.style == Some("comment") {
         metadata.style = None;
-        let content_location =
-            state.create_block_location(p.content_start, p.content_end, p.offset);
-        return Ok(DelimitedBlockType::DelimitedComment(vec![
-            InlineNode::PlainText(Plain {
-                content: p.content,
-                location: content_location,
-                escaped: false,
-            }),
-        ]));
+        return Ok(DelimitedBlockType::DelimitedComment(comment_text(state, p)));
     }
     let blocks = parse_block_content(
         state,
@@ -388,6 +407,9 @@ fn pass_inner<'input>(
         metadata.move_positional_attributes_to_attributes();
         metadata.style = None;
         DelimitedBlockType::DelimitedStem(StemContent { content, notation })
+    } else if p.content.is_empty() {
+        metadata.move_positional_attributes_to_attributes();
+        DelimitedBlockType::DelimitedPass(Vec::new())
     } else {
         metadata.move_positional_attributes_to_attributes();
         let content_location =

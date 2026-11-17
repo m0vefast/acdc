@@ -100,4 +100,4 @@
 
 #heading(level: 1)[#text("Section")] <id-5f73656374696f6e>
 
-#text("Frozen title: Early ")#text("&")#text(" ")#text("<")#text("value")#text(">")#text(". Current seed: Late.")
+#text("Frozen title: ")#text("Early ")#text("&")#text(" ")#text("<")#text("value")#text(">")#text(". Current seed: ")#text("Late")#text(".")

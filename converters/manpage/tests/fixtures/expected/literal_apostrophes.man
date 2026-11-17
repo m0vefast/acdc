@@ -42,11 +42,11 @@ P03 _\(aqs
 .sp
 P04 Sam\(aqs
 .sp
-P05 Sam\(aqs
+P05 Sam\e\(aqs
 .sp
 P06 Sam\(cqs
 .sp
-P07 Sam\(cqs
+P07 Sam\(aqs
 .sp
 P08 pré\(aqété
 .sp

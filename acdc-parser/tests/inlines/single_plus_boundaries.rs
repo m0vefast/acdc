@@ -225,15 +225,13 @@ fn disabled_single_plus_stages_remain_disabled() -> Result<(), Error> {
         else {
             return Err("expected one paragraph".into());
         };
-        let [InlineKind::Plain(text)] = &*paragraph
-            .content()
-            .inlines()
-            .map(InlineRef::kind)
-            .collect::<Vec<_>>()
+        let Some((text, first, last)) =
+            crate::plain_run(paragraph.content().inlines(), &source)
         else {
             return Err("disabled macro syntax must remain plain text".into());
         };
-        assert_eq!(text.text(), expected);
+        assert_eq!(text, expected);
+        assert_eq!(source.get(first.absolute_start()..=last.absolute_end()), Some(body));
     }
     let source = ":word: café\n\n[subs=\"-attributes\"]\nA+{word}+B | +{word}+.";
     let parsed = parse(source, &Options::default())?;

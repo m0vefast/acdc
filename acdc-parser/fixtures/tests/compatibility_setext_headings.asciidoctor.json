@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "legacy",
       "metadata": {
         "anchors": [
           {
@@ -64,7 +65,7 @@
               },
               {
                 "line": 4,
-                "col": 10
+                "col": 9
               }
             ]
           }
@@ -82,7 +83,7 @@
             },
             {
               "line": 7,
-              "col": 28
+              "col": 27
             }
           ]
         },
@@ -169,6 +170,7 @@
             }
           ],
           "level": 2,
+          "id": "_second_level",
           "blocks": [
             {
               "name": "paragraph",
@@ -222,6 +224,7 @@
                 }
               ],
               "level": 3,
+              "id": "_third_level",
               "blocks": [
                 {
                   "name": "paragraph",
@@ -275,6 +278,7 @@
                     }
                   ],
                   "level": 4,
+                  "id": "_fourth_level",
                   "blocks": [
                     {
                       "name": "paragraph",

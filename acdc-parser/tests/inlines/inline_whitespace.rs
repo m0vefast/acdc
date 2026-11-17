@@ -44,32 +44,32 @@ fn formatting_preserves_whitespace_and_its_source_span() -> Result<(), Error> {
                     .find(|node| formatted_content(*node, marker).is_some())
                     .ok_or("missing formatted span")?;
                 let nodes = formatted_content(span, marker).ok_or("missing content")?;
-                let [InlineKind::Plain(text)] =
-                    &*nodes.inlines().map(InlineRef::kind).collect::<Vec<_>>()
+                let Some((text, first, last)) =
+                    crate::plain_run(nodes.inlines(), parsed.preprocessed_source())
                 else {
                     return Err(
-                        format!("expected one whitespace node: {source:?}: {nodes:?}").into(),
+                        format!("expected whitespace text only: {source:?}: {nodes:?}").into(),
                     );
                 };
-                assert_eq!(text.text(), expected, "{source:?}");
+                assert_eq!(text, expected, "{source:?}");
                 let start = parsed
                     .preprocessed_source()
                     .find(marker)
                     .ok_or("missing marker")?
                     + marker.len();
                 let end = start + body.char_indices().last().ok_or("empty body")?.0;
-                assert_eq!(text.location().absolute_start(), start, "{source:?}");
-                assert_eq!(text.location().absolute_end(), end, "{source:?}");
+                assert_eq!(first.absolute_start(), start, "{source:?}");
+                assert_eq!(last.absolute_end(), end, "{source:?}");
                 let prefix = parsed
                     .preprocessed_source()
                     .get(..end)
                     .ok_or("invalid endpoint")?;
                 assert_eq!(
-                    text.location().end().line(),
+                    last.end().line(),
                     u32::try_from(prefix.bytes().filter(|byte| *byte == b'\n').count() + 1)?
                 );
                 assert_eq!(
-                    text.location().end().column(),
+                    last.end().column(),
                     u32::try_from(
                         prefix
                             .rsplit('\n')
@@ -281,19 +281,17 @@ fn macro_labels_keep_only_their_source_span(
             } else {
                 return Err("unexpected macro".into());
             };
-            let [InlineKind::Plain(text)] =
-                &*content.inlines().map(InlineRef::kind).collect::<Vec<_>>()
-            else {
+            let Some((text, first, last)) = crate::plain_run(content.inlines(), &source) else {
                 return Err("expected a plain label".into());
             };
-            assert_eq!(text.text(), body.replace("{sp}", " "), "{source}");
+            assert_eq!(text, body.replace("{sp}", " "), "{source}");
             assert_eq!(
-                source.get(text.location().absolute_start()..=text.location().absolute_end()),
+                source.get(first.absolute_start()..=last.absolute_end()),
                 Some(body),
                 "{source}"
             );
             assert_eq!(
-                text.location().end().column() as usize,
+                last.end().column() as usize,
                 target.len() + 1 + body.len(),
                 "{source}"
             );

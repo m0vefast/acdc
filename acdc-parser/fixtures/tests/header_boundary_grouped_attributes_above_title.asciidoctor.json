@@ -60,6 +60,7 @@
         }
       ],
       "level": 1,
+      "id": "_install",
       "blocks": [
         {
           "name": "paragraph",

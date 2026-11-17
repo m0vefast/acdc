@@ -60,7 +60,7 @@
         {
           "name": "text",
           "type": "string",
-          "value": " and expanded.",
+          "value": " and ",
           "location": [
             {
               "line": 5,
@@ -68,7 +68,37 @@
             },
             {
               "line": 5,
-              "col": 83
+              "col": 74
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 5,
+              "col": 75
+            },
+            {
+              "line": 5,
+              "col": 81
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 5,
+              "col": 82
+            },
+            {
+              "line": 5,
+              "col": 82
             }
           ]
         }
@@ -246,11 +276,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "stem:attributes[expanded].",
+          "value": "stem:attributes[",
           "location": [
             {
               "line": 17,
               "col": 1
+            },
+            {
+              "line": 17,
+              "col": 16
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 17,
+              "col": 17
+            },
+            {
+              "line": 17,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "].",
+          "location": [
+            {
+              "line": 17,
+              "col": 24
             },
             {
               "line": 17,
@@ -282,11 +342,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Escaped: \\stem:attributes[expanded].",
+          "value": "Escaped: \\stem:attributes[",
           "location": [
             {
               "line": 19,
               "col": 1
+            },
+            {
+              "line": 19,
+              "col": 26
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 19,
+              "col": 27
+            },
+            {
+              "line": 19,
+              "col": 33
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "].",
+          "location": [
+            {
+              "line": 19,
+              "col": 34
             },
             {
               "line": 19,

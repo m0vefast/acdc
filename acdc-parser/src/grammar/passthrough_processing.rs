@@ -160,9 +160,18 @@ pub(super) fn prepare_index_catalog<'a>(term: &mut IndexTerm<'a>, state: &Parser
         .unwrap_or_else(|| Box::new(term.clone()));
     catalog.catalog_substitutions = None;
     let mut substitutions = vec![Substitution::SpecialChars];
-    if plan.precedes(&Substitution::Replacements, &Substitution::Macros) {
+    let replaced_first = plan.precedes(&Substitution::Replacements, &Substitution::Macros);
+    if replaced_first {
         substitutions.push(Substitution::Replacements);
     }
+    // asciidoctor ran those replacements on the paragraph, where the label sat between its
+    // delimiters: a lone `--` was never a spaced dash.
+    let bracketed = replaced_first
+        && state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor;
+    let edges = Edges {
+        start: !bracketed,
+        end: !bracketed,
+    };
     catalog.for_each_label_mut(|nodes| {
         for node in &mut *nodes {
             crate::grammar::location_walk::walk_inline_nodes_mut(node, &mut |node| {
@@ -180,7 +189,7 @@ pub(super) fn prepare_index_catalog<'a>(term: &mut IndexTerm<'a>, state: &Parser
                 }
             });
         }
-        *nodes = resolve_registered_text(take(nodes), state);
+        *nodes = resolve_registered_label(take(nodes), state, edges);
     });
     if catalog.kind != term.kind || catalog.relationship != term.relationship {
         term.catalog = Some(catalog);
@@ -229,15 +238,22 @@ pub(super) fn resolve_registered_text<'a>(
     nodes: Vec<InlineNode<'a>>,
     state: &ParserState<'a>,
 ) -> Vec<InlineNode<'a>> {
-    let mut nodes = finish_raw_nodes(
+    resolve_registered_label(
         nodes,
         state,
         Edges {
             start: true,
             end: true,
         },
-        false,
-    );
+    )
+}
+
+fn resolve_registered_label<'a>(
+    nodes: Vec<InlineNode<'a>>,
+    state: &ParserState<'a>,
+    edges: Edges,
+) -> Vec<InlineNode<'a>> {
+    let mut nodes = finish_raw_nodes(nodes, state, edges, false);
     for node in &mut nodes {
         super::location_walk::walk_inline_nodes_mut(node, &mut |node| {
             if let InlineNode::RawText(raw) = node {
@@ -1638,52 +1654,43 @@ fn parse_text_for_quotes_in<'a>(arena: &'a Bump, content: &'a str) -> Vec<Inline
 /// Locate a text fragment using byte offsets and the document's line map.
 fn plain_text_at<'a>(
     text: &'a str,
-    base_location: &Location,
-    offset: usize,
-    state: &ParserState<'_>,
-) -> InlineNode<'a> {
-    let start = base_location.absolute_start + offset;
-    InlineNode::PlainText(Plain {
+    start: usize,
+    locate: &impl Fn(usize, usize) -> Result<Location, crate::Error>,
+) -> Result<InlineNode<'a>, crate::Error> {
+    let last = step_char(text, text.len(), RoundDirection::Backward);
+    Ok(InlineNode::PlainText(Plain {
         content: text,
-        location: state.create_block_location(start, start + text.len(), 0),
+        location: locate(start, start + last)?,
         escaped: false,
-    })
+    }))
 }
 
 /// Process passthrough placeholders in content, returning expanded `InlineNode`s.
 ///
 /// This function handles the multi-pass parsing needed for passthroughs with quote substitutions.
 /// It splits the content around placeholders and processes each passthrough according to its
-/// substitution settings.
+/// substitution settings. `locate` maps an inclusive byte range of `content` to the source.
 pub(super) fn process_passthrough_placeholders<'a>(
     content: &'a str,
     processed: &ProcessedContent<'a>,
     state: &ParserState<'a>,
-    base_location: &Location,
-) -> Vec<InlineNode<'a>> {
+    locate: &impl Fn(usize, usize) -> Result<Location, crate::Error>,
+) -> Result<Vec<InlineNode<'a>>, crate::Error> {
     // Each passthrough produces at most (placeholder-count × small factor) +
     // one trailing-plain. Upper-bound at 2 × placeholders + 1 so a paragraph
     // full of passthroughs doesn't trigger log-N reallocs.
     let mut result = Vec::with_capacity(processed.passthroughs.len() * 2 + 1);
     let mut remaining = content;
-    let mut source_offset = 0;
 
     // Process each passthrough placeholder in order
     for (index, passthrough) in processed.passthroughs.iter().enumerate() {
         let placeholder = format!("���{index}���");
 
         if let Some(placeholder_pos) = remaining.find(&placeholder) {
-            let before_content = if placeholder_pos > 0 {
-                Some(&remaining[..placeholder_pos])
-            } else {
-                None
-            };
-
-            // Add content before the placeholder if any, using original string positions
-            if let Some(before) = before_content
+            if let Some(before) = remaining.get(..placeholder_pos)
                 && !before.is_empty()
             {
-                result.push(plain_text_at(before, base_location, source_offset, state));
+                result.push(plain_text_at(before, content.len() - remaining.len(), locate)?);
             }
 
             // Process the passthrough content using original string positions from passthrough.location
@@ -1700,23 +1707,13 @@ pub(super) fn process_passthrough_placeholders<'a>(
             }
 
             // Move past the placeholder in the processed content
-            let skip_len = placeholder_pos + placeholder.len();
-            remaining = &remaining[skip_len..];
-            source_offset = passthrough
-                .location
-                .absolute_end
-                .saturating_sub(base_location.absolute_start);
+            remaining = &remaining[placeholder_pos + placeholder.len()..];
         }
     }
 
     // Add any remaining content as plain text
     if !remaining.is_empty() {
-        result.push(plain_text_at(
-            remaining,
-            base_location,
-            source_offset,
-            state,
-        ));
+        result.push(plain_text_at(remaining, content.len() - remaining.len(), locate)?);
     }
 
     // Clamp all locations to valid bounds within the input string
@@ -1725,7 +1722,7 @@ pub(super) fn process_passthrough_placeholders<'a>(
     }
 
     // Merge adjacent plain text nodes
-    merge_adjacent_plain_text_nodes(state, result)
+    Ok(merge_adjacent_plain_text_nodes(state, result))
 }
 
 /// Merge plain text only when its source ranges are contiguous.

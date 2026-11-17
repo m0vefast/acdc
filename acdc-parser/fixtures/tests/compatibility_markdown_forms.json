@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_shared_heading",
       "blocks": [
         {
           "name": "quote",
@@ -108,11 +109,11 @@
                   "location": [
                     {
                       "line": 5,
-                      "col": 1
+                      "col": 3
                     },
                     {
                       "line": 5,
-                      "col": 2
+                      "col": 4
                     }
                   ]
                 },
@@ -129,11 +130,11 @@
                       "location": [
                         {
                           "line": 5,
-                          "col": 4
+                          "col": 6
                         },
                         {
                           "line": 5,
-                          "col": 12
+                          "col": 14
                         }
                       ]
                     }
@@ -141,11 +142,11 @@
                   "location": [
                     {
                       "line": 5,
-                      "col": 3
+                      "col": 5
                     },
                     {
                       "line": 5,
-                      "col": 13
+                      "col": 15
                     }
                   ]
                 },
@@ -156,11 +157,11 @@
                   "location": [
                     {
                       "line": 5,
-                      "col": 14
+                      "col": 16
                     },
                     {
                       "line": 5,
-                      "col": 24
+                      "col": 26
                     }
                   ]
                 }
@@ -168,11 +169,11 @@
               "location": [
                 {
                   "line": 5,
-                  "col": 1
+                  "col": 3
                 },
                 {
                   "line": 5,
-                  "col": 24
+                  "col": 26
                 }
               ]
             }
@@ -184,7 +185,7 @@
             },
             {
               "line": 6,
-              "col": 18
+              "col": 17
             }
           ]
         },
@@ -281,6 +282,7 @@
             }
           ],
           "level": 2,
+          "id": "_nested_heading",
           "blocks": [
             {
               "name": "paragraph",

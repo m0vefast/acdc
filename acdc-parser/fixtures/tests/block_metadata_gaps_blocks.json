@@ -52,7 +52,7 @@
               },
               {
                 "line": 3,
-                "col": 18
+                "col": 17
               }
             ]
           }
@@ -123,7 +123,7 @@
               },
               {
                 "line": 13,
-                "col": 21
+                "col": 20
               }
             ]
           }
@@ -194,7 +194,7 @@
               },
               {
                 "line": 26,
-                "col": 23
+                "col": 22
               }
             ]
           }
@@ -477,37 +477,6 @@
       ]
     },
     {
-      "name": "paragraph",
-      "type": "block",
-      "inlines": [
-        {
-          "name": "text",
-          "type": "string",
-          "value": "[]",
-          "location": [
-            {
-              "line": 48,
-              "col": 1
-            },
-            {
-              "line": 48,
-              "col": 2
-            }
-          ]
-        }
-      ],
-      "location": [
-        {
-          "line": 48,
-          "col": 1
-        },
-        {
-          "line": 48,
-          "col": 2
-        }
-      ]
-    },
-    {
       "name": "list",
       "type": "block",
       "variant": "unordered",
@@ -548,7 +517,7 @@
       ],
       "location": [
         {
-          "line": 50,
+          "line": 48,
           "col": 1
         },
         {
@@ -621,7 +590,7 @@
               },
               {
                 "line": 60,
-                "col": 21
+                "col": 20
               }
             ]
           }
@@ -671,68 +640,51 @@
                   ]
                 }
               ],
-              "blocks": [
+              "location": [
                 {
-                  "name": "list",
-                  "type": "block",
-                  "variant": "ordered",
-                  "marker": "..",
-                  "metadata": {
-                    "style": "loweralpha",
-                    "anchors": [
-                      {
-                        "id": "unordered-child",
-                        "location": [
-                          {
-                            "line": 67,
-                            "col": 1
-                          },
-                          {
-                            "line": 67,
-                            "col": 20
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  "items": [
-                    {
-                      "name": "listItem",
-                      "type": "block",
-                      "marker": "..",
-                      "principal": [
-                        {
-                          "name": "text",
-                          "type": "string",
-                          "value": "Child",
-                          "location": [
-                            {
-                              "line": 71,
-                              "col": 4
-                            },
-                            {
-                              "line": 71,
-                              "col": 8
-                            }
-                          ]
-                        }
-                      ],
-                      "location": [
-                        {
-                          "line": 71,
-                          "col": 1
-                        },
-                        {
-                          "line": 71,
-                          "col": 8
-                        }
-                      ]
-                    }
-                  ],
+                  "line": 66,
+                  "col": 1
+                },
+                {
+                  "line": 66,
+                  "col": 8
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 66,
+              "col": 1
+            },
+            {
+              "line": 66,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "list",
+          "type": "block",
+          "variant": "ordered",
+          "marker": "..",
+          "metadata": {
+            "style": "loweralpha"
+          },
+          "items": [
+            {
+              "name": "listItem",
+              "type": "block",
+              "marker": "..",
+              "principal": [
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "Child",
                   "location": [
                     {
-                      "line": 67,
-                      "col": 1
+                      "line": 71,
+                      "col": 4
                     },
                     {
                       "line": 71,
@@ -743,7 +695,7 @@
               ],
               "location": [
                 {
-                  "line": 66,
+                  "line": 71,
                   "col": 1
                 },
                 {
@@ -755,7 +707,7 @@
           ],
           "location": [
             {
-              "line": 66,
+              "line": 69,
               "col": 1
             },
             {
@@ -809,68 +761,51 @@
                   ]
                 }
               ],
-              "blocks": [
+              "location": [
                 {
-                  "name": "list",
-                  "type": "block",
-                  "variant": "ordered",
-                  "marker": "..",
-                  "metadata": {
-                    "style": "loweralpha",
-                    "anchors": [
-                      {
-                        "id": "ordered-child",
-                        "location": [
-                          {
-                            "line": 76,
-                            "col": 1
-                          },
-                          {
-                            "line": 76,
-                            "col": 18
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  "items": [
-                    {
-                      "name": "listItem",
-                      "type": "block",
-                      "marker": "..",
-                      "principal": [
-                        {
-                          "name": "text",
-                          "type": "string",
-                          "value": "Child",
-                          "location": [
-                            {
-                              "line": 80,
-                              "col": 4
-                            },
-                            {
-                              "line": 80,
-                              "col": 8
-                            }
-                          ]
-                        }
-                      ],
-                      "location": [
-                        {
-                          "line": 80,
-                          "col": 1
-                        },
-                        {
-                          "line": 80,
-                          "col": 8
-                        }
-                      ]
-                    }
-                  ],
+                  "line": 75,
+                  "col": 1
+                },
+                {
+                  "line": 75,
+                  "col": 8
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 75,
+              "col": 1
+            },
+            {
+              "line": 75,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "list",
+          "type": "block",
+          "variant": "ordered",
+          "marker": "..",
+          "metadata": {
+            "style": "loweralpha"
+          },
+          "items": [
+            {
+              "name": "listItem",
+              "type": "block",
+              "marker": "..",
+              "principal": [
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "Child",
                   "location": [
                     {
-                      "line": 76,
-                      "col": 1
+                      "line": 80,
+                      "col": 4
                     },
                     {
                       "line": 80,
@@ -881,7 +816,7 @@
               ],
               "location": [
                 {
-                  "line": 75,
+                  "line": 80,
                   "col": 1
                 },
                 {
@@ -893,7 +828,7 @@
           ],
           "location": [
             {
-              "line": 75,
+              "line": 78,
               "col": 1
             },
             {
@@ -935,6 +870,7 @@
         }
       ],
       "level": 2,
+      "id": "discrete-target",
       "metadata": {
         "style": "discrete",
         "anchors": [
@@ -947,7 +883,7 @@
               },
               {
                 "line": 83,
-                "col": 20
+                "col": 19
               }
             ]
           }
@@ -1000,6 +936,7 @@
         }
       ],
       "level": 1,
+      "id": "section-target",
       "metadata": {
         "anchors": [
           {
@@ -1011,7 +948,7 @@
               },
               {
                 "line": 89,
-                "col": 19
+                "col": 18
               }
             ]
           }
@@ -1025,11 +962,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "value.",
+              "value": "value",
               "location": [
                 {
                   "line": 95,
                   "col": 1
+                },
+                {
+                  "line": 95,
+                  "col": 8
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 95,
+                  "col": 9
                 },
                 {
                   "line": 95,

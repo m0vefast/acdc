@@ -107,6 +107,24 @@ impl<'doc> HeaderRef<'doc> {
         self.node.authors.iter().map(AuthorRef::from)
     }
 
+    /// Where the revision line writes `revnumber`, when it set it from the bytes written.
+    #[must_use]
+    pub fn revnumber_location(self) -> Option<LocationRef<'doc>> {
+        self.node.revision.as_ref()?.number.as_ref().map(LocationRef::new)
+    }
+
+    /// Where the revision line writes `revdate`, when it set it from the bytes written.
+    #[must_use]
+    pub fn revdate_location(self) -> Option<LocationRef<'doc>> {
+        self.node.revision.as_ref()?.date.as_ref().map(LocationRef::new)
+    }
+
+    /// Where the revision line writes `revremark`, when it set it from the bytes written.
+    #[must_use]
+    pub fn revremark_location(self) -> Option<LocationRef<'doc>> {
+        self.node.revision.as_ref()?.remark.as_ref().map(LocationRef::new)
+    }
+
     /// Element attributes on the document title, separate from document attributes.
     #[must_use]
     pub fn attributes(self) -> AttributesRef<'doc> {

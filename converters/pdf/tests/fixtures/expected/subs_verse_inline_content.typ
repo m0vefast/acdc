@@ -91,14 +91,14 @@
 #blocktitle[#text("S03 Normal title ")#text("©")]
 #verse[#text("S03 *Bold* {value} (C) footnote:[Inactive].\n  S04 literal indent.\n\nS05 final line.")]
 
-#verse[#text("S06 ")#strong[#text("Bold")]#text(" expanded (C).\n  S07 ")#link("https://example.org/control")[#text("Control (R)")]#text(".")]
+#verse[#text("S06 ")#strong[#text("Bold")]#text(" ")#text("expanded")#text(" (C).\n  S07 ")#link("https://example.org/control")[#text("Control (R)")]#text(".")]
 
-#verse[#text("S08 ")#strong[#text("Bold")]#text(" expanded (C).\n  S09 ")#text("™")#text(" and ")#text("(R)")#text(".")]
+#verse[#text("S08 ")#strong[#text("Bold")]#text(" ")#text("expanded")#text(" (C).\n  S09 ")#text("™")#text(" and ")#text("(R)")#text(".")]
 
 #verse[#text("S10 ")#strong[#text("Bold")]#text(" {value} (C).\n  S11 ")#emph[#text("italic")]#text(" footnote:[Inactive].")]
 
 #verse[#text("S12 *Bold* {value} ")#text("©")#text(".\n  S13 ")#text("®")#text(" footnote:[Inactive].")]
 
-#verse[#text("S14 ")#strong[#text("Bold")]#text(" expanded ")#text("©")#text(" ")#text("(R)")#text(".\n  S15 hard break")#linebreak()#text("    S16 after break.")]
+#verse[#text("S14 ")#strong[#text("Bold")]#text(" ")#text("expanded")#text(" ")#text("©")#text(" ")#text("(R)")#text(".\n  S15 hard break")#linebreak()#text("    S16 after break.")]
 
 #text("After ")#text("©")#text(", ")#strong[#text("bold")]#text(", and ordinary wrapped prose.")

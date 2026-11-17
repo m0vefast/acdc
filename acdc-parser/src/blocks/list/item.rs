@@ -14,7 +14,7 @@ impl ListItem<'_> {
     /// Ordered list:
     /// . -> depth 1
     /// .. -> depth 2
-    /// 1. , 10. -> depth 1 (numeric prefix with a dot)
+    /// 1. , 10. , a. , A. , i) , IV) -> depth 1 (an explicit ordinal)
     pub(crate) fn parse_depth_from_marker(marker: &str) -> Option<usize> {
         let trimmed = marker.trim();
 
@@ -37,17 +37,15 @@ impl ListItem<'_> {
             return Some(depth);
         }
 
-        // Check if it starts with a digit followed by a dot
-        // For example: "1. something" or "10. something"
-        if let Some(dot_pos) = trimmed.find('.') {
-            let (num_part, _) = trimmed.split_at(dot_pos);
-            if num_part.chars().all(|c| c.is_ascii_digit()) {
-                // It's a numeric ordered list at depth 1
-                return Some(1);
+        let explicit = match trimmed.strip_suffix('.') {
+            Some(ordinal) => {
+                (!ordinal.is_empty() && ordinal.bytes().all(|b| b.is_ascii_digit()))
+                    || (ordinal.len() == 1 && ordinal.bytes().all(|b| b.is_ascii_alphabetic()))
             }
-        }
-
-        // If it doesn't match any known pattern
-        None
+            None => trimmed
+                .strip_suffix(')')
+                .is_some_and(|numeral| !numeral.is_empty() && numeral.bytes().all(|b| b"IVXivx".contains(&b))),
+        };
+        explicit.then_some(1)
     }
 }

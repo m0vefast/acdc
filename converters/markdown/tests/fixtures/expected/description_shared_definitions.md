@@ -39,6 +39,6 @@ Shared term groups.
 - **Unordered one, Unordered two**
   Shared unordered body.
 
-See [[first-term]](#first-term) and [[second-term]](#second-term).
+See [First](#first-term) and [Second](#second-term).
 
 [^shared]: One shared note.

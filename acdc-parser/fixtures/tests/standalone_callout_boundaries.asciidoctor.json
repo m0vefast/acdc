@@ -34,7 +34,9 @@
     "doctype": "manpage",
     "manmanual": "Callout Tests",
     "manname": "callouts",
+    "manname-id": "_name",
     "manname-title": "NAME",
+    "mannames": "callouts",
     "manpurpose": "test standalone callouts",
     "mansource": "acdc",
     "mantitle": "callouts",
@@ -63,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "section",
@@ -150,6 +154,7 @@
             }
           ],
           "level": 2,
+          "id": "_paragraph_adjacent",
           "blocks": [
             {
               "name": "paragraph",
@@ -215,6 +220,7 @@
             }
           ],
           "level": 2,
+          "id": "_paragraph_blank",
           "blocks": [
             {
               "name": "paragraph",
@@ -391,6 +397,7 @@
             }
           ],
           "level": 2,
+          "id": "_empty_item",
           "blocks": [
             {
               "name": "paragraph",
@@ -456,6 +463,7 @@
             }
           ],
           "level": 2,
+          "id": "_empty_rest",
           "blocks": [
             {
               "name": "list",
@@ -601,6 +609,7 @@
             }
           ],
           "level": 2,
+          "id": "_no_space",
           "blocks": [
             {
               "name": "paragraph",
@@ -666,6 +675,7 @@
             }
           ],
           "level": 2,
+          "id": "_not_markers",
           "blocks": [
             {
               "name": "paragraph",
@@ -746,6 +756,7 @@
             }
           ],
           "level": 2,
+          "id": "_escaped",
           "blocks": [
             {
               "name": "paragraph",
@@ -811,6 +822,7 @@
             }
           ],
           "level": 2,
+          "id": "_inline",
           "blocks": [
             {
               "name": "paragraph",
@@ -876,6 +888,7 @@
             }
           ],
           "level": 2,
+          "id": "_indented",
           "blocks": [
             {
               "name": "paragraph",
@@ -884,11 +897,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "<1> Alpha.\n<2> Beta.",
+                  "value": "<1> Alpha.\n",
                   "location": [
                     {
                       "line": 61,
-                      "col": 1
+                      "col": 2
+                    },
+                    {
+                      "line": 61,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "<2> Beta.",
+                  "location": [
+                    {
+                      "line": 62,
+                      "col": 2
                     },
                     {
                       "line": 62,
@@ -944,6 +972,7 @@
             }
           ],
           "level": 2,
+          "id": "_indented_after_listing",
           "blocks": [
             {
               "name": "listing",
@@ -1032,11 +1061,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "<1> Alpha.\n<2> Beta.",
+                  "value": "<1> Alpha.\n",
                   "location": [
                     {
                       "line": 69,
-                      "col": 1
+                      "col": 2
+                    },
+                    {
+                      "line": 69,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "<2> Beta.",
+                  "location": [
+                    {
+                      "line": 70,
+                      "col": 2
                     },
                     {
                       "line": 70,
@@ -1092,6 +1136,7 @@
             }
           ],
           "level": 2,
+          "id": "_tab_indent",
           "blocks": [
             {
               "name": "paragraph",
@@ -1100,11 +1145,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "<1> Alpha.\n<2> Beta.",
+                  "value": "<1> Alpha.\n",
                   "location": [
                     {
                       "line": 74,
-                      "col": 1
+                      "col": 2
+                    },
+                    {
+                      "line": 74,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "<2> Beta.",
+                  "location": [
+                    {
+                      "line": 75,
+                      "col": 2
                     },
                     {
                       "line": 75,
@@ -1160,6 +1220,7 @@
             }
           ],
           "level": 2,
+          "id": "_tab_separator",
           "blocks": [
             {
               "name": "list",
@@ -1305,6 +1366,7 @@
             }
           ],
           "level": 2,
+          "id": "_listing_text",
           "blocks": [
             {
               "name": "listing",
@@ -1372,6 +1434,7 @@
             }
           ],
           "level": 2,
+          "id": "_literal_style",
           "blocks": [
             {
               "name": "paragraph",
@@ -1440,6 +1503,7 @@
             }
           ],
           "level": 2,
+          "id": "_source_style",
           "blocks": [
             {
               "name": "paragraph",
@@ -1508,6 +1572,7 @@
             }
           ],
           "level": 2,
+          "id": "_verse_style",
           "blocks": [
             {
               "name": "paragraph",
@@ -1576,6 +1641,7 @@
             }
           ],
           "level": 2,
+          "id": "_compound_literal",
           "blocks": [
             {
               "name": "open",
@@ -1659,6 +1725,7 @@
             }
           ],
           "level": 2,
+          "id": "_table_asciidoc",
           "blocks": [
             {
               "name": "table",
@@ -1856,6 +1923,7 @@
             }
           ],
           "level": 2,
+          "id": "_table_normal",
           "blocks": [
             {
               "name": "table",
@@ -1961,6 +2029,7 @@
             }
           ],
           "level": 2,
+          "id": "_blank_separated_lists",
           "blocks": [
             {
               "name": "list",
@@ -2087,7 +2156,7 @@
                 },
                 {
                   "line": 135,
-                  "col": 4
+                  "col": 3
                 }
               ]
             },
@@ -2216,7 +2285,7 @@
                 },
                 {
                   "line": 141,
-                  "col": 4
+                  "col": 3
                 }
               ]
             },

@@ -27,7 +27,7 @@ S04 Code (R) after Next04
 
 <a id="_indexterm_4"></a><a id="_indexterm_5"></a><a id="_indexterm_6"></a>```
 S05 Code ® after Next05
-S06 fn((x)) tail after Next06
+S06 fn((x tail)) after Next06
 S07 Code ®) after Next07
 ```
 
@@ -63,28 +63,28 @@ S16 [^1] after.
 
 ### A
 
-- Attribute (R) — [Description](#_indexterm_10)
+- Attribute (R — [Description](#_indexterm_10)
 
 ### C
 
-- Code (R) — [Description](#_indexterm_3)
+- Code (R — [Description](#_indexterm_3)
 - Code ® — [Description](#_indexterm_4), [Description (2)](#_indexterm_6)
 
 ### F
 
 - Footnote ® — [Description](#_indexterm_14)
-- fn((x)) tail — [Description](#_indexterm_5)
+- fn((x — [Description](#_indexterm_5)
 
 ### L
 
-- Late (R) — [Description](#_indexterm_7)
+- Late (R — [Description](#_indexterm_7)
 - Late attribute {symbol} — [Description](#_indexterm_11)
 - Late close {close} — [Description](#_indexterm_12)
 - Late open {open}literal — [Description](#_indexterm_13)
 
 ### T
 
-- Term (R) — [Description](#_indexterm_0), [Description (2)](#_indexterm_1)
+- Term (R — [Description](#_indexterm_0), [Description (2)](#_indexterm_1)
 - Term ® — [Description](#_indexterm_2)
 
 [^1]: A <a id="_indexterm_14"></a>Footnote ® term.

@@ -6,7 +6,7 @@ use crate::{
     grammar::{
         ParserState,
         attributes::AttributeQuote,
-        brackets::escaped_bracket_end,
+        brackets::{escaped_bracket_end, unescaped_bracket_end},
         helpers::{
             BlockParsingMetadata, PositionWithOffset, is_valid_bibliography_id, restore_url_path,
         },
@@ -17,8 +17,8 @@ use crate::{
         inlines::{
             attributes::{Shorthand, parse_content, process_media_content},
             index_terms::{
-                IndexTermForm, IndexTermSegment, expand_escaped_index_terms, parse_index_term,
-                trimmed_index_term_segment,
+                IndexTermForm, IndexTermSegment, closes_enclosed_label, expand_escaped_index_terms,
+                parse_index_term, trimmed_index_term_segment,
             },
             links::{
                 LinkContent, ProcessedLinkContent, force_local_file_xref, process_link_content,
@@ -382,7 +382,7 @@ peg::parser! {
         = check_catalog_escape() check_quotes() "\\" content:escaped_super_sub_pattern() {
             InlineNode::PlainText(Plain {
                 content,
-                location: state.create_location(span_start + state.inline_ctx.offset, span_end + state.inline_ctx.offset),
+                location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
                 escaped: true,
             })
         }
@@ -520,10 +520,14 @@ peg::parser! {
         // Subscript: ~content~ where content has no whitespace (must check complete pattern)
         / "~" inner:$([^'~' | ' ' | '\t' | '\n']+) "~" { state.intern_fmt(format_args!("~{inner}~")) }
         // Bracket escapes belong to active macro labels, not ordinary text.
-        // Constrained formatting markers and other single escapable chars
-        // Note: ^ and ~ are NOT included here - they require complete patterns above
-        / c:$(['*' | '_' | '#' | '`']) { c }
+        // A constrained mark is escaped only where its span would match;
+        // a lone `\*` keeps its backslash.
+        / &constrained_span_match() c:$(['*' | '_' | '#' | '`']) { c }
         ) { content }
+
+        rule constrained_span_match()
+        = bold_text_constrained_match() / italic_text_constrained_match()
+        / monospace_text_constrained_match() / highlight_text_constrained_match()
 
         /// Match escaped syntax without consuming - for use in negative lookaheads.
         rule escaped_syntax_match() -> ()
@@ -544,8 +548,7 @@ peg::parser! {
         // Superscript/subscript: require complete pattern
         / "^" [^'^' | ' ' | '\t' | '\n']+ "^"
         / "~" [^'~' | ' ' | '\t' | '\n']+ "~"
-        // Single escapable chars (excluding ^ and ~ which need complete patterns)
-        / ['*' | '_' | '#' | '`'] {}
+        / &constrained_span_match() ['*' | '_' | '#' | '`'] {}
         )
 
         rule footnote() -> InlineNode<'input>
@@ -589,6 +592,8 @@ peg::parser! {
                 number: 0,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
             };
+            // asciidoctor keeps an unresolved reference as a footnote (`footnoteref red`):
+            // number 0 and no body.
             if !state.footnote_tracker.borrow_mut().push(&mut footnote) {
                 let id = id.unwrap_or_default();
                 state.add_warning(crate::Warning::new(
@@ -597,11 +602,16 @@ peg::parser! {
                     },
                     Some(state.create_error_source_location(footnote.location.clone())),
                 ));
-                return Ok(InlineNode::PlainText(Plain {
-                    content: state.intern_fmt(format_args!("[{id}]")),
-                    location: footnote.location,
-                    escaped: false,
-                }));
+                if state.options.compatibility_mode != crate::CompatibilityMode::Asciidoctor {
+                    return Ok(InlineNode::PlainText(Plain {
+                        content: state.intern_fmt(format_args!("[{id}]")),
+                        location: footnote.location,
+                        escaped: false,
+                    }));
+                }
+                footnote.content = None;
+                footnote.number = 0;
+                footnote.definition_source = None;
             }
 
             Ok(InlineNode::Macro(InlineMacro::Footnote(footnote)))
@@ -778,9 +788,14 @@ peg::parser! {
         // Fallback for literal, unbalanced parentheses in pre-spec labels.
         rule index_term_flow_close() = start:position!() "))" check_index_token(start, 2) !"))"
 
+        // Asciidoctor `encl_text`: a visible label's closing `)` stands after the term.
         rule index_term_flow_content() -> IndexTermSegment<'input>
-        = (escaped_index_inner() / !"(((") open:position!() "((" check_index_token(open, 2) start:position!()
+        = escaped:(escaped_index_inner() { true } / !"(((" { false }) open:position!() "((" check_index_token(open, 2) start:position!()
           content:index_term_flow_body() {?
+            let content = match content.strip_suffix(')') {
+                Some(label) if !escaped && closes_enclosed_label(state, start + label.len()) => label,
+                _ => content,
+            };
             index_content_present(state, start, content)
                 .then_some(IndexTermSegment { text: content, start })
                 .ok_or("empty index term")
@@ -788,10 +803,15 @@ peg::parser! {
 
         // Preserve internal pairs before selecting the outer delimiter. If the
         // label is not balanced, retain the existing literal-parenthesis rules.
+        // Asciidoctor mode: `InlineIndextermMacroRx`, the shortest label before a `))` no `)` follows.
         rule index_term_flow_body() -> &'input str
-        = content:$((index_term_parenthesis_group() / "\\" [_] / [^'(' | ')' | '\\'])*)
+        = asciidoctor_mode() content:$((!index_term_shorthand_close() [_])+) index_term_shorthand_close() { content }
+        / content:$((index_term_parenthesis_group() / "\\" [_] / [^'(' | ')' | '\\'])*)
           close:position!() "))" check_index_token(close, 2) { content }
         / content:$((!index_term_flow_close() [_])*) index_term_flow_close() { content }
+
+        rule asciidoctor_mode()
+        = {? (state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor).then_some(()).ok_or("draft mode") }
 
         rule index_term_parenthesis_group()
         = "(" (index_term_parenthesis_group() / "\\" [_] / [^'(' | ')' | '\\'])* ")"
@@ -854,9 +874,11 @@ peg::parser! {
         )* { separators.into_iter().flatten().collect() }
 
         rule inline_menu() -> InlineNode<'input>
-        = check_ui_macros() "menu:" target:$([^'[']+) "[" start:position!() items:escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "menu:" target:$([^'[']+) "[" start:position!() items:menu_body() "]"
         {?
             let target = parse_content(state, target, span_start + 5, AttributeQuote::Unquoted).map_err(|_| "invalid menu target")?;
+            // asciidoctor `InlineMenuMacroRx` (`\[ *(?:|...)\]`): blank brackets are a menuref.
+            let items = if state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor && items.bytes().all(|byte| byte == b' ') { "" } else { items };
             let items = parse_menu_items(state, items, start).map_err(|_| "invalid menu items")?;
             Ok(InlineNode::Macro(InlineMacro::MenuPath(MenuPath {
                 target,
@@ -867,7 +889,7 @@ peg::parser! {
 
         /// Match inline menu without consuming.
         rule inline_menu_match()
-        = check_ui_macros() "menu:" [^'[']+ "[" escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "menu:" [^'[']+ "[" menu_body() "]"
 
         rule inline_implicit_menu() -> InlineNode<'input>
         = content:implicit_menu_source() {?
@@ -894,7 +916,7 @@ peg::parser! {
         }
 
         rule inline_button() -> InlineNode<'input>
-        = check_ui_macros() "btn:[" start:position!() label:$escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "btn:[" start:position!() label:ui_body() "]"
         {?
             let start = start + label.len() - label.trim_start().len();
             let label = label.trim();
@@ -907,10 +929,10 @@ peg::parser! {
 
         /// Match inline button without consuming - for use in negative lookaheads.
         rule inline_button_match()
-        = check_ui_macros() "btn:[" escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "btn:[" ui_body() "]"
 
         rule inline_keyboard() -> InlineNode<'input>
-        = check_ui_macros() "kbd:[" start:position!() source:escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "kbd:[" start:position!() source:ui_body() "]"
         {?
             let keys = parse_keyboard_keys(state, source, start).map_err(|_| "invalid keyboard labels")?;
             Ok(InlineNode::Macro(InlineMacro::KeyboardShortcut(KeyboardShortcut {
@@ -921,7 +943,7 @@ peg::parser! {
 
         /// Match inline keyboard without consuming.
         rule inline_keyboard_match()
-        = check_ui_macros() "kbd:[" escaped_balanced_bracket_content() "]"
+        = check_ui_macros() "kbd:[" ui_body() "]"
 
         /// Parse URL macros with attribute handling.
         ///
@@ -930,7 +952,7 @@ peg::parser! {
         /// This is similar to link macros but the URL is directly specified rather than
         /// using the `link:` prefix.
         rule url_macro() -> InlineNode<'input>
-        = check_url_opening(false, false) target:url()
+        = check_url_opening(false, false) target_start:position!() target:url() target_end:position!()
         "["
         content_start:position!() content:link_macro_content() "]"
         {?
@@ -953,6 +975,7 @@ peg::parser! {
                 metadata,
                 macro_attributes,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
+                target_location: crate::model::TargetLocation(state.create_block_location(target_start, target_end, state.inline_ctx.offset)),
                 hide_uri_scheme: state.document_attributes.contains_key("hide-uri-scheme"),
             }))))
         }
@@ -981,7 +1004,7 @@ peg::parser! {
         /// This is similar to link macros but the `mailto:` is directly specified rather
         /// than using the `link:` prefix.
         rule mailto_macro() -> InlineNode<'input>
-        = target:$("mailto:" email_address() ("?" url_path_char()*)?)
+        = target_start:position!() target:$("mailto:" email_address() ("?" url_path_char()*)?) target_end:position!()
         "["
         content_start:position!() content:link_macro_content() "]"
         {?
@@ -1005,6 +1028,7 @@ peg::parser! {
                 metadata,
                 macro_attributes,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
+                target_location: crate::model::TargetLocation(state.create_block_location(target_start, target_end, state.inline_ctx.offset)),
             }))))
         }
 
@@ -1206,8 +1230,34 @@ peg::parser! {
         rule inline_icon_match()
         = "icon:" source() "[" (!"]" [_])* "]"
 
+        // asciidoctor `InlineStemMacroRx` / `InlineKbdBtnMacroRx` / `InlineMenuMacroRx`:
+        // `(CC_ALL*?[^\\])\]`, so an empty `[]` runs to the next `]`. Only UI labels nest the
+        // macros substituted after them; a formula is extracted before any macro.
+        rule asciidoctor_bracket_body(nest_later_macros: bool) -> &'input str
+        = #{|input, start| match unescaped_bracket_end(input, start, nest_later_macros) {
+            Some(end) => peg::RuleResult::Matched(end, &input[start..end]),
+            None => peg::RuleResult::Failed,
+        }}
+
+        // asciidoctor `normalize_text(text, nil, true)` unescapes only `\]`.
+        rule stem_body() -> &'input str
+        = asciidoctor_mode() content:asciidoctor_bracket_body(false) {
+            if content.contains("\\]") { state.intern_str(&content.replace("\\]", "]")) } else { content }
+        }
+        / !asciidoctor_mode() content:escaped_bracket_content() { content }
+
+        rule ui_body() -> &'input str
+        = asciidoctor_mode() content:asciidoctor_bracket_body(true) { content }
+        / !asciidoctor_mode() content:escaped_balanced_bracket_content() { content }
+
+        // The menu's `\[ *(?:|...)\]` also accepts blank brackets.
+        rule menu_body() -> &'input str
+        = asciidoctor_mode() content:$(" "*) &"]" { content }
+        / asciidoctor_mode() content:asciidoctor_bracket_body(true) { content }
+        / !asciidoctor_mode() content:escaped_balanced_bracket_content() { content }
+
         rule inline_stem() -> InlineNode<'input>
-        = prefix:$("latexmath" / "asciimath" / "stem") ":[" content:escaped_bracket_content() "]"
+        = prefix:$("latexmath" / "asciimath" / "stem") ":[" content:stem_body() "]"
         {
             let notation = match prefix {
                 "latexmath" => StemNotation::Latexmath,
@@ -1232,7 +1282,7 @@ peg::parser! {
         /// Match inline stem without consuming - for use in negative lookaheads.
         /// Replicates escaped_bracket_content matching pattern (handles \] escapes).
         rule inline_stem_match()
-        = ("latexmath" / "asciimath" / "stem") ":[" ("\\\\" / "\\" ['[' | ']'] / [^(']' | '\\')]+ / "\\")* "]"
+        = ("latexmath" / "asciimath" / "stem") ":[" stem_body() "]"
 
         rule inline_image() -> InlineNode<'input>
         = "image:" source:media_source() "[" start:position!() content:link_macro_content() "]"
@@ -1260,7 +1310,7 @@ peg::parser! {
 
         /// Parse a link target and its optional label or named attributes.
         rule link_macro() -> InlineNode<'input>
-        = "link:" target:link_macro_source() open:position!() "["
+        = "link:" target_start:position!() target:link_macro_source() open:position!() "["
         content_start:position!() content:link_macro_content() close:position!() "]" check_macro_delimiters(open, close)
         {?
             tracing::debug!("Found link macro inline");
@@ -1280,6 +1330,7 @@ peg::parser! {
                 metadata,
                 macro_attributes,
                 location: state.create_block_location(span_start, span_end, state.inline_ctx.offset),
+                target_location: crate::model::TargetLocation(state.create_block_location(target_start, open, state.inline_ctx.offset)),
                 hide_uri_scheme: state.document_attributes.contains_key("hide-uri-scheme"),
             }))))
         }
@@ -1309,10 +1360,12 @@ peg::parser! {
         }
         / ("\\" &"file://")? target:colon_link_source() { target }
 
-        // Explicit links accept colons beyond the shared URL and media path syntax.
+        // Explicit links accept any target the shared URL and path syntax does not:
+        // asciidoctor `InlineLinkMacroRx` takes any non-space run up to `[` that does
+        // not start with `:`.
         rule colon_link_source() -> Source<'input>
         = !":" start:position!() check_link_label_opening(start)
-          target:$(link_target_char()+) check_link_target_colon(target)
+          target:$(link_target_char()+)
           check_colon_link_label(start) {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 target,
@@ -1334,9 +1387,6 @@ peg::parser! {
 
         rule check_link_label_opening(start: usize)
         = {? link_label_opening_ahead(state, start).then_some(()).ok_or("link label opener") }
-
-        rule check_link_target_colon(target: &str)
-        = {? target.contains(':').then_some(()).ok_or("link target containing a colon") }
 
         // Every later target prefix before this opener has the same label.
         rule check_colon_link_label(start: usize)
@@ -1369,7 +1419,7 @@ peg::parser! {
         rule cross_reference_shorthand() -> InlineNode<'input>
         = shorthand:cross_reference_shorthand_pattern()
         {?
-            let (target, raw_text) = shorthand;
+            let (target, (target_start, target_end), raw_text) = shorthand;
             let target_str: &'input str = target;
             let bm = BlockParsingMetadata {
                 substitutions: state.inline_ctx.substitutions,
@@ -1382,6 +1432,8 @@ peg::parser! {
             tracing::debug!("Found cross-reference shorthand");
             let location = state.create_block_location(span_start, span_end, state.inline_ctx.offset);
             let mut xref = crate::CrossReference::new(target_str, location).with_text(text);
+            xref.form = crate::XrefForm::Shorthand;
+            xref.target_location = state.create_block_location(target_start, target_end, state.inline_ctx.offset);
             xref.resolve_natural_target = !state.options.compatibility_mode.legacy_controls_enabled(&state.document_attributes);
             if xref.resolve_natural_target {
                 xref.source_syntax = crate::model::XrefSourceSyntax::Shorthand;
@@ -1403,15 +1455,15 @@ peg::parser! {
         }
 
         /// Pattern for cross-reference shorthand: <<id>> or <<reference text,custom text>>
-        rule cross_reference_shorthand_pattern() -> (&'input str, Option<(usize, &'input str)>)
-        = "<<" target:$((!("," / ">>") [_])+) content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
+        rule cross_reference_shorthand_pattern() -> (&'input str, (usize, usize), Option<(usize, &'input str)>)
+        = "<<" target_start:position!() target:$((!("," / ">>") [_])+) target_end:position!() content:("," content_start:position!() text:$((!">>" [_])+) { (content_start, text) })? ">>"
         {?
             if target
                 .chars()
                 .next()
                 .is_some_and(|character| character.is_alphanumeric() || matches!(character, '_' | '#' | '/' | '.' | ':' | '{'))
             {
-                Ok((target, content))
+                Ok((target, (target_start, target_end), content))
             } else {
                 Err("invalid first character in cross-reference shorthand")
             }
@@ -1419,16 +1471,24 @@ peg::parser! {
 
         /// Parse cross-reference macro syntax: xref:id[text] or xref:file.adoc#anchor[text]
         rule cross_reference_macro() -> InlineNode<'input>
-        = "xref:" target_str:xref_target() "[" content_start:position!() raw_text:cross_reference_macro_text() "]"
+        = "xref:" target_start:position!() target_str:xref_target() target_end:position!() "[" content_start:position!() raw_text:cross_reference_macro_text() "]"
         {?
             let bm = BlockParsingMetadata {
                 substitutions: state.inline_ctx.substitutions,
                 ..BlockParsingMetadata::default()
             };
-            let mut macro_text = xref_macro_text(
-                raw_text,
-                state.options.compatibility_mode.legacy_controls_enabled(&state.document_attributes),
-            );
+            let legacy = state.options.compatibility_mode.legacy_controls_enabled(&state.document_attributes);
+            let mut macro_text = xref_macro_text(raw_text, legacy);
+            // asciidoctor `extract_attributes_from_text`: text read as an attribute list folds
+            // its line feeds into spaces (same length, so offsets stay put).
+            if !legacy
+                && raw_text.contains('=')
+                && state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+                && let Cow::Borrowed(text) = macro_text.text
+                && text.contains('\n')
+            {
+                macro_text.text = Cow::Borrowed(state.intern_str(&text.replace('\n', " ")));
+            }
             let (metadata, macro_attributes) = macro_text.take_metadata(state, content_start + state.inline_ctx.offset);
             let text = if macro_text.text.is_empty() {
                 vec![]
@@ -1450,6 +1510,8 @@ peg::parser! {
             tracing::debug!("Found cross-reference macro");
             let location = state.create_block_location(span_start, span_end, state.inline_ctx.offset);
             let mut xref = crate::CrossReference::new(target_str, location).with_text(text);
+            xref.form = crate::XrefForm::Macro;
+            xref.target_location = state.create_block_location(target_start, target_end, state.inline_ctx.offset);
             if !state.options.compatibility_mode.legacy_controls_enabled(&state.document_attributes) {
                 xref.source_syntax = crate::model::XrefSourceSyntax::Macro;
             }
@@ -1517,7 +1579,7 @@ peg::parser! {
         = "xref:" xref_target() "[" cross_reference_macro_text() "]"
 
         rule bold_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$(empty_quote_content() &"**" / (!"**" [_])+) close:position!() "**" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "**" content_start:position!() content:$(empty_quote_content() &"**" / (!"**" [_])+) close:position!() "**" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1543,6 +1605,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1618,7 +1682,7 @@ peg::parser! {
         }}
 
         rule bold_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = attrs_start:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "*"
@@ -1637,7 +1701,7 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'*') {
+            if !state.quote_opening(absolute_pos, b'*') {
                 tracing::debug!(absolute_pos, "Invalid word boundary for constrained bold");
                 return Err("invalid word boundary for constrained bold");
             }
@@ -1671,6 +1735,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Constrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1683,14 +1749,14 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow('*')
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'*');
+            let valid_opening = state.quote_opening(boundary_pos, b'*');
             let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
         }
 
         rule italic_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = attrs_start:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "_"
@@ -1709,7 +1775,7 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'_') {
+            if !state.quote_opening(absolute_pos, b'_') {
                 return Err("invalid word boundary for constrained italic");
             }
 
@@ -1741,6 +1807,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Constrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1753,14 +1821,14 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow('_')
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'_');
+            let valid_opening = state.quote_opening(boundary_pos, b'_');
             let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
         }
 
         rule italic_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "__" content_start:position!() content:$(empty_quote_content() &"__" / (!"__" [_])+) close:position!() "__" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "__" content_start:position!() content:$(empty_quote_content() &"__" / (!"__" [_])+) close:position!() "__" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1786,6 +1854,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1794,7 +1864,7 @@ peg::parser! {
         = inline_attributes()? open:position!() "__" (empty_quote_content() &"__" / (!"__" [_])+) close:position!() "__" check_quote_markers((open, 2), (close, 2))
 
         rule monospace_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "``" content_start:position!() content:$(empty_quote_content() &"``" / (!"``" [_])+) close:position!() "``" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "``" content_start:position!() content:$(empty_quote_content() &"``" / (!"``" [_])+) close:position!() "``" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1820,6 +1890,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1834,7 +1906,7 @@ peg::parser! {
         / !['"' | '\''] constrained_boundary_follow('`')
 
         rule monospace_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = attrs_start:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "`"
@@ -1886,6 +1958,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Constrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1905,7 +1979,7 @@ peg::parser! {
         }
 
         rule highlight_text_unconstrained() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "##" content_start:position!() content:$(empty_quote_content() &"##" / (!"##" [_])+) close:position!() "##" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "##" content_start:position!() content:$(empty_quote_content() &"##" / (!"##" [_])+) close:position!() "##" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -1931,6 +2005,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -1939,7 +2015,7 @@ peg::parser! {
         = inline_attributes()? open:position!() "##" (empty_quote_content() &"##" / (!"##" [_])+) close:position!() "##" check_quote_markers((open, 2), (close, 2))
 
         rule highlight_text_constrained() -> InlineNode<'input>
-        = attrs:inline_attributes()?
+        = attrs_start:position!() attrs:inline_attributes()?
         start:position!()
         content_start:position()
         "#"
@@ -1959,7 +2035,7 @@ peg::parser! {
 
             // Check if we're at start of input OR preceded by word boundary character
             let absolute_pos = start + state.inline_ctx.offset;
-            if !check_constrained_opening_boundary(absolute_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'#') {
+            if !state.quote_opening(absolute_pos, b'#') {
                 tracing::debug!(absolute_pos, "Invalid word boundary for constrained highlight");
                 return Err("invalid word boundary for constrained highlight");
             }
@@ -1992,6 +2068,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Constrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -2004,7 +2082,7 @@ peg::parser! {
         closing_pos:position!()
         constrained_boundary_follow('#')
         {?
-            let valid_opening = check_constrained_opening_boundary(boundary_pos, state.input.as_bytes(), state.outer_constrained_delimiter, b'#');
+            let valid_opening = state.quote_opening(boundary_pos, b'#');
             let valid_closing = check_constrained_closing_at_end(closing_pos, state.input.len(), state.outer_constrained_delimiter);
 
             if valid_opening && valid_closing { Ok(()) } else { Err("invalid word boundary") }
@@ -2012,7 +2090,7 @@ peg::parser! {
 
         /// Parse superscript text (^text^)
         rule superscript_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "^" content_start:position!() content:$(empty_quote_content() &"^" / [^('^' | ' ' | '\t' | '\n')]+) close:position!() "^" check_quote_markers((start, 1), (close, 1)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "^" content_start:position!() content:$(empty_quote_content() &"^" / [^('^' | ' ' | '\t' | '\n')]+) close:position!() "^" check_quote_markers((start, 1), (close, 1)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -2038,6 +2116,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -2047,7 +2127,7 @@ peg::parser! {
 
         /// Parse subscript text (~text~)
         rule subscript_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "~" content_start:position!() content:$(empty_quote_content() &"~" / [^('~' | ' ' | '\t' | '\n')]+) close:position!() "~" check_quote_markers((start, 1), (close, 1)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "~" content_start:position!() content:$(empty_quote_content() &"~" / [^('~' | ' ' | '\t' | '\n')]+) close:position!() "~" check_quote_markers((start, 1), (close, 1)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -2073,6 +2153,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -2082,7 +2164,7 @@ peg::parser! {
 
         /// Parse curved quotation text (`"text"`)
         rule curved_quotation_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "\"`" content_start:position!() content:$(empty_quote_content() &"`\"" / (!("`\"") [_])+) close:position!() "`\"" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "\"`" content_start:position!() content:$(empty_quote_content() &"`\"" / (!("`\"") [_])+) close:position!() "`\"" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -2108,6 +2190,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -2117,7 +2201,7 @@ peg::parser! {
 
         /// Parse curved apostrophe text (`'text'`)
         rule curved_apostrophe_text() -> InlineNode<'input>
-            = attrs:inline_attributes()? start:position!() "'`" content_start:position!() content:$(empty_quote_content() &"`'" / (!("`'") [_])+) close:position!() "`'" check_quote_markers((start, 2), (close, 2)) end:position!()
+            = attrs_start:position!() attrs:inline_attributes()? start:position!() "'`" content_start:position!() content:$(empty_quote_content() &"`'" / (!("`'") [_])+) close:position!() "`'" check_quote_markers((start, 2), (close, 2)) end:position!()
         {?
             let role = attrs.as_ref().and_then(|(roles, _id)| {
                 if roles.is_empty() {
@@ -2143,6 +2227,8 @@ peg::parser! {
                 id,
                 form: FormattingForm::Unconstrained,
                 location: state.create_block_location(start, end, state.inline_ctx.offset),
+                attribute_location: (attrs_start < start)
+                    .then(|| Box::new(state.create_block_location(attrs_start, start, state.inline_ctx.offset))),
             }))
         }
 
@@ -2591,8 +2677,9 @@ peg::parser! {
 
         // Xref targets are IDs or source paths, not media URLs. Keep their
         // punctuation intact until source syntax selects a local or external link.
+        // asciidoctor `InlineXrefMacroRx`: the target runs to the first `[`, spaces included.
         rule xref_target() -> &'input str
-            = target:$((passthrough_placeholder() / path_char() / [':' | '#']) (!['[' | ' ' | '\t' | '\r' | '\n'] [_])*)
+            = target:$((passthrough_placeholder() / path_char() / [':' | '#']) (!['['] [_])*)
         { target }
 
         /// Fragment identifier for a `link:` macro.

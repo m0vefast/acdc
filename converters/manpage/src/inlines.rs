@@ -548,7 +548,7 @@ impl<'a, W: Write> ManpageVisitor<'a, '_, W> {
             InlineKind::Mailto(mailto) => self.render_mailto(traversal, mailto)?,
             InlineKind::Autolink(autolink) => self.render_autolink(autolink)?,
             InlineKind::CrossReference(xref) => self.render_cross_reference(traversal, xref)?,
-            InlineKind::Footnote(footnote) => write!(self.writer_mut(), "[{}]", footnote.number())?,
+            InlineKind::Footnote(footnote) => write!(self.writer_mut(), "[{}]", footnote.mark())?,
             InlineKind::Icon(icon) => self.render_icon(traversal, icon)?,
             InlineKind::Image(img) => {
                 self.render_inline_image(traversal, img)?;

@@ -124,6 +124,10 @@ pub(super) struct CommentScanner {
 }
 
 impl CommentScanner {
+    pub(super) fn compatibility_mode(&self) -> CompatibilityMode {
+        self.compatibility_mode
+    }
+
     /// Attribute declarations are inactive in raw blocks and styled verbatim
     /// paragraphs. Include and conditional directives still apply there.
     pub(super) fn allows_attribute_entries(&self) -> bool {
@@ -156,6 +160,7 @@ impl CommentScanner {
             return false;
         }
         let open = (b'-', 2);
+        let verse_quote = self.at_verse_quote_delimiter(line);
         let delimiter = if line == "--"
             && (self.blocks.verbatim == Some(open)
                 || self.blocks.verbatim.is_none()
@@ -165,6 +170,8 @@ impl CommentScanner {
                         Some("source" | "listing" | "literal" | "verse" | "pass")
                     )) {
             Some(open)
+        } else if verse_quote {
+            delimiter_key(line)
         } else {
             Preprocessor::is_verbatim_delimiter(line).and_then(delimiter_key)
         };
@@ -174,7 +181,9 @@ impl CommentScanner {
                 true
             }
             Some(delimiter) if self.blocks.verbatim.is_none() => {
-                if delimiter == open {
+                // A compound fence read verbatim is still a compound block: its closing
+                // fence, recorded once the verbatim context ends, pops this entry.
+                if delimiter == open || verse_quote {
                     self.blocks.compound.push(delimiter);
                 }
                 self.blocks.verbatim = Some(delimiter);
@@ -183,6 +192,18 @@ impl CommentScanner {
             Some(_) => true,
             None => false,
         }
+    }
+
+    /// asciidoctor reads a `[verse]` quote block verbatim (`build_block(:verse, :verbatim)`):
+    /// its opening `____` under that style, and the same fence closing it.
+    fn at_verse_quote_delimiter(&self, line: &str) -> bool {
+        let quote = line.len() >= 4 && line.bytes().all(|b| b == b'_');
+        quote
+            && self.compatibility_mode == CompatibilityMode::Asciidoctor
+            && match self.blocks.verbatim {
+                Some(open) => delimiter_key(line) == Some(open),
+                None => self.blocks.pending_style.as_deref() == Some("verse"),
+            }
     }
 
     /// Track the outer table fence without interpreting its cell contents.

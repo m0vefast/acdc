@@ -28,14 +28,7 @@ fn only_matching_sibling_or_ancestor_items_interrupt_asciidoctor_attachments(
             )
         })
         .count();
-    assert_eq!(
-        items,
-        if mode == CompatibilityMode::Asciidoctor {
-            2
-        } else {
-            1
-        }
-    );
+    assert_eq!(items, 2, "{mode:?}");
     assert_eq!(parsed.document().footnotes().count(), 1);
     Ok(())
 }
@@ -128,17 +121,8 @@ fn attached_selected_include_keeps_each_modes_original_text_range() -> Result<()
             source.find("Attached").ok_or("missing start")?
         );
         assert_eq!(paragraph.location().start().line(), 4);
-        let end_line = if mode == CompatibilityMode::Asciidoctor {
-            4
-        } else {
-            5
-        };
-        assert_eq!(paragraph.location().end().line(), end_line);
-        let end = if mode == CompatibilityMode::Asciidoctor {
-            source.find("π.").ok_or("missing end")? + "π".len()
-        } else {
-            source.find("]\n").ok_or("missing note end")?
-        };
+        assert_eq!(paragraph.location().end().line(), 4, "{mode:?}");
+        let end = source.find("π.").ok_or("missing end")? + "π".len();
         assert_eq!(paragraph.location().absolute_end(), end);
         assert_eq!(parsed.document().footnotes().count(), 1);
         let text = parsed
@@ -234,14 +218,7 @@ fn an_ancestor_can_interrupt_an_asciidoctor_attachment() -> Result<(), Error> {
             .descendants()
             .filter(|node| matches!(node, StructuralRef::ListItem(_)))
             .count();
-        assert_eq!(
-            items,
-            if mode == CompatibilityMode::Asciidoctor {
-                3
-            } else {
-                2
-            }
-        );
+        assert_eq!(items, 3, "{mode:?}");
     }
     Ok(())
 }

@@ -66,6 +66,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -131,6 +132,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -139,11 +141,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B01 A`café`B.",
+              "value": "B01 A`",
               "location": [
                 {
                   "line": 16,
                   "col": 1
+                },
+                {
+                  "line": 16,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 16,
+                  "col": 7
+                },
+                {
+                  "line": 16,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 16,
+                  "col": 13
                 },
                 {
                   "line": 16,
@@ -170,11 +202,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B02 A`café`.",
+              "value": "B02 A`",
               "location": [
                 {
                   "line": 18,
                   "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 7
+                },
+                {
+                  "line": 18,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 13
                 },
                 {
                   "line": 18,
@@ -201,11 +263,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B03 `café`B.",
+              "value": "B03 `",
               "location": [
                 {
                   "line": 20,
                   "col": 1
+                },
+                {
+                  "line": 20,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 6
+                },
+                {
+                  "line": 20,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 12
                 },
                 {
                   "line": 20,
@@ -232,11 +324,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B04 é`café`日.",
+              "value": "B04 é`",
               "location": [
                 {
                   "line": 22,
                   "col": 1
+                },
+                {
+                  "line": 22,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 22,
+                  "col": 7
+                },
+                {
+                  "line": 22,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`日.",
+              "location": [
+                {
+                  "line": 22,
+                  "col": 13
                 },
                 {
                   "line": 22,
@@ -284,11 +406,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "`café`",
+                  "value": "`",
                   "location": [
                     {
                       "line": 24,
                       "col": 6
+                    },
+                    {
+                      "line": 24,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 24,
+                      "col": 7
+                    },
+                    {
+                      "line": 24,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 24,
+                      "col": 13
                     },
                     {
                       "line": 24,
@@ -342,11 +494,101 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B06 :`café`; ;`café`; }`café`.",
+              "value": "B06 :`",
               "location": [
                 {
                   "line": 26,
                   "col": 1
+                },
+                {
+                  "line": 26,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 7
+                },
+                {
+                  "line": 26,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`; ;`",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 13
+                },
+                {
+                  "line": 26,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 18
+                },
+                {
+                  "line": 26,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`; }`",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 24
+                },
+                {
+                  "line": 26,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 29
+                },
+                {
+                  "line": 26,
+                  "col": 34
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 35
                 },
                 {
                   "line": 26,
@@ -373,11 +615,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B07 `café `.",
+              "value": "B07 `",
               "location": [
                 {
                   "line": 28,
                   "col": 1
+                },
+                {
+                  "line": 28,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 28,
+                  "col": 6
+                },
+                {
+                  "line": 28,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " `.",
+              "location": [
+                {
+                  "line": 28,
+                  "col": 12
                 },
                 {
                   "line": 28,
@@ -404,11 +676,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B08 ` café`.",
+              "value": "B08 ` ",
               "location": [
                 {
                   "line": 30,
                   "col": 1
+                },
+                {
+                  "line": 30,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 7
+                },
+                {
+                  "line": 30,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 13
                 },
                 {
                   "line": 30,
@@ -465,11 +767,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "café`.",
+              "value": "café",
               "location": [
                 {
                   "line": 32,
                   "col": 7
+                },
+                {
+                  "line": 32,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 32,
+                  "col": 13
                 },
                 {
                   "line": 32,
@@ -526,11 +843,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "café`.",
+              "value": "café",
               "location": [
                 {
                   "line": 34,
                   "col": 8
+                },
+                {
+                  "line": 34,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 34,
+                  "col": 14
                 },
                 {
                   "line": 34,
@@ -557,11 +889,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B11 `café`\".",
+              "value": "B11 `",
               "location": [
                 {
                   "line": 36,
                   "col": 1
+                },
+                {
+                  "line": 36,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 36,
+                  "col": 6
+                },
+                {
+                  "line": 36,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`\".",
+              "location": [
+                {
+                  "line": 36,
+                  "col": 12
                 },
                 {
                   "line": 36,
@@ -609,11 +971,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "\"café\"",
+                  "value": "\"",
                   "location": [
                     {
                       "line": 38,
                       "col": 6
+                    },
+                    {
+                      "line": 38,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 38,
+                      "col": 7
+                    },
+                    {
+                      "line": 38,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "\"",
+                  "location": [
+                    {
+                      "line": 38,
+                      "col": 13
                     },
                     {
                       "line": 38,
@@ -704,7 +1096,7 @@
               "location": [
                 {
                   "line": 40,
-                  "col": 7
+                  "col": 14
                 },
                 {
                   "line": 40,
@@ -988,11 +1380,101 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B16 `` | ` ` | `café `.",
+              "value": "B16 `",
               "location": [
                 {
                   "line": 46,
                   "col": 1
+                },
+                {
+                  "line": 46,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "` | `",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 13
+                },
+                {
+                  "line": 46,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 18
+                },
+                {
+                  "line": 46,
+                  "col": 21
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "` | `",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 22
+                },
+                {
+                  "line": 46,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 27
+                },
+                {
+                  "line": 46,
+                  "col": 32
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 33
+                },
+                {
+                  "line": 46,
+                  "col": 36
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 37
                 },
                 {
                   "line": 46,
@@ -1040,11 +1522,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café`B then ",
+                  "value": "café",
                   "location": [
                     {
                       "line": 48,
                       "col": 6
+                    },
+                    {
+                      "line": 48,
+                      "col": 11
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B then ",
+                  "location": [
+                    {
+                      "line": 48,
+                      "col": 12
                     },
                     {
                       "line": 48,
@@ -1152,11 +1649,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café ` then ",
+                  "value": "café",
                   "location": [
                     {
                       "line": 50,
                       "col": 6
+                    },
+                    {
+                      "line": 50,
+                      "col": 11
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ` then ",
+                  "location": [
+                    {
+                      "line": 50,
+                      "col": 12
                     },
                     {
                       "line": 50,
@@ -1243,11 +1755,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B19 A`café` then ",
+              "value": "B19 A`",
               "location": [
                 {
                   "line": 52,
                   "col": 1
+                },
+                {
+                  "line": 52,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 52,
+                  "col": 7
+                },
+                {
+                  "line": 52,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "` then ",
+              "location": [
+                {
+                  "line": 52,
+                  "col": 13
                 },
                 {
                   "line": 52,
@@ -1455,7 +1997,7 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café ` then ",
+                  "value": "café",
                   "location": [
                     {
                       "line": 56,
@@ -1463,7 +2005,22 @@
                     },
                     {
                       "line": 56,
-                      "col": 18
+                      "col": 11
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ` then ",
+                  "location": [
+                    {
+                      "line": 56,
+                      "col": 12
+                    },
+                    {
+                      "line": 56,
+                      "col": 19
                     }
                   ]
                 },
@@ -1683,11 +2240,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café`X | [red]`café",
+                  "value": "café",
                   "location": [
                     {
                       "line": 60,
                       "col": 11
+                    },
+                    {
+                      "line": 60,
+                      "col": 16
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`X | [red]`",
+                  "location": [
+                    {
+                      "line": 60,
+                      "col": 17
+                    },
+                    {
+                      "line": 60,
+                      "col": 27
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 60,
+                      "col": 28
                     },
                     {
                       "line": 60,
@@ -1762,11 +2349,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "A`café`B",
+                  "value": "A`",
                   "location": [
                     {
                       "line": 62,
                       "col": 6
+                    },
+                    {
+                      "line": 62,
+                      "col": 7
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 62,
+                      "col": 8
+                    },
+                    {
+                      "line": 62,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B",
+                  "location": [
+                    {
+                      "line": 62,
+                      "col": 14
                     },
                     {
                       "line": 62,
@@ -1810,11 +2427,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "A`café`B",
+                  "value": "A`",
                   "location": [
                     {
                       "line": 62,
                       "col": 21
+                    },
+                    {
+                      "line": 62,
+                      "col": 22
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 62,
+                      "col": 23
+                    },
+                    {
+                      "line": 62,
+                      "col": 28
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B",
+                  "location": [
+                    {
+                      "line": 62,
+                      "col": 29
                     },
                     {
                       "line": 62,
@@ -1868,11 +2515,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B25 A`café`B | ",
+              "value": "B25 A`",
               "location": [
                 {
                   "line": 65,
                   "col": 1
+                },
+                {
+                  "line": 65,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 7
+                },
+                {
+                  "line": 65,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B | ",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 13
                 },
                 {
                   "line": 65,
@@ -1889,7 +2566,7 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café ` | ",
+                  "value": "café",
                   "location": [
                     {
                       "line": 65,
@@ -1897,18 +2574,18 @@
                     },
                     {
                       "line": 65,
-                      "col": 29
+                      "col": 24
                     }
                   ]
                 },
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "`",
+                  "value": " ` | \\`",
                   "location": [
                     {
                       "line": 65,
-                      "col": 30
+                      "col": 25
                     },
                     {
                       "line": 65,
@@ -1983,11 +2660,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B26 A`café`B | ",
+              "value": "B26 A`",
               "location": [
                 {
                   "line": 68,
                   "col": 1
+                },
+                {
+                  "line": 68,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 68,
+                  "col": 7
+                },
+                {
+                  "line": 68,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B | ",
+              "location": [
+                {
+                  "line": 68,
+                  "col": 13
                 },
                 {
                   "line": 68,
@@ -2004,11 +2711,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "café ` | \\",
+                  "value": "café",
                   "location": [
                     {
                       "line": 68,
                       "col": 19
+                    },
+                    {
+                      "line": 68,
+                      "col": 24
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": " ` | \\",
+                  "location": [
+                    {
+                      "line": 68,
+                      "col": 25
                     },
                     {
                       "line": 68,
@@ -2031,11 +2753,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "café`.",
+              "value": "café",
               "location": [
                 {
                   "line": 68,
                   "col": 32
+                },
+                {
+                  "line": 68,
+                  "col": 37
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 68,
+                  "col": 38
                 },
                 {
                   "line": 68,
@@ -2104,11 +2841,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B28 A`café`B.",
+              "value": "B28 A`",
               "location": [
                 {
                   "line": 74,
                   "col": 1
+                },
+                {
+                  "line": 74,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 74,
+                  "col": 7
+                },
+                {
+                  "line": 74,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 74,
+                  "col": 13
                 },
                 {
                   "line": 74,
@@ -2140,11 +2907,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B29 A`café\nmore`B.",
+              "value": "B29 A`",
               "location": [
                 {
                   "line": 76,
                   "col": 1
+                },
+                {
+                  "line": 76,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 76,
+                  "col": 7
+                },
+                {
+                  "line": 76,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nmore`B.",
+              "location": [
+                {
+                  "line": 76,
+                  "col": 13
                 },
                 {
                   "line": 77,
@@ -2433,11 +3230,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "`café`",
+                  "value": "`",
                   "location": [
                     {
                       "line": 81,
                       "col": 19
+                    },
+                    {
+                      "line": 81,
+                      "col": 19
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 81,
+                      "col": 20
+                    },
+                    {
+                      "line": 81,
+                      "col": 25
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 81,
+                      "col": 26
                     },
                     {
                       "line": 81,
@@ -2574,11 +3401,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B33 A`café`B.",
+              "value": "B33 A`",
               "location": [
                 {
                   "line": 87,
                   "col": 1
+                },
+                {
+                  "line": 87,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 87,
+                  "col": 7
+                },
+                {
+                  "line": 87,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 87,
+                  "col": 13
                 },
                 {
                   "line": 87,
@@ -2611,11 +3468,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B34 A`café`B.",
+              "value": "B34 A`",
               "location": [
                 {
                   "line": 90,
                   "col": 1
+                },
+                {
+                  "line": 90,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 90,
+                  "col": 7
+                },
+                {
+                  "line": 90,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 90,
+                  "col": 13
                 },
                 {
                   "line": 90,
@@ -2685,7 +3572,7 @@
               "location": [
                 {
                   "line": 93,
-                  "col": 7
+                  "col": 14
                 },
                 {
                   "line": 93,
@@ -2696,11 +3583,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " `B.",
+              "value": " ",
               "location": [
                 {
                   "line": 93,
                   "col": 21
+                },
+                {
+                  "line": 93,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 93,
+                  "col": 25
                 },
                 {
                   "line": 93,
@@ -2733,11 +3635,56 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B36 A``B | A` `B.",
+              "value": "B36 A`",
               "location": [
                 {
                   "line": 96,
                   "col": 1
+                },
+                {
+                  "line": 96,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B | A`",
+              "location": [
+                {
+                  "line": 96,
+                  "col": 14
+                },
+                {
+                  "line": 96,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 96,
+                  "col": 21
+                },
+                {
+                  "line": 96,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 96,
+                  "col": 25
                 },
                 {
                   "line": 96,
@@ -2794,11 +3741,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "A`café`B",
+                  "value": "A`",
                   "location": [
                     {
                       "line": 98,
                       "col": 30
+                    },
+                    {
+                      "line": 98,
+                      "col": 31
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 98,
+                      "col": 32
+                    },
+                    {
+                      "line": 98,
+                      "col": 37
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B",
+                  "location": [
+                    {
+                      "line": 98,
+                      "col": 38
                     },
                     {
                       "line": 98,
@@ -2872,11 +3849,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "A`café`B",
+                  "value": "A`",
                   "location": [
                     {
                       "line": 100,
                       "col": 15
+                    },
+                    {
+                      "line": 100,
+                      "col": 16
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 100,
+                      "col": 17
+                    },
+                    {
+                      "line": 100,
+                      "col": 22
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B",
+                  "location": [
+                    {
+                      "line": 100,
+                      "col": 23
                     },
                     {
                       "line": 100,
@@ -2981,11 +3988,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "A`café`B",
+                  "value": "A`",
                   "location": [
                     {
                       "line": 102,
                       "col": 36
+                    },
+                    {
+                      "line": 102,
+                      "col": 37
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 102,
+                      "col": 38
+                    },
+                    {
+                      "line": 102,
+                      "col": 43
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`B",
+                  "location": [
+                    {
+                      "line": 102,
+                      "col": 44
                     },
                     {
                       "line": 102,
@@ -3039,11 +4076,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A`café`B",
+              "value": "A`",
               "location": [
                 {
                   "line": 104,
                   "col": 2
+                },
+                {
+                  "line": 104,
+                  "col": 3
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 104,
+                  "col": 4
+                },
+                {
+                  "line": 104,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B",
+              "location": [
+                {
+                  "line": 104,
+                  "col": 10
                 },
                 {
                   "line": 104,
@@ -3099,11 +4166,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "B40 A`café`B",
+          "value": "B40 A`",
           "location": [
             {
               "line": 107,
               "col": 4
+            },
+            {
+              "line": 107,
+              "col": 9
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "café",
+          "location": [
+            {
+              "line": 107,
+              "col": 10
+            },
+            {
+              "line": 107,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "`B",
+          "location": [
+            {
+              "line": 107,
+              "col": 16
             },
             {
               "line": 107,
@@ -3113,6 +4210,7 @@
         }
       ],
       "level": 1,
+      "id": "_b40_acaféb",
       "blocks": [
         {
           "name": "listing",
@@ -3133,11 +4231,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B41 A`café`B | ",
+              "value": "B41 A`",
               "location": [
                 {
                   "line": 111,
                   "col": 1
+                },
+                {
+                  "line": 111,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 111,
+                  "col": 7
+                },
+                {
+                  "line": 111,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B | ",
+              "location": [
+                {
+                  "line": 111,
+                  "col": 13
                 },
                 {
                   "line": 111,
@@ -3181,11 +4309,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " | `café `.",
+              "value": " | `",
               "location": [
                 {
                   "line": 111,
                   "col": 26
+                },
+                {
+                  "line": 111,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 111,
+                  "col": 30
+                },
+                {
+                  "line": 111,
+                  "col": 35
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " `.",
+              "location": [
+                {
+                  "line": 111,
+                  "col": 36
                 },
                 {
                   "line": 111,
@@ -3212,11 +4370,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B42 A`café`B | ",
+              "value": "B42 A`",
               "location": [
                 {
                   "line": 115,
                   "col": 1
+                },
+                {
+                  "line": 115,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 115,
+                  "col": 7
+                },
+                {
+                  "line": 115,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B | ",
+              "location": [
+                {
+                  "line": 115,
+                  "col": 13
                 },
                 {
                   "line": 115,
@@ -3317,11 +4505,41 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "B43 A`café`B.",
+                            "value": "B43 A`",
                             "location": [
                               {
                                 "line": 119,
                                 "col": 2
+                              },
+                              {
+                                "line": 119,
+                                "col": 7
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "café",
+                            "location": [
+                              {
+                                "line": 119,
+                                "col": 8
+                              },
+                              {
+                                "line": 119,
+                                "col": 13
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "`B.",
+                            "location": [
+                              {
+                                "line": 119,
+                                "col": 14
                               },
                               {
                                 "line": 119,
@@ -3396,11 +4614,53 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B44 A`late`B.",
+              "value": "B44 A`",
               "location": [
                 {
                   "line": 1,
                   "col": 1,
+                  "file": [
+                    "includes/invalid_code_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 1,
+                  "col": 6,
+                  "file": [
+                    "includes/invalid_code_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "late",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 7,
+                  "file": [
+                    "includes/invalid_code_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 1,
+                  "col": 12,
+                  "file": [
+                    "includes/invalid_code_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`B.",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 13,
                   "file": [
                     "includes/invalid_code_attributes.adoc"
                   ]

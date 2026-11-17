@@ -93,11 +93,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "π Sam",
+                        "value": "π ",
                         "location": [
                           {
                             "line": 11,
                             "col": 1
+                          },
+                          {
+                            "line": 11,
+                            "col": 2
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "Sam",
+                        "location": [
+                          {
+                            "line": 11,
+                            "col": 3
                           },
                           {
                             "line": 11,
@@ -159,11 +174,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "s and Sam",
+                        "value": "s",
                         "location": [
                           {
                             "line": 11,
                             "col": 20
+                          },
+                          {
+                            "line": 11,
+                            "col": 25
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": " and Sam",
+                        "location": [
+                          {
+                            "line": 11,
+                            "col": 26
                           },
                           {
                             "line": 11,
@@ -181,7 +211,7 @@
                         "location": [
                           {
                             "line": 11,
-                            "col": 34
+                            "col": 41
                           },
                           {
                             "line": 11,
@@ -230,11 +260,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "π Sam",
+                        "value": "π ",
                         "location": [
                           {
                             "line": 14,
                             "col": 1
+                          },
+                          {
+                            "line": 14,
+                            "col": 2
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "Sam",
+                        "location": [
+                          {
+                            "line": 14,
+                            "col": 3
                           },
                           {
                             "line": 14,
@@ -290,11 +335,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "s and Sam",
+                        "value": "s",
                         "location": [
                           {
                             "line": 14,
                             "col": 20
+                          },
+                          {
+                            "line": 14,
+                            "col": 25
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": " and Sam",
+                        "location": [
+                          {
+                            "line": 14,
+                            "col": 26
                           },
                           {
                             "line": 14,
@@ -391,11 +451,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "π Sam",
+          "value": "π ",
           "location": [
             {
               "line": 4,
               "col": 3,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            },
+            {
+              "line": 4,
+              "col": 4,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Sam",
+          "location": [
+            {
+              "line": 4,
+              "col": 5,
               "file": [
                 "includes/compatibility_typography_word_context.adoc"
               ]
@@ -481,11 +562,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s and Sam",
+          "value": "s",
           "location": [
             {
               "line": 4,
               "col": 22,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            },
+            {
+              "line": 4,
+              "col": 27,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " and Sam",
+          "location": [
+            {
+              "line": 4,
+              "col": 28,
               "file": [
                 "includes/compatibility_typography_word_context.adoc"
               ]
@@ -509,7 +611,7 @@
           "location": [
             {
               "line": 4,
-              "col": 36,
+              "col": 43,
               "file": [
                 "includes/compatibility_typography_word_context.adoc"
               ]
@@ -576,11 +678,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "π Sam",
+          "value": "π ",
           "location": [
             {
               "line": 7,
               "col": 3,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            },
+            {
+              "line": 7,
+              "col": 4,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Sam",
+          "location": [
+            {
+              "line": 7,
+              "col": 5,
               "file": [
                 "includes/compatibility_typography_word_context.adoc"
               ]
@@ -660,11 +783,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s and Sam",
+          "value": "s",
           "location": [
             {
               "line": 7,
               "col": 22,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            },
+            {
+              "line": 7,
+              "col": 27,
+              "file": [
+                "includes/compatibility_typography_word_context.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " and Sam",
+          "location": [
+            {
+              "line": 7,
+              "col": 28,
               "file": [
                 "includes/compatibility_typography_word_context.adoc"
               ]

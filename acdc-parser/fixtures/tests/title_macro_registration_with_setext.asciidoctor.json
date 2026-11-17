@@ -85,6 +85,7 @@
         }
       ],
       "level": 1,
+      "id": "_heading_1",
       "blocks": [
         {
           "name": "paragraph",
@@ -213,7 +214,7 @@
                   },
                   {
                     "line": 7,
-                    "col": 10
+                    "col": 9
                   }
                 ]
               }
@@ -551,6 +552,7 @@
             }
           ],
           "level": 2,
+          "id": "_discrete_heading_6",
           "metadata": {
             "style": "discrete"
           },

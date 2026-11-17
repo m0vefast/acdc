@@ -500,6 +500,7 @@
         }
       ],
       "level": 1,
+      "id": "_preface",
       "metadata": {
         "style": "preface"
       },
@@ -535,6 +536,7 @@
         }
       ],
       "level": 0,
+      "id": "part",
       "metadata": {
         "anchors": [
           {
@@ -546,7 +548,7 @@
               },
               {
                 "line": 25,
-                "col": 9
+                "col": 8
               }
             ]
           }
@@ -574,6 +576,7 @@
             }
           ],
           "level": 1,
+          "id": "chapter",
           "metadata": {
             "anchors": [
               {
@@ -585,7 +588,7 @@
                   },
                   {
                     "line": 28,
-                    "col": 12
+                    "col": 11
                   }
                 ]
               }
@@ -613,6 +616,7 @@
                 }
               ],
               "level": 2,
+              "id": "section",
               "metadata": {
                 "anchors": [
                   {
@@ -624,7 +628,7 @@
                       },
                       {
                         "line": 31,
-                        "col": 12
+                        "col": 11
                       }
                     ]
                   }
@@ -662,7 +666,7 @@
                           },
                           {
                             "line": 34,
-                            "col": 10
+                            "col": 9
                           }
                         ]
                       }
@@ -724,6 +728,7 @@
             }
           ],
           "level": 1,
+          "id": "labelled",
           "metadata": {
             "anchors": [
               {
@@ -752,7 +757,7 @@
                   },
                   {
                     "line": 37,
-                    "col": 27
+                    "col": 26
                   }
                 ]
               }
@@ -790,6 +795,7 @@
             }
           ],
           "level": 1,
+          "id": "appendix",
           "metadata": {
             "style": "appendix",
             "anchors": [
@@ -802,7 +808,7 @@
                   },
                   {
                     "line": 41,
-                    "col": 13
+                    "col": 12
                   }
                 ]
               }
@@ -845,6 +851,7 @@
                 }
               ],
               "level": 2,
+              "id": "plain",
               "metadata": {
                 "anchors": [
                   {
@@ -856,7 +863,7 @@
                       },
                       {
                         "line": 46,
-                        "col": 10
+                        "col": 9
                       }
                     ]
                   }

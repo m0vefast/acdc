@@ -68,7 +68,7 @@ D14 \f(CR+café+\fR | \f(CRpass:[café]\fR\&.
 .sp
 D15 pass:[] | pass:a[] | pass:normal[] | pass:unknown[café].
 .sp
-D16 pass:[one [nested café]] | pass:[café | +café.
+D16 pass:[one [nested café]] | pass:[café | +café\&.
 .sp
 D17 +\fBBold\fR+ | pass:[\fBBold\fR].
 .sp

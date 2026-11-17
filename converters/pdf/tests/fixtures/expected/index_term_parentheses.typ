@@ -88,9 +88,9 @@
 
 #metadata(none)<__indexterm-4>
 
-#metadata(none)<__indexterm-5>#text("visible")
+#metadata(none)<__indexterm-5>#text("visible")#text(")")
 
-#metadata(none)<__indexterm-6>#text("visible")
+#metadata(none)<__indexterm-6>#text("visible")#text(")")
 
 #metadata(none)<__indexterm-7>
 

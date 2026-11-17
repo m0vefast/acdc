@@ -23,6 +23,7 @@
         }
       ],
       "level": 0,
+      "id": "top",
       "metadata": {
         "roles": [
           "role"

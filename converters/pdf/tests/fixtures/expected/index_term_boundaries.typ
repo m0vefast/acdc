@@ -90,13 +90,13 @@
 
 #text("Before ")#metadata(none)<__indexterm-8>#text(" after.")
 
-#text("(")#metadata(none)<__indexterm-9>#text("term")#text(")")
+#text("(")#metadata(none)<__indexterm-9>#text("term")#text(" tail)))")
 
-#text("Before (")#metadata(none)<__indexterm-10>#text("term")#text(") after.")
+#text("Before (")#metadata(none)<__indexterm-10>#text("term")#text(" tail))) after.")
 
-#text("(")#metadata(none)<__indexterm-11>#text("term")#text(")")
+#text("(")#metadata(none)<__indexterm-11>#text("term")#text(" tail)))")
 
-#text("Before (")#metadata(none)<__indexterm-12>#text("term")#text(") after.")
+#text("Before (")#metadata(none)<__indexterm-12>#text("term")#text(" tail))) after.")
 
 #metadata(none)<__indexterm-13>#text("term")
 
@@ -106,7 +106,7 @@
 
 #metadata(none)<__indexterm-16>
 
-#metadata(none)<__indexterm-17>#text("function(argument)")#text(" and ")#metadata(none)<__indexterm-18>#text("function(argument)")#text(")")
+#metadata(none)<__indexterm-17>#text("function(argument")#text(")")#text(" and ")#metadata(none)<__indexterm-18>#text("function(argument)")#text(")")
 
 #metadata(none)<__indexterm-19>
 

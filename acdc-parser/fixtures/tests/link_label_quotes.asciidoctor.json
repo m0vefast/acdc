@@ -1697,7 +1697,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\ntwo",
+              "value": " two",
               "location": [
                 {
                   "line": 34,
@@ -1943,11 +1943,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Expanded ",
+              "value": "Expanded",
               "location": [
                 {
                   "line": 39,
                   "col": 27
+                },
+                {
+                  "line": 39,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 34
                 },
                 {
                   "line": 39,
@@ -3352,7 +3367,7 @@
               },
               {
                 "line": 66,
-                "col": 16
+                "col": 15
               }
             ]
           }
@@ -3823,6 +3838,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

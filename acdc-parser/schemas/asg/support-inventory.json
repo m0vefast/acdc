@@ -646,6 +646,24 @@
       "properties": {},
       "strict_export_group": "source-state"
     },
+    "src/model/attributes.rs::SerializedAttributeParts": {
+      "shape": {
+        "kind": "struct",
+        "fields": [
+          "0"
+        ],
+        "variants": {}
+      },
+      "representation": {
+        "policy": "source-state"
+      },
+      "properties": {
+        "0": {
+          "policy": "source-state"
+        }
+      },
+      "strict_export_group": "document-values"
+    },
     "src/model/attributes.rs::SerializedDocumentAttributeValue": {
       "shape": {
         "kind": "enum",
@@ -682,6 +700,24 @@
           "policy": "source-state"
         },
         "Text.0": {
+          "policy": "source-state"
+        }
+      },
+      "strict_export_group": "document-values"
+    },
+    "src/model/attributes.rs::SerializedValueParts": {
+      "shape": {
+        "kind": "struct",
+        "fields": [
+          "0"
+        ],
+        "variants": {}
+      },
+      "representation": {
+        "policy": "source-state"
+      },
+      "properties": {
+        "0": {
           "policy": "source-state"
         }
       },
@@ -1068,6 +1104,7 @@
           "metadata",
           "macro_attributes",
           "location",
+          "target_location",
           "hide_uri_scheme"
         ],
         "variants": {}
@@ -1099,6 +1136,10 @@
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
           "upstream": "#/$defs/location"
         },
+        "target_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
+        },
         "hide_uri_scheme": {
           "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/inlineRef"
@@ -1117,7 +1158,8 @@
           "body",
           "metadata",
           "macro_attributes",
-          "location"
+          "location",
+          "target_location"
         ],
         "variants": {}
       },
@@ -1155,9 +1197,33 @@
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
           "upstream": "#/$defs/location"
+        },
+        "target_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
         }
       },
       "strict_export_group": "references"
+    },
+    "src/model/inlines/hyperlinks.rs::TargetLocation": {
+      "shape": {
+        "kind": "struct",
+        "fields": [
+          "0"
+        ],
+        "variants": {}
+      },
+      "representation": {
+        "policy": "candidate",
+        "upstream": "#/$defs/location"
+      },
+      "properties": {
+        "0": {
+          "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
+          "upstream": "#/$defs/location"
+        }
+      },
+      "strict_export_group": "locations"
     },
     "src/model/inlines/hyperlinks.rs::UrlMacro": {
       "shape": {
@@ -1169,6 +1235,7 @@
           "metadata",
           "macro_attributes",
           "location",
+          "target_location",
           "hide_uri_scheme"
         ],
         "variants": {}
@@ -1199,6 +1266,10 @@
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
           "upstream": "#/$defs/location"
+        },
+        "target_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
         },
         "hide_uri_scheme": {
           "policy": "no-direct-field-mapping-is-established-for",
@@ -1321,7 +1392,11 @@
           "caption_label_snapshot_id",
           "document_reftext",
           "resolve_natural_target",
-          "source_syntax"
+          "source_syntax",
+          "form",
+          "written_target",
+          "target_location",
+          "precedes_target"
         ],
         "variants": {}
       },
@@ -1375,6 +1450,22 @@
           "upstream": "#/$defs/inlineRef"
         },
         "source_syntax": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
+        },
+        "form": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
+        },
+        "written_target": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
+        },
+        "target_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/inlineRef"
+        },
+        "precedes_target": {
           "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/inlineRef"
         },
@@ -2364,7 +2455,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2391,6 +2483,10 @@
         },
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
+          "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/location"
         }
       },
@@ -2453,7 +2549,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2478,6 +2575,10 @@
         "location": {
           "policy": "named-typographic-spans",
           "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/location"
         }
       },
       "strict_export_group": "unsupported-owners"
@@ -2490,7 +2591,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2514,6 +2616,10 @@
         },
         "location": {
           "policy": "named-typographic-spans",
+          "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/location"
         }
       },
@@ -2552,7 +2658,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2580,6 +2687,10 @@
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
           "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/location"
         }
       },
       "strict_export_group": "literal-content"
@@ -2592,7 +2703,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2619,6 +2731,10 @@
         },
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
+          "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/location"
         }
       },
@@ -2651,7 +2767,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2678,6 +2795,10 @@
         },
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
+          "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/location"
         }
       },
@@ -2776,7 +2897,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2801,6 +2923,10 @@
         "location": {
           "policy": "named-typographic-spans",
           "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/location"
         }
       },
       "strict_export_group": "unsupported-owners"
@@ -2813,7 +2939,8 @@
           "id",
           "form",
           "content",
-          "location"
+          "location",
+          "attribute_location"
         ],
         "variants": {}
       },
@@ -2837,6 +2964,10 @@
         },
         "location": {
           "policy": "named-typographic-spans",
+          "upstream": "#/$defs/location"
+        },
+        "attribute_location": {
+          "policy": "no-direct-field-mapping-is-established-for",
           "upstream": "#/$defs/location"
         }
       },
@@ -2866,6 +2997,28 @@
         }
       },
       "strict_export_group": "literal-content"
+    },
+    "src/model/inlines/xref_form.rs::XrefForm": {
+      "shape": {
+        "kind": "enum",
+        "fields": [],
+        "variants": {
+          "Macro": [],
+          "Shorthand": []
+        }
+      },
+      "representation": {
+        "policy": "source-state"
+      },
+      "properties": {
+        "variant:Macro": {
+          "policy": "source-state"
+        },
+        "variant:Shorthand": {
+          "policy": "source-state"
+        }
+      },
+      "strict_export_group": "references"
     },
     "src/model/lists.rs::CalloutList": {
       "shape": {
@@ -3330,7 +3483,8 @@
           "file_chain",
           "start_line",
           "source_start_offset",
-          "column_shift"
+          "column_shift",
+          "stands_for"
         ],
         "variants": {}
       },
@@ -3357,6 +3511,39 @@
           "policy": "source-state"
         },
         "column_shift": {
+          "policy": "source-state"
+        },
+        "stands_for": {
+          "policy": "source-state"
+        }
+      },
+      "strict_export_group": "locations"
+    },
+    "src/model/location.rs::StandsFor": {
+      "shape": {
+        "kind": "struct",
+        "fields": [
+          "bytes",
+          "last_column",
+          "drawn_bytes",
+          "drawn_last_column"
+        ],
+        "variants": {}
+      },
+      "representation": {
+        "policy": "source-state"
+      },
+      "properties": {
+        "bytes": {
+          "policy": "source-state"
+        },
+        "last_column": {
+          "policy": "source-state"
+        },
+        "drawn_bytes": {
+          "policy": "source-state"
+        },
+        "drawn_last_column": {
           "policy": "source-state"
         }
       },
@@ -4395,6 +4582,9 @@
           "metadata",
           "title",
           "level",
+          "id",
+          "id_generated",
+          "id_settings",
           "location"
         ],
         "variants": {}
@@ -4415,6 +4605,17 @@
         "level": {
           "policy": "direct-property",
           "upstream": "#/$defs/abstractHeading/properties/level"
+        },
+        "id": {
+          "policy": "direct-property",
+          "upstream": "#/$defs/abstractBlock/properties/id"
+        },
+        "id_generated": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/discreteHeading"
+        },
+        "id_settings": {
+          "policy": "derived-catalog"
         },
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
@@ -4513,6 +4714,7 @@
           "title",
           "subtitle",
           "authors",
+          "revision",
           "location"
         ],
         "variants": {}
@@ -4535,6 +4737,9 @@
         "authors": {
           "policy": "direct-property",
           "upstream": "#/properties/header/properties/authors"
+        },
+        "revision": {
+          "policy": "source-state"
         },
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
@@ -4613,6 +4818,32 @@
       },
       "strict_export_group": "blocks"
     },
+    "src/model/mod.rs::RevisionLocations": {
+      "shape": {
+        "kind": "struct",
+        "fields": [
+          "number",
+          "date",
+          "remark"
+        ],
+        "variants": {}
+      },
+      "representation": {
+        "policy": "source-state"
+      },
+      "properties": {
+        "number": {
+          "policy": "source-state"
+        },
+        "date": {
+          "policy": "source-state"
+        },
+        "remark": {
+          "policy": "source-state"
+        }
+      },
+      "strict_export_group": "core"
+    },
     "src/model/mod.rs::StemContent": {
       "shape": {
         "kind": "struct",
@@ -4667,6 +4898,7 @@
       "shape": {
         "kind": "struct",
         "fields": [
+          "title",
           "metadata",
           "location"
         ],
@@ -4677,6 +4909,10 @@
         "upstream": "#/$defs/blockMacro"
       },
       "properties": {
+        "title": {
+          "policy": "export-the-selected-inline-title-and-its",
+          "upstream": "#/$defs/abstractBlock/properties/title"
+        },
         "metadata": {
           "policy": "use-block-metadata-only-where-the-owning",
           "upstream": "#/$defs/blockMetadata"
@@ -4752,36 +4988,16 @@
       },
       "strict_export_group": "decorations"
     },
-    "src/model/section.rs::SafeId": {
+    "src/model/section.rs::Refs": {
       "shape": {
-        "kind": "enum",
+        "kind": "alias",
         "fields": [],
-        "variants": {
-          "Explicit": [
-            "0"
-          ],
-          "Generated": [
-            "0"
-          ]
-        }
+        "variants": {}
       },
       "representation": {
         "policy": "source-state"
       },
-      "properties": {
-        "variant:Explicit": {
-          "policy": "source-state"
-        },
-        "Explicit.0": {
-          "policy": "source-state"
-        },
-        "variant:Generated": {
-          "policy": "source-state"
-        },
-        "Generated.0": {
-          "policy": "source-state"
-        }
-      },
+      "properties": {},
       "strict_export_group": "source-state"
     },
     "src/model/section.rs::Section": {
@@ -4800,7 +5016,8 @@
           "id_generated",
           "id_settings",
           "reference_text",
-          "location"
+          "location",
+          "carried_title"
         ],
         "variants": {}
       },
@@ -4856,6 +5073,10 @@
         "location": {
           "policy": "use-authored-endpoint-coordinates-omit-an-unavailable",
           "upstream": "#/$defs/location"
+        },
+        "carried_title": {
+          "policy": "no-direct-field-mapping-is-established-for",
+          "upstream": "#/$defs/section"
         }
       },
       "strict_export_group": "core"
@@ -4895,6 +5116,7 @@
           "Glossary": [],
           "Index": [],
           "Normal": [],
+          "Other": [],
           "Preface": []
         }
       },
@@ -4932,6 +5154,10 @@
           "upstream": "#/$defs/blockMetadata/properties/attributes"
         },
         "variant:Normal": {
+          "policy": "candidate",
+          "upstream": "#/$defs/blockMetadata/properties/attributes"
+        },
+        "variant:Other": {
           "policy": "candidate",
           "upstream": "#/$defs/blockMetadata/properties/attributes"
         },
@@ -6020,7 +6246,7 @@
       ]
     },
     "source-state": {
-      "handling": "Comments and parser routing/edit history can be omitted after resolved values, identity and supported coordinates are preserved. A SafeId cache contributes its effective ID.",
+      "handling": "Comments and parser routing/edit history can be omitted after resolved values, identity and supported coordinates are preserved.",
       "tests": [
         {
           "file": "tests/asg/asg_support.rs",

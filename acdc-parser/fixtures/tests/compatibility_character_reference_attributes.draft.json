@@ -493,11 +493,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": " \\",
+          "value": " ",
           "location": [
             {
               "line": 13,
               "col": 22
+            },
+            {
+              "line": 13,
+              "col": 22
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\\",
+          "location": [
+            {
+              "line": 13,
+              "col": 23
             },
             {
               "line": 13,
@@ -526,11 +541,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": " &copy; &#169;.",
+          "value": " &",
           "location": [
             {
               "line": 13,
               "col": 32
+            },
+            {
+              "line": 13,
+              "col": 33
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "copy",
+          "location": [
+            {
+              "line": 13,
+              "col": 34
+            },
+            {
+              "line": 13,
+              "col": 39
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; &#",
+          "location": [
+            {
+              "line": 13,
+              "col": 40
+            },
+            {
+              "line": 13,
+              "col": 43
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "169",
+          "location": [
+            {
+              "line": 13,
+              "col": 44
+            },
+            {
+              "line": 13,
+              "col": 51
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ";.",
+          "location": [
+            {
+              "line": 13,
+              "col": 52
             },
             {
               "line": 13,
@@ -649,11 +724,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": " &copy; &#169;.",
+          "value": " &",
           "location": [
             {
               "line": 16,
               "col": 32
+            },
+            {
+              "line": 16,
+              "col": 33
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "copy",
+          "location": [
+            {
+              "line": 16,
+              "col": 34
+            },
+            {
+              "line": 16,
+              "col": 39
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; &#",
+          "location": [
+            {
+              "line": 16,
+              "col": 40
+            },
+            {
+              "line": 16,
+              "col": 43
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "169",
+          "location": [
+            {
+              "line": 16,
+              "col": 44
+            },
+            {
+              "line": 16,
+              "col": 51
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ";.",
+          "location": [
+            {
+              "line": 16,
+              "col": 52
             },
             {
               "line": 16,
@@ -923,11 +1058,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": " \\",
+          "value": " ",
           "location": [
             {
               "line": 22,
               "col": 22
+            },
+            {
+              "line": 22,
+              "col": 22
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\\",
+          "location": [
+            {
+              "line": 22,
+              "col": 23
             },
             {
               "line": 22,
@@ -957,11 +1107,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": " &copy; &#169;.",
+          "value": " &",
           "location": [
             {
               "line": 22,
               "col": 32
+            },
+            {
+              "line": 22,
+              "col": 33
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "copy",
+          "location": [
+            {
+              "line": 22,
+              "col": 34
+            },
+            {
+              "line": 22,
+              "col": 39
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; &#",
+          "location": [
+            {
+              "line": 22,
+              "col": 40
+            },
+            {
+              "line": 22,
+              "col": 43
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "169",
+          "location": [
+            {
+              "line": 22,
+              "col": 44
+            },
+            {
+              "line": 22,
+              "col": 51
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ";.",
+          "location": [
+            {
+              "line": 22,
+              "col": 52
             },
             {
               "line": 22,

@@ -33,9 +33,9 @@ modifier\-order \- incremental substitution order
 .sp
 S01 \fBbold\fR\&.
 .sp
-S02 *bold*.
+S02 *bold*\&.
 .sp
-S03 *bold*.
+S03 *bold*\&.
 .sp
 S04 ``.
 .sp
@@ -47,19 +47,19 @@ S07 \fBbold\fR\&.
 .sp
 S08 \fBbold\fR\&.
 .sp
-S09 \fBsource\fR *bold*.
+S09 \fBsource\fR *bold*\&.
 .sp
 S10 \fBsource\fR \fBbold\fR\&.
 .sp
 S11 \fBbold\fR\&.
 .EX
-S12 *bold*.
+S12 *bold*\&.
 .EE
 .EX
 S13 \fBbold\fR\&.
 .EE
 .EX
-S14 *bold*.
+S14 *bold*\&.
 .EE
 .sp
 S15 \c
@@ -70,11 +70,11 @@ S16 \c
 .URL "https://example.org" "Link" "\fR\c"
 \&.
 .sp
-S17 link:https://example.org[Link].
+S17 link:https://example.org[Link]\&.
 .EX
 S18 `` *café *.
 .EE
 .sp
 S19 {value}.
 .sp
-S20 *bold*.
+S20 *bold*\&.

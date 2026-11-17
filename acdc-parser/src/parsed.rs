@@ -109,6 +109,23 @@ self_cell::self_cell! {
     impl {Debug}
 }
 
+/// An include directive the preprocessor acted on in the parsed input — not one written
+/// in a file it included, and not an escaped one or one inside a false conditional.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct IncludeDirective {
+    /// 1-based line of the directive in the parsed input.
+    pub line: usize,
+    /// Byte column, 0-based, where `target` starts on that line.
+    pub target_column: usize,
+    /// The target exactly as written between `include::` and `[`.
+    pub target: String,
+    /// The target after document attribute substitution: what the preprocessor reads.
+    pub resolved_target: String,
+    /// `resolved_target` lexically normalized — `.` and empty components dropped, `..`
+    /// collapsed, `/`-separated — relative to the document's folder unless absolute.
+    pub path: String,
+}
+
 /// A conditional decision made while reading the source, before block parsing.
 ///
 /// The result uses attributes at the directive and all enclosing conditions.
@@ -166,6 +183,7 @@ pub struct ParseResult {
     source_recovery: Option<Box<Warning>>,
     source_files: SourceFiles,
     conditionals: Vec<ConditionalEvaluation>,
+    include_directives: Vec<IncludeDirective>,
 }
 
 impl ParseResult {
@@ -201,7 +219,19 @@ impl ParseResult {
             source_recovery,
             source_files,
             conditionals,
+            include_directives: Vec::new(),
         })
+    }
+
+    pub(crate) fn with_include_directives(mut self, include_directives: Vec<IncludeDirective>) -> Self {
+        self.include_directives = include_directives;
+        self
+    }
+
+    /// The include directives acted on in the parsed input, in source order.
+    #[must_use]
+    pub fn include_directives(&self) -> &[IncludeDirective] {
+        &self.include_directives
     }
 
     /// Read the document through typed handles and iterators.

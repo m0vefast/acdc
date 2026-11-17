@@ -1673,41 +1673,29 @@
         {
           "name": "keyboard",
           "type": "inline",
-          "keys": [],
+          "keys": [
+            [
+              {
+                "name": "text",
+                "type": "string",
+                "value": "] and btn:[",
+                "location": [
+                  {
+                    "line": 22,
+                    "col": 6
+                  },
+                  {
+                    "line": 22,
+                    "col": 16
+                  }
+                ]
+              }
+            ]
+          ],
           "location": [
             {
               "line": 22,
               "col": 1
-            },
-            {
-              "line": 22,
-              "col": 6
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": " and ",
-          "location": [
-            {
-              "line": 22,
-              "col": 7
-            },
-            {
-              "line": 22,
-              "col": 11
-            }
-          ]
-        },
-        {
-          "name": "button",
-          "type": "inline",
-          "label": [],
-          "location": [
-            {
-              "line": 22,
-              "col": 12
             },
             {
               "line": 22,

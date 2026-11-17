@@ -63,6 +63,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +129,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "table",
@@ -154,11 +156,41 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "I01 Hello World: ",
+                            "value": "I01 Hello ",
                             "location": [
                               {
                                 "line": 17,
                                 "col": 2
+                              },
+                              {
+                                "line": 17,
+                                "col": 11
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "World",
+                            "location": [
+                              {
+                                "line": 17,
+                                "col": 12
+                              },
+                              {
+                                "line": 17,
+                                "col": 17
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": ": ",
+                            "location": [
+                              {
+                                "line": 17,
+                                "col": 18
                               },
                               {
                                 "line": 17,
@@ -534,11 +566,41 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "[role=example]\nI03 Visible metadata-looking text.\n:value: cell\nI03 value=outer.",
+                            "value": "[role=example]\nI03 Visible metadata-looking text.\n:value: cell\nI03 value=",
                             "location": [
                               {
                                 "line": 28,
                                 "col": 2
+                              },
+                              {
+                                "line": 31,
+                                "col": 10
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "outer",
+                            "location": [
+                              {
+                                "line": 31,
+                                "col": 11
+                              },
+                              {
+                                "line": 31,
+                                "col": 17
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": ".",
+                            "location": [
+                              {
+                                "line": 31,
+                                "col": 18
                               },
                               {
                                 "line": 31,
@@ -1014,11 +1076,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I07 Outside value=outer; ",
+              "value": "I07 Outside value=",
               "location": [
                 {
                   "line": 51,
                   "col": 1
+                },
+                {
+                  "line": 51,
+                  "col": 18
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "outer",
+              "location": [
+                {
+                  "line": 51,
+                  "col": 19
+                },
+                {
+                  "line": 51,
+                  "col": 25
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; ",
+              "location": [
+                {
+                  "line": 51,
+                  "col": 26
                 },
                 {
                   "line": 51,

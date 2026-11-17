@@ -81,7 +81,7 @@
 
 #metadata(none)<id-657870616e646564>#text("Early attributes.")
 
-#text("anchor:expanded[Expanded label]Late ID. ")#metadata(none)<id-6c6174652d6c6162656c>#text("Late label.")
+#text("anchor:")#text("expanded")#text("[")#text("Expanded label")#text("]Late ID. ")#metadata(none)<id-6c6174652d6c6162656c>#text("Late label.")
 
 #metadata(none)<id-6c6174652d627261636b6574>#text("Late delimiter.")
 
@@ -284,4 +284,4 @@
   show raw.line: line => code-links(line)
   raw(block: true, "￼")
 }
-#text("See ")#context link(query(<id-656d7074792d636f6465>).first().location())[#text("Empty code")]#text(", ")#context link(query(<id-6c6174652d627261636b6574>).first().location())[#text("Before]after")]#text(", ")#context link(query(<id-657870616e646564>).first().location())[#text("Expanded label")]#text(", ")#context link(query(<id-6c6174652d6c6162656c>).first().location())[#text("Expanded label")]#text(", ")#context link(query(<id-6c6174652d71756f746573>).first().location())[#strong[#text("Bold")]#text(" label")]#text(", ")#context link(query(<id-636f6465>).first().location())[#text("Code label")]#text(", ")#context link(query(<id-73686f7274>).first().location())[#text("Short label")]#text(", ")#context link(query(<id-636f64652d6f6e6c79>).first().location())[#text("Code only")]#text(", ")#context link(query(<id-6c69746572616c>).first().location())[#text("Literal label")]#text(", ")#context link(query(<id-7374796c6564>).first().location())[#text("Styled label")]#text(", and ")#context link(query(<id-7374796c65642d6c69746572616c>).first().location())[#text("Styled literal")]#text(".")
+#text("See ")#context link(query(<id-656d7074792d636f6465>).first().location())[#text("Empty code")]#text(", ")#context link(query(<id-6c6174652d627261636b6574>).first().location())[#text("Before")#text("]")#text("after")]#text(", ")#context link(query(<id-657870616e646564>).first().location())[#text("Expanded label")]#text(", ")#context link(query(<id-6c6174652d6c6162656c>).first().location())[#text("Expanded label")]#text(", ")#context link(query(<id-6c6174652d71756f746573>).first().location())[#strong[#text("Bold")]#text(" label")]#text(", ")#context link(query(<id-636f6465>).first().location())[#text("Code label")]#text(", ")#context link(query(<id-73686f7274>).first().location())[#text("Short label")]#text(", ")#context link(query(<id-636f64652d6f6e6c79>).first().location())[#text("Code only")]#text(", ")#context link(query(<id-6c69746572616c>).first().location())[#text("Literal label")]#text(", ")#context link(query(<id-7374796c6564>).first().location())[#text("Styled label")]#text(", and ")#context link(query(<id-7374796c65642d6c69746572616c>).first().location())[#text("Styled literal")]#text(".")

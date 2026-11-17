@@ -70,6 +70,7 @@ fn media_metadata<'input>(
                     .resize(slot, PositionalAttribute::default());
                 if let Some(positional) = metadata.positional_attributes.get_mut(slot - 1) {
                     positional.value = state.intern_str(value);
+                    positional.quoted_empty = value.is_empty() && attribute.quote != AttributeQuote::Unquoted;
                 }
             }
         }
@@ -167,10 +168,13 @@ pub(super) fn process_media_content<'a>(
         }
     } else {
         metadata.style = None;
+        // A quoted empty position is a value in Asciidoctor mode (`image:a.png[B,""]` draws
+        // `width=""`), as the block macro's (`insert_named_metadata`).
+        let asciidoctor = state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor;
         for name in ["width", "height"] {
             if let Some(value) = metadata
                 .take_next_positional_attribute()
-                .filter(|value| !value.value.is_empty())
+                .filter(|value| !value.value.is_empty() || (asciidoctor && value.quoted_empty))
             {
                 metadata
                     .attributes

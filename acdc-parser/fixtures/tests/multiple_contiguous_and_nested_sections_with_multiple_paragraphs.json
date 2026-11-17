@@ -54,6 +54,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_1",
       "blocks": [
         {
           "name": "section",
@@ -76,6 +77,7 @@
             }
           ],
           "level": 2,
+          "id": "_section_2",
           "blocks": [
             {
               "name": "paragraph",
@@ -129,6 +131,7 @@
                 }
               ],
               "level": 3,
+              "id": "_section_3",
               "blocks": [
                 {
                   "name": "paragraph",
@@ -213,6 +216,7 @@
                     }
                   ],
                   "level": 4,
+                  "id": "_section_4",
                   "blocks": [
                     {
                       "name": "paragraph",

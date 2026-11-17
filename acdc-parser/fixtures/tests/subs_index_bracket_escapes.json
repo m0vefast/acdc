@@ -57,6 +57,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -122,6 +123,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -187,6 +189,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "source-highlighter",
@@ -1276,11 +1279,26 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": "Linked Expanded ",
+                      "value": "Linked ",
                       "location": [
                         {
                           "line": 44,
                           "col": 28
+                        },
+                        {
+                          "line": 44,
+                          "col": 34
+                        }
+                      ]
+                    },
+                    {
+                      "name": "text",
+                      "type": "string",
+                      "value": "Expanded ",
+                      "location": [
+                        {
+                          "line": 44,
+                          "col": 35
                         },
                         {
                           "line": 44,
@@ -1431,6 +1449,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

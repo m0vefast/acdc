@@ -99,7 +99,7 @@
 
 #link("https://example.org")[#text("Line ")#text("]")#text(" two")]
 
-#link("https://example.org")[#text("Expanded ")#text("]")#text(" tail")]
+#link("https://example.org")[#text("Expanded")#text(" ")#text("]")#text(" tail")]
 
 #link("https://example.org")[#text("Comma, ")#text("]")#text(" label")]
 

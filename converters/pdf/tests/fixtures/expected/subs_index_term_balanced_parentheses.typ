@@ -89,7 +89,7 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("S01 ")#metadata(none)<__indexterm-1>#text("Term (R)")#text(" after.")
+#text("S01 ")#metadata(none)<__indexterm-1>#text("Term (R")#text(")")#text(" after.")
 
 #text("S02 ")#metadata(none)<__indexterm-2>#text("Term ")#text("®")#text(" after.")
 
@@ -179,7 +179,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
-  raw(block: true, "S05 Code ® after Next05\nS06 fn((x)) tail after Next06\nS07 Code ®) after Next07")
+  raw(block: true, "S05 Code ® after Next05\nS06 fn((x tail)) after Next06\nS07 Code ®) after Next07")
 }
 #{
   let index-anchors = (
@@ -362,27 +362,27 @@
 #v(0.75em)
 #text(weight: "bold")[#text("A")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Attribute (R)")#_acdc_index_pages((<__indexterm-11>,), "term")]
+#par(hanging-indent: 1em)[#text("Attribute (R")#_acdc_index_pages((<__indexterm-11>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("C")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Code (R)")#_acdc_index_pages((<__indexterm-4>,), "term")]
+#par(hanging-indent: 1em)[#text("Code (R")#_acdc_index_pages((<__indexterm-4>,), "term")]
 #par(hanging-indent: 1em)[#text("Code ")#text("®")#_acdc_index_pages((<__indexterm-5>,<__indexterm-7>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("F")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("fn((x)) tail")#_acdc_index_pages((<__indexterm-6>,), "term")]
+#par(hanging-indent: 1em)[#text("fn((x")#_acdc_index_pages((<__indexterm-6>,), "term")]
 #par(hanging-indent: 1em)[#text("Footnote ")#text("®")#_acdc_index_pages((<__indexterm-15>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("L")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Late (R)")#_acdc_index_pages((<__indexterm-8>,), "term")]
+#par(hanging-indent: 1em)[#text("Late (R")#_acdc_index_pages((<__indexterm-8>,), "term")]
 #par(hanging-indent: 1em)[#text("Late attribute {symbol}")#_acdc_index_pages((<__indexterm-12>,), "term")]
 #par(hanging-indent: 1em)[#text("Late close {close}")#_acdc_index_pages((<__indexterm-13>,), "term")]
 #par(hanging-indent: 1em)[#text("Late open {open}literal")#_acdc_index_pages((<__indexterm-14>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("T")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Term (R)")#_acdc_index_pages((<__indexterm-1>,<__indexterm-2>,), "term")]
+#par(hanging-indent: 1em)[#text("Term (R")#_acdc_index_pages((<__indexterm-1>,<__indexterm-2>,), "term")]
 #par(hanging-indent: 1em)[#text("Term ")#text("®")#_acdc_index_pages((<__indexterm-3>,), "term")]
 ]

@@ -35,7 +35,9 @@
     "empty": true,
     "manmanual": "Inline formatting boundaries",
     "manname": "mono-boundaries",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "mono-boundaries",
     "manpurpose": "adjacent inline formatting",
     "mansource": "acdc",
     "mantitle": "mono-boundaries",
@@ -64,6 +66,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -129,6 +132,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",

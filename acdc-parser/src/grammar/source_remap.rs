@@ -326,8 +326,19 @@ pub(super) fn remap_endpoints(
     } else {
         end_line
     };
-    location.start.column = shift_column(location.start.column, start_range.column_shift);
-    location.end.column = shift_column(location.end.column, end_range.column_shift);
+    // A node drawn by the preprocessor in place of a construct stands for all of it.
+    if std::ptr::eq(start_range, end_range)
+        && let Some(((first, first_column), (last, last_column))) =
+            start_range.drawn_construct(location.absolute_start, location.absolute_end)
+    {
+        location.start.column = first_column;
+        location.end.column = last_column;
+        location.absolute_start = first;
+        location.absolute_end = last;
+        return;
+    }
+    location.start.column = start_range.source_column(shift_column(location.start.column, start_range.column_shift));
+    location.end.column = end_range.source_column(shift_column(location.end.column, end_range.column_shift));
     if start_range.column_shift == 0 {
         location.absolute_start = start_offset;
     }
@@ -387,6 +398,7 @@ mod tests {
             start_line: 1,
             source_start_offset: 0,
             column_shift: 0,
+            stands_for: None,
         }
     }
 

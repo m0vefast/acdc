@@ -85,13 +85,13 @@
 
 #heading(level: 1)[#text("Cases")] <id-5f6361736573>
 
-#text("S01 A+café+B.")
+#text("S01 A+")#text("café")#text("+B.")
 
-#text("S02 + café +.")
+#text("S02 + ")#text("café")#text(" +.")
 
 #text("S03 ")#text("{word}")#text(".")
 
-#text("S04 A+café")#text("B | + {word} + | +{word}")#text(".")
+#text("S04 A+")#text("café")#text("B | + {word} + | +{word}")#text(".")
 
 #text("S05 '")#text("{word}")#text("'.")
 
@@ -99,9 +99,9 @@
 
 #text("S07 A`")#text("{word}")#text("`B.")
 
-#text("S08 :+café+.")
+#text("S08 :+")#text("café")#text("+.")
 
-#text("S09 ;+café+.")
+#text("S09 ;+")#text("café")#text("+.")
 
 #text("S10 }")#text("{word}")#text(".")
 
@@ -109,7 +109,7 @@
 
 #text("S12 «")#text("{word}")#text(".")
 
-#text("S13 é+café+é.")
+#text("S13 é+")#text("café")#text("+é.")
 
 #text("S14 ")#text(" {word} ")#text(".")
 
@@ -119,13 +119,13 @@
 
 #text("S17 ")#text("{word} + then +{word}")#text(".")
 
-#text("S18 + café+.")
+#text("S18 + ")#text("café")#text("+.")
 
-#text("S19")#linebreak()#text("café+.")
+#text("S19")#linebreak()#text("café")#text("+.")
 
-#text("S20 +café+.")
+#text("S20 +")#text("café")#text("+.")
 
-#text("S21 A\\+café+B.")
+#text("S21 A\\+")#text("café")#text("+B.")
 
 #text("S22 ")#text("+before +{word}")#text(" after++.")
 
@@ -135,7 +135,7 @@
 
 #text("S25 ")#text("pass:[before '")#text("{word}")#text("' after]")#text(".")
 
-#text("S26 '+café+' and +café+.")
+#text("S26 '+")#text("café")#text("+' and +")#text("café")#text("+.")
 
 #text("S27 A+{word}")#text("B | +{word}")#text(".")
 
@@ -149,9 +149,9 @@
 
 #raw(block: true, "S32 '{word}'.")
 
-#text("S33 é+café+.")
+#text("S33 é+")#text("café")#text("+.")
 
-#text("S34 +café+́e.")
+#text("S34 +")#text("café")#text("+́e.")
 
 #text("S35 '")#text("https://example.org[Site] ((Dormant term)) footnote:[Dormant note.]")#text("'.")
 
@@ -159,4 +159,4 @@
 
 #text("S37 '")#text("{word}")#text("' from an include.")
 
-#text("S38 A+café")#text("B | + {word} + | +{word}")#text(" from an include.")
+#text("S38 A+")#text("café")#text("B | + {word} + | +{word}")#text(" from an include.")

@@ -62,9 +62,9 @@ fn unsupported_substitutions_preserve_source_and_report_recovery(
         first.content().inlines().next().map(InlineRef::kind),
         Some(InlineKind::Bold(_))
     ));
-    assert!(
-        matches!(&*second.content().inlines().map(InlineRef::kind).collect::<Vec<_>>(), [InlineKind::Plain(text)]
-        if text.text() == "*Literal formatting* expanded.")
+    assert_eq!(
+        crate::plain_text::plain_text(second.content().inlines()).as_deref(),
+        Some("*Literal formatting* expanded.")
     );
     assert_eq!(stem.text(), "expanded *x* footnote:[keep the source]");
     assert_eq!(

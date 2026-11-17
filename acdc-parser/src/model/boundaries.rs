@@ -78,7 +78,7 @@ macro_rules! title_edits {
     };
 }
 
-title_edits!(DiscreteHeading, PageBreak, ThematicBreak);
+title_edits!(DiscreteHeading, PageBreak, TableOfContents, ThematicBreak);
 
 macro_rules! location_edits {
     ($($name:ident),+ $(,)?) => {
@@ -110,6 +110,9 @@ impl<'a> DiscreteHeading<'a> {
             metadata: BlockMetadata::default(),
             title,
             level,
+            id: None,
+            id_generated: false,
+            id_settings: crate::model::section::SectionIdSettings::default(),
             location,
         }
     }
@@ -137,6 +140,7 @@ impl TableOfContents<'_> {
     #[must_use]
     pub fn new(location: Location) -> Self {
         Self {
+            title: Title::default(),
             metadata: BlockMetadata::default(),
             location,
         }

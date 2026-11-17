@@ -25,16 +25,12 @@ fn comments_do_not_consume_a_list_attachment_or_register_hidden_macros() -> Resu
                 return Err("expected list".into());
             };
             assert_eq!(list.items().count(), 2);
-            let Some(BlockKind::Paragraph(paragraph)) = list
-                .items()
-                .next()
-                .ok_or("missing first item")?
-                .blocks()
-                .next()
-                .map(BlockRef::kind)
-            else {
-                return Err("expected attached paragraph".into());
+            // A comment in an item is a comment block, as in any compound content.
+            let kinds: Vec<_> = list.items().next().ok_or("missing first item")?.blocks().map(BlockRef::kind).collect();
+            let [comments @ .., BlockKind::Paragraph(paragraph)] = kinds.as_slice() else {
+                return Err("expected attached paragraph last".into());
             };
+            assert!(comments.iter().all(|kind| matches!(kind, BlockKind::Comment(_) | BlockKind::DelimitedComment(_))));
             assert_eq!(
                 paragraph
                     .content()
@@ -74,16 +70,11 @@ fn attached_selected_include_content_keeps_original_ranges() -> Result<(), Error
         else {
             return Err("expected list".into());
         };
-        let Some(BlockKind::Paragraph(paragraph)) = list
-            .items()
-            .next()
-            .ok_or("missing first item")?
-            .blocks()
-            .next()
-            .map(BlockRef::kind)
-        else {
-            return Err("expected attached paragraph".into());
+        let kinds: Vec<_> = list.items().next().ok_or("missing first item")?.blocks().map(BlockRef::kind).collect();
+        let [comments @ .., BlockKind::Paragraph(paragraph)] = kinds.as_slice() else {
+            return Err("expected attached paragraph last".into());
         };
+        assert!(comments.iter().all(|kind| matches!(kind, BlockKind::Comment(_))));
         assert_eq!(paragraph.location().start().line(), 3);
         assert_eq!(paragraph.location().end().line(), 3);
         assert_eq!(

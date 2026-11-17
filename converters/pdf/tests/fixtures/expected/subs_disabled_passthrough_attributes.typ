@@ -85,11 +85,11 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("D01 +café+ | ++café++ | +++café+++ | pass:[café] | pass:a[café].")
+#text("D01 +")#text("café")#text("+ | ++")#text("café")#text("++ | +++")#text("café")#text("+++ | pass:[")#text("café")#text("] | pass:a[")#text("café")#text("].")
 
 #text("D02 ")#raw("+café+")#text(" | ")#raw("pass:[café]")#text(" | ")#raw("++café++")#text(".")
 
-#text("D03 +café+ | ++café++ | +++café+++ | pass:[café] | pass:q[*Bold*].")
+#text("D03 +")#text("café")#text("+ | ++")#text("café")#text("++ | +++")#text("café")#text("+++ | pass:[")#text("café")#text("] | pass:q[")#text("*Bold*")#text("].")
 
 #text("D04 ")#raw("+café+")#text(" | ")#raw("pass:[café]")#text(" | ")#raw("++café++")#text(".")
 
@@ -101,9 +101,9 @@
 
 #text("D08 ")#raw("{word}")#text(" | ")#raw("{word}")#text(" | ")#raw("{word}")#text(".")
 
-#text("D09 \\+café+ | \\++café++ | \\+++café+++ | \\pass:[café].")
+#text("D09 \\+")#text("café")#text("+ | \\++")#text("café")#text("++ | \\+++")#text("café")#text("+++ | \\pass:[")#text("café")#text("].")
 
-#text("D10 ++ | ++++ | pass:[] | + +.")
+#text("D10 +")#text("+ | ++")#text("++ | pass:[")#text("] | +")#text(" ")#text("+.")
 
 #text("D11 +")#text("{word}")#text("+ | pass:[")#text("{word}")#text("] | +")#text("{word}")#text("+ | pass:[")#text("{word}")#text("].")
 
@@ -113,19 +113,19 @@
 
 #raw(block: true, "D14 +café+ | pass:[café].")
 
-#text("D15 pass:[] | pass:a[] | pass:normal[] | pass:unknown[café].")
+#text("D15 pass:[] | pass:a[] | pass:normal[] | pass:unknown[")#text("café")#text("].")
 
-#text("D16 pass:[one [nested café]] | pass:[café | +café.")
+#text("D16 pass:[one [nested ")#text("café")#text("]] | pass:[")#text("café")#text(" | +")#text("café")#text(".")
 
 #text("D17 +")#strong[#text("Bold")]#text("+ | pass:[")#strong[#text("Bold")]#text("].")
 
-#text("D18 +*Bold*+ | pass:[*Bold*].")
+#text("D18 +")#text("*Bold*")#text("+ | pass:[")#text("*Bold*")#text("].")
 
-#text("D19 +")#text("<")#text("café")#text(">")#text("+ | pass:[")#text("&")#text("café] | ++")#text("*")#text("café++.")
+#text("D19 +")#text("<")#text("café")#text(">")#text("+ | pass:[")#text("&")#text("café")#text("] | ++")#text("*")#text("café")#text("++.")
 
-#text("D20 ++{word}+ ")#text("©")#text("+ | pass:[+{word}+ ")#text("©")#text("].")
+#text("D20 +")#text("+{word}+ ")#text("©")#text("+ | pass:[")#text("+{word}+ ")#text("©")#text("].")
 
-#text("D21 +anchor:target[]footnote:[Note.]indexterm2:[Term]+ | pass:[anchor:target[]footnote:[Note.]indexterm2:[Term]].")
+#text("D21 +")#text("anchor:target[]footnote:[Note.]indexterm2:[Term]")#text("+ | pass:[")#text("anchor:target[]footnote:[Note.]indexterm2:[Term]")#text("].")
 
 #text("D22 ")#text("{word}")#text(" | ")#text("{word}")#text(" | ")#text("café")#text(".")
 
@@ -133,16 +133,16 @@
 
 #text("D24 +")#strong[#text("café")]#text("+ | pass:[")#emph[#text("café")]#text("].")
 
-#text("D25 +https://example.org[café]+ | pass:[https://example.org[café]].")
+#text("D25 +https://example.org[")#text("café")#text("]+ | pass:[https://example.org[")#text("café")#text("]].")
 
-#text("D26 +café+")#strong[#text("End")]#text(" | pass:")#strong[#text("End")]#text(".")
+#text("D26 +")#text("café")#text("+")#strong[#text("End")]#text(" | pass:")#strong[#text("End")]#text(".")
 
-#text("D27 ++café café++ | pass:[café café].")
+#text("D27 ++")#text("café")#text(" ")#text("café")#text("++ | pass:[")#text("café")#text(" ")#text("café")#text("].")
 
-#text("D28 +late+ | pass:[late].")
+#text("D28 +")#text("late")#text("+ | pass:[")#text("late")#text("].")
 
-#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("D29 +late+ and pass:[late].")
+#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("D29 +")#text("late")#text("+ and pass:[")#text("late")#text("].")
 
 ])
 
-#text("D30 +late+ | pass:[late].")
+#text("D30 +")#text("late")#text("+ | pass:[")#text("late")#text("].")

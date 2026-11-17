@@ -35,7 +35,9 @@
     "empty": true,
     "manmanual": "Test Manual",
     "manname": "inline-whitespace",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "inline-whitespace",
     "manpurpose": "preserve spaces inside formatting",
     "mansource": "acdc",
     "mantitle": "inline whitespace",
@@ -64,6 +66,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -129,6 +132,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",

@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_legacy_discrete_heading",
       "metadata": {
         "style": "float"
       },
@@ -119,6 +120,7 @@
         }
       ],
       "level": 1,
+      "id": "_discrete_heading",
       "metadata": {
         "style": "discrete"
       },

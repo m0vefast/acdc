@@ -124,6 +124,13 @@ impl<'a> Footnote<'a> {
         }
     }
 
+    /// A reference to no registered definition (number 0, no body), as asciidoctor's
+    /// unresolved `footnoteref`.
+    #[must_use]
+    pub(crate) fn is_unresolved(&self) -> bool {
+        self.number == 0 && self.content.is_none()
+    }
+
     /// Construct a reference without retaining a definition body.
     /// The key, number and location are preserved until explicit document repair.
     #[must_use]
@@ -416,6 +423,17 @@ pub struct CrossReference<'a> {
     pub(crate) document_reftext: Option<Arc<ContentAttribute<'a>>>,
     pub(crate) resolve_natural_target: bool,
     pub(crate) source_syntax: XrefSourceSyntax,
+    /// How the author wrote the reference, in every compatibility mode. Like
+    /// `source_syntax`, source provenance: equality, `Debug` and serialization
+    /// leave these three out; read them through `CrossReferenceRef`.
+    pub(crate) form: super::XrefForm,
+    /// The target as written, before natural or included-source resolution.
+    pub(crate) written_target: &'a str,
+    /// Where `written_target` is written, so a consumer can rewrite exactly it.
+    pub(crate) target_location: Location,
+    /// The reference stands in a heading title, which Asciidoctor converts while
+    /// parsing, before its target was registered: it reads as `[id]`.
+    pub(crate) precedes_target: bool,
 }
 
 impl<'a> CrossReference<'a> {
@@ -428,6 +446,7 @@ impl<'a> CrossReference<'a> {
             target,
             target_is_local: Self::is_local_target(target),
             text: Vec::new(),
+            target_location: location.clone(),
             location,
             xrefstyle: XrefStyle::Default,
             caption_label: XrefCaptionLabel::AtTarget,
@@ -439,6 +458,9 @@ impl<'a> CrossReference<'a> {
             document_reftext: None,
             resolve_natural_target: false,
             source_syntax: XrefSourceSyntax::Literal,
+            form: super::XrefForm::Shorthand,
+            written_target: target,
+            precedes_target: false,
         }
     }
 

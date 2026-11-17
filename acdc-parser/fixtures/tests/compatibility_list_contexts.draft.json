@@ -67,6 +67,27 @@
           ],
           "blocks": [
             {
+              "name": "comment",
+              "type": "block",
+              "content": " Include comment.",
+              "location": [
+                {
+                  "line": 5,
+                  "col": 1,
+                  "file": [
+                    "includes/compatibility_list_selected.adoc"
+                  ]
+                },
+                {
+                  "line": 5,
+                  "col": 19,
+                  "file": [
+                    "includes/compatibility_list_selected.adoc"
+                  ]
+                }
+              ]
+            },
+            {
               "name": "paragraph",
               "type": "block",
               "inlines": [
@@ -138,7 +159,7 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": ".\n* Included sibling or text",
+                  "value": ".",
                   "location": [
                     {
                       "line": 6,
@@ -148,8 +169,8 @@
                       ]
                     },
                     {
-                      "line": 7,
-                      "col": 26,
+                      "line": 6,
+                      "col": 50,
                       "file": [
                         "includes/compatibility_list_selected.adoc"
                       ]
@@ -166,6 +187,50 @@
                   ]
                 },
                 {
+                  "line": 6,
+                  "col": 50,
+                  "file": [
+                    "includes/compatibility_list_selected.adoc"
+                  ]
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 3,
+              "col": 1,
+              "file": [
+                "includes/compatibility_list_selected.adoc"
+              ]
+            },
+            {
+              "line": 6,
+              "col": 50,
+              "file": [
+                "includes/compatibility_list_selected.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "listItem",
+          "type": "block",
+          "marker": "*",
+          "principal": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Included sibling or text",
+              "location": [
+                {
+                  "line": 7,
+                  "col": 3,
+                  "file": [
+                    "includes/compatibility_list_selected.adoc"
+                  ]
+                },
+                {
                   "line": 7,
                   "col": 26,
                   "file": [
@@ -177,7 +242,7 @@
           ],
           "location": [
             {
-              "line": 3,
+              "line": 7,
               "col": 1,
               "file": [
                 "includes/compatibility_list_selected.adoc"
@@ -264,15 +329,15 @@
                               {
                                 "name": "text",
                                 "type": "string",
-                                "value": "Cell paragraph\n* Cell sibling or text",
+                                "value": "Cell paragraph",
                                 "location": [
                                   {
                                     "line": 9,
                                     "col": 1
                                   },
                                   {
-                                    "line": 10,
-                                    "col": 22
+                                    "line": 9,
+                                    "col": 14
                                   }
                                 ]
                               }
@@ -283,8 +348,8 @@
                                 "col": 1
                               },
                               {
-                                "line": 10,
-                                "col": 22
+                                "line": 9,
+                                "col": 14
                               }
                             ]
                           }
@@ -293,6 +358,38 @@
                           {
                             "line": 7,
                             "col": 2
+                          },
+                          {
+                            "line": 9,
+                            "col": 14
+                          }
+                        ]
+                      },
+                      {
+                        "name": "listItem",
+                        "type": "block",
+                        "marker": "*",
+                        "principal": [
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "Cell sibling or text",
+                            "location": [
+                              {
+                                "line": 10,
+                                "col": 3
+                              },
+                              {
+                                "line": 10,
+                                "col": 22
+                              }
+                            ]
+                          }
+                        ],
+                        "location": [
+                          {
+                            "line": 10,
+                            "col": 1
                           },
                           {
                             "line": 10,
@@ -440,11 +537,11 @@
             "number": 1,
             "location": [
               {
-                "line": 21,
+                "line": 17,
                 "col": 1
               },
               {
-                "line": 21,
+                "line": 17,
                 "col": 17
               }
             ]
@@ -520,11 +617,11 @@
             "number": 2,
             "location": [
               {
-                "line": 24,
+                "line": 20,
                 "col": 1
               },
               {
-                "line": 24,
+                "line": 20,
                 "col": 18
               }
             ]

@@ -78,11 +78,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "pass:a,m[link:https://example.org[Expanded\\]]",
+          "value": "pass:a,m[link:https://example.org[",
           "location": [
             {
               "line": 9,
               "col": 1
+            },
+            {
+              "line": 9,
+              "col": 34
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Expanded",
+          "location": [
+            {
+              "line": 9,
+              "col": 35
+            },
+            {
+              "line": 9,
+              "col": 41
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\\]]",
+          "location": [
+            {
+              "line": 9,
+              "col": 42
             },
             {
               "line": 9,

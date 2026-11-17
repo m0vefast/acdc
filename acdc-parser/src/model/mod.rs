@@ -262,7 +262,23 @@ pub struct Header<'a> {
     pub(crate) subtitle: Option<Subtitle<'a>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) authors: Vec<Author<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) revision: Option<RevisionLocations>,
     pub(crate) location: Location,
+}
+
+/// Where the revision line writes each field it set (`revnumber`, `revdate`,
+/// `revremark`). Absent when the line replaced an attribute reference, since
+/// the values are then not the bytes written.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct RevisionLocations {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) number: Option<Location>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) date: Option<Location>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) remark: Option<Location>,
 }
 
 /// An `Author` represents the author of a document.
@@ -289,6 +305,7 @@ impl<'a> Header<'a> {
             title,
             subtitle: None,
             authors: Vec::new(),
+            revision: None,
             location,
         }
     }
@@ -683,11 +700,63 @@ impl<'a> Block<'a> {
             Block::CalloutList(b) => &b.title,
             Block::DescriptionList(b) => &b.title,
             Block::ThematicBreak(b) => &b.title,
-            Block::TableOfContents(_) | Block::DocumentAttribute(_) | Block::Comment(_) => {
-                return None;
-            }
+            Block::TableOfContents(b) => &b.title,
+            Block::DocumentAttribute(_) | Block::Comment(_) => return None,
         };
         title.is_present().then_some(title)
+    }
+
+    /// Mutable access to the title slot of a block that can carry one.
+    pub(crate) fn title_slot_mut(&mut self) -> Option<&mut Title<'a>> {
+        Some(match self {
+            Block::Section(b) => &mut b.title,
+            Block::DelimitedBlock(b) => &mut b.title,
+            Block::Admonition(b) => &mut b.title,
+            Block::DiscreteHeading(b) => &mut b.title,
+            Block::PageBreak(b) => &mut b.title,
+            Block::Paragraph(b) => &mut b.title,
+            Block::Image(b) => &mut b.title,
+            Block::Audio(b) => &mut b.title,
+            Block::Video(b) => &mut b.title,
+            Block::UnorderedList(b) => &mut b.title,
+            Block::OrderedList(b) => &mut b.title,
+            Block::CalloutList(b) => &mut b.title,
+            Block::DescriptionList(b) => &mut b.title,
+            Block::ThematicBreak(b) => &mut b.title,
+            Block::TableOfContents(b) => &mut b.title,
+            Block::DocumentAttribute(_) | Block::Comment(_) => return None,
+        })
+    }
+
+    /// A block title written before a section heading belongs to the next content block in
+    /// document order, past any further headings (asciidoctor parser.rb `next_section`:
+    /// "clear attributes except for title attribute, which must be carried over to next
+    /// content block"). A title of its own wins. Attribute entries and comments are metadata
+    /// lines there: they take nothing. Answers whether any section carried a title.
+    pub(crate) fn deliver_carried_titles(blocks: &mut [Block<'a>], pending: &mut Option<Title<'a>>) -> bool {
+        let mut carried_any = false;
+        for block in blocks {
+            match block {
+                Block::Section(section) => {
+                    let carried = std::mem::take(&mut section.carried_title);
+                    if carried.is_present() {
+                        *pending = Some(carried);
+                        carried_any = true;
+                    }
+                    carried_any |= Self::deliver_carried_titles(&mut section.content, pending);
+                }
+                Block::DocumentAttribute(_) | Block::Comment(_) => {}
+                other => {
+                    if let Some(title) = pending.take()
+                        && let Some(slot) = other.title_slot_mut()
+                        && !slot.is_present()
+                    {
+                        *slot = title;
+                    }
+                }
+            }
+        }
+        carried_any
     }
 }
 
@@ -782,6 +851,9 @@ impl Serialize for DocumentAttribute<'_> {
         state.serialize_entry("name", &self.name)?;
         state.serialize_entry("type", "attribute")?;
         state.serialize_entry("value", &self.assignment.serialized_value())?;
+        if let Some(parts) = self.assignment.serialized_parts() {
+            state.serialize_entry("parts", &parts)?;
+        }
         state.serialize_entry("location", &self.location)?;
         state.end()
     }
@@ -797,6 +869,10 @@ pub struct DiscreteHeading<'a> {
     pub(crate) metadata: BlockMetadata<'a>,
     pub(crate) title: Title<'a>,
     pub(crate) level: u8,
+    /// The explicit or parser-assigned ID, unique among registered targets.
+    pub(crate) id: Option<&'a str>,
+    pub(crate) id_generated: bool,
+    pub(crate) id_settings: section::SectionIdSettings<'a>,
     pub(crate) location: Location,
 }
 
@@ -882,6 +958,8 @@ impl Serialize for Comment<'_> {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TableOfContents<'a> {
+    /// asciidoctor draws a `.Title` above `toc::[]` as the TOC's title (html5.rb `convert_toc`).
+    pub(crate) title: Title<'a>,
     pub(crate) metadata: BlockMetadata<'a>,
     pub(crate) location: Location,
 }
@@ -894,6 +972,9 @@ impl Serialize for TableOfContents<'_> {
         let mut state = serializer.serialize_map(None)?;
         state.serialize_entry("name", "toc")?;
         state.serialize_entry("type", "block")?;
+        if self.title.is_present() {
+            state.serialize_entry("title", &self.title)?;
+        }
         if !self.metadata.is_empty_for_serialization() {
             state.serialize_entry("metadata", &self.metadata)?;
         }
@@ -1366,6 +1447,10 @@ impl Serialize for Document<'_> {
         } else if !self.attributes.serialization_is_empty() {
             state.serialize_entry("attributes", &self.attributes)?;
         }
+        let parts = self.attributes.serialized_parts();
+        if !parts.is_empty() {
+            state.serialize_entry("attribute_parts", &parts)?;
+        }
         if !self.blocks.is_empty() {
             state.serialize_entry("blocks", &self.blocks)?;
         }
@@ -1430,6 +1515,9 @@ impl Serialize for DiscreteHeading<'_> {
             state.serialize_entry("title", &self.title)?;
         }
         state.serialize_entry("level", &self.level)?;
+        if let Some(id) = Section::explicit_id(&self.metadata).or(self.id) {
+            state.serialize_entry("id", id)?;
+        }
         if !self.metadata.is_empty_for_serialization() {
             state.serialize_entry("metadata", &self.metadata)?;
         }

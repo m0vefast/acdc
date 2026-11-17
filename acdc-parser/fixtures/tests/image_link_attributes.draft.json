@@ -55,6 +55,7 @@
         }
       ],
       "level": 1,
+      "id": "_documented_forms",
       "blocks": [
         {
           "name": "image",
@@ -351,6 +352,7 @@
         }
       ],
       "level": 1,
+      "id": "_compatibility_edges",
       "blocks": [
         {
           "name": "image",

@@ -11,6 +11,14 @@ pub(super) struct RevisionInfo<'a> {
     pub(super) remark: Option<Cow<'a, str>>,
 }
 
+/// The byte range of each field the revision line set, in the line as parsed.
+#[derive(Debug, Default)]
+pub(super) struct RevisionSpans {
+    pub(super) number: Option<(usize, usize)>,
+    pub(super) date: Option<(usize, usize)>,
+    pub(super) remark: Option<(usize, usize)>,
+}
+
 /// Which fields on the revision line were ignored because the
 /// corresponding document attribute was already set via an earlier
 /// attribute entry. The caller turns each `true` flag into a warning.

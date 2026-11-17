@@ -39,26 +39,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": "not bold",
+          "value": "not bold\\*",
           "location": [
             {
               "line": 1,
               "col": 29
-            },
-            {
-              "line": 1,
-              "col": 36
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": "*",
-          "location": [
-            {
-              "line": 1,
-              "col": 37
             },
             {
               "line": 1,
@@ -115,26 +100,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": "not italic",
+          "value": "not italic\\_",
           "location": [
             {
               "line": 3,
               "col": 31
-            },
-            {
-              "line": 3,
-              "col": 40
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": "_",
-          "location": [
-            {
-              "line": 3,
-              "col": 41
             },
             {
               "line": 3,
@@ -191,26 +161,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": "not mono",
+          "value": "not mono\\`",
           "location": [
             {
               "line": 5,
               "col": 29
-            },
-            {
-              "line": 5,
-              "col": 36
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": "`",
-          "location": [
-            {
-              "line": 5,
-              "col": 37
             },
             {
               "line": 5,
@@ -267,26 +222,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": "not highlight",
+          "value": "not highlight\\#",
           "location": [
             {
               "line": 7,
               "col": 34
-            },
-            {
-              "line": 7,
-              "col": 46
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": "#",
-          "location": [
-            {
-              "line": 7,
-              "col": 47
             },
             {
               "line": 7,
@@ -352,26 +292,11 @@
             {
               "name": "text",
               "type": "string",
-              "value": "not bold",
+              "value": "not bold\\*",
               "location": [
                 {
                   "line": 9,
                   "col": 54
-                },
-                {
-                  "line": 9,
-                  "col": 61
-                }
-              ]
-            },
-            {
-              "name": "text",
-              "type": "string",
-              "value": "*",
-              "location": [
-                {
-                  "line": 9,
-                  "col": 62
                 },
                 {
                   "line": 9,

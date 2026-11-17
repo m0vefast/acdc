@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_quote_style",
       "blocks": [
         {
           "name": "paragraph",
@@ -215,6 +216,7 @@
         }
       ],
       "level": 1,
+      "id": "_verse_style",
       "blocks": [
         {
           "name": "paragraph",
@@ -323,6 +325,7 @@
         }
       ],
       "level": 1,
+      "id": "_literal_style",
       "blocks": [
         {
           "name": "paragraph",

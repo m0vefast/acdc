@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_short",
       "blocks": [
         {
           "name": "paragraph",
@@ -118,6 +119,7 @@
         }
       ],
       "level": 1,
+      "id": "_long",
       "blocks": [
         {
           "name": "paragraph",
@@ -544,7 +546,7 @@
             },
             {
               "line": 46,
-              "col": 32
+              "col": 31
             }
           ]
         }
@@ -556,7 +558,7 @@
         },
         {
           "line": 46,
-          "col": 32
+          "col": 31
         }
       ]
     },
@@ -581,6 +583,7 @@
         }
       ],
       "level": 1,
+      "id": "_résumé",
       "blocks": [
         {
           "name": "paragraph",

@@ -94,23 +94,7 @@
       "type": "block",
       "form": "delimited",
       "delimiter": "////",
-      "blocks": [
-        {
-          "name": "text",
-          "type": "string",
-          "value": "",
-          "location": [
-            {
-              "line": 15,
-              "col": 1
-            },
-            {
-              "line": 15,
-              "col": 1
-            }
-          ]
-        }
-      ],
+      "blocks": [],
       "location": [
         {
           "line": 14,
@@ -143,6 +127,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -208,6 +193,7 @@
         }
       ],
       "level": 1,
+      "id": "_checks",
       "blocks": [
         {
           "name": "paragraph",
@@ -216,11 +202,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B01 kept=header; body=body-value; hidden={hidden}.",
+              "value": "B01 kept=",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "header",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 10
+                },
+                {
+                  "line": 23,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; body=",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 16
+                },
+                {
+                  "line": 23,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "body-value",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 23
+                },
+                {
+                  "line": 23,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; hidden={hidden}.",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 29
                 },
                 {
                   "line": 23,
@@ -384,7 +430,7 @@
             },
             {
               "line": 40,
-              "col": 3
+              "col": 2
             }
           ]
         },
@@ -399,7 +445,7 @@
             },
             {
               "line": 41,
-              "col": 24
+              "col": 23
             }
           ]
         },

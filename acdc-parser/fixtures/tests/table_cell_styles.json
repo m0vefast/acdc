@@ -79,11 +79,26 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": " Ada",
+                      "value": " ",
                       "location": [
                         {
                           "line": 5,
                           "col": 16
+                        },
+                        {
+                          "line": 5,
+                          "col": 16
+                        }
+                      ]
+                    },
+                    {
+                      "name": "text",
+                      "type": "string",
+                      "value": "Ada",
+                      "location": [
+                        {
+                          "line": 5,
+                          "col": 17
                         },
                         {
                           "line": 5,
@@ -247,11 +262,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": " Ada",
+                        "value": " ",
                         "location": [
                           {
                             "line": 8,
                             "col": 26
+                          },
+                          {
+                            "line": 8,
+                            "col": 26
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "Ada",
+                        "location": [
+                          {
+                            "line": 8,
+                            "col": 27
                           },
                           {
                             "line": 8,

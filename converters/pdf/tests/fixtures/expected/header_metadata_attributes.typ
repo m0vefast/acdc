@@ -86,10 +86,10 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#text("H01 author=Alice Smith; email=")#link("mailto:updated@example.org")[#text("updated@example.org")]#text("; revision=2.5.")
+#text("H01 author=")#text("Alice Smith")#text("; email=")#link("mailto:updated@example.org")[#text("updated@example.org")]#text("; revision=")#text("2.5")#text(".")
 
-#text("H02 writer=Later Writer; captured=Alice Smith; firstname=Alice.")
+#text("H02 writer=")#text("Later Writer")#text("; captured=")#text("Alice Smith")#text("; firstname=")#text("Alice")#text(".")
 
-#text("H03 captured-revision=2.5; remark=Reviewed by Alice Smith.")
+#text("H03 captured-revision=")#text("2.5")#text("; remark=")#text("Reviewed by Alice Smith")#text(".")
 
 #text("H04 captured-email=")#link("mailto:alice@example.org")[#text("alice@example.org")]#text(".")

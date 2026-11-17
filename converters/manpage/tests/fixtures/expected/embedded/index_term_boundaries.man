@@ -15,13 +15,13 @@ Before  after.
 .sp
 Before  after.
 .sp
-(term)
+(term tail)))
 .sp
-Before (term) after.
+Before (term tail))) after.
 .sp
-(term)
+(term tail)))
 .sp
-Before (term) after.
+Before (term tail))) after.
 .sp
 term
 .sp

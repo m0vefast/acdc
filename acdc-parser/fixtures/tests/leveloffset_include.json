@@ -90,6 +90,7 @@
         }
       ],
       "level": 1,
+      "id": "_included_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -161,6 +162,7 @@
             }
           ],
           "level": 2,
+          "id": "_nested_section",
           "blocks": [
             {
               "name": "paragraph",

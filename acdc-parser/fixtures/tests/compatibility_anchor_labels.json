@@ -421,11 +421,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Label [expanded] tail",
+              "value": "Label ",
               "location": [
                 {
                   "line": 12,
                   "col": 19
+                },
+                {
+                  "line": 12,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "[expanded]",
+              "location": [
+                {
+                  "line": 12,
+                  "col": 25
+                },
+                {
+                  "line": 12,
+                  "col": 34
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " tail",
+              "location": [
+                {
+                  "line": 12,
+                  "col": 35
                 },
                 {
                   "line": 12,

@@ -82,7 +82,7 @@ Unordered two\fR
 Shared unordered body.
 .RE
 .sp
-See [first\-term] and [second\-term]\&.
+See First and Second\&.
 .SH "NOTES"
 .IP [1] 4
 One shared note.

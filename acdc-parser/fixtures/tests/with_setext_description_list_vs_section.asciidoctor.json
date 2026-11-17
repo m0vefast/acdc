@@ -176,6 +176,7 @@
         }
       ],
       "level": 1,
+      "id": "_real_title",
       "blocks": [
         {
           "name": "paragraph",

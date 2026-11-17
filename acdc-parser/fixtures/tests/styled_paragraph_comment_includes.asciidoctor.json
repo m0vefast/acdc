@@ -34,7 +34,9 @@
     "doctype": "manpage",
     "manmanual": "Parser checks",
     "manname": "comment-includes",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "comment-includes",
     "manpurpose": "retain comment ownership across includes",
     "mansource": "acdc",
     "mantitle": "comment-includes",
@@ -63,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -136,10 +140,46 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I01 parent before include\n// I02 included first comment\nI03 included body\n// I04 included last comment\n// I05 parent after include",
+              "value": "I01 parent before include\n",
               "location": [
                 {
                   "line": 13,
+                  "col": 1
+                },
+                {
+                  "line": 13,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I02 included first comment\nI03 included body\n// I04 included last comment\n",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
+                },
+                {
+                  "line": 3,
+                  "col": 29,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I05 parent after include",
+              "location": [
+                {
+                  "line": 15,
                   "col": 1
                 },
                 {
@@ -173,10 +213,46 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I06 before selected include\nI03 included body\n// I04 included last comment\n// I07 after selected include",
+              "value": "I06 before selected include\n",
               "location": [
                 {
                   "line": 18,
+                  "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I03 included body\n// I04 included last comment\n",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
+                },
+                {
+                  "line": 3,
+                  "col": 29,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I07 after selected include",
+              "location": [
+                {
+                  "line": 20,
                   "col": 1
                 },
                 {
@@ -207,11 +283,29 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I08 before boundary include\n// I09 included code comment",
+              "value": "I08 before boundary include\n",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I09 included code comment",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
                 },
                 {
                   "line": 1,
@@ -247,7 +341,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I10 ordinary included paragraph\nI11 ordinary included tail\nI12 ordinary after include",
+              "value": "I10 ordinary included paragraph\n",
               "location": [
                 {
                   "line": 3,
@@ -255,6 +349,45 @@
                   "file": [
                     "includes/styled_comment_boundary.adoc"
                   ]
+                },
+                {
+                  "line": 3,
+                  "col": 32,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I11 ordinary included tail\n",
+              "location": [
+                {
+                  "line": 5,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                },
+                {
+                  "line": 5,
+                  "col": 27,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I12 ordinary after include",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 1
                 },
                 {
                   "line": 26,
@@ -305,7 +438,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I13 included opening\n// I14 parent after included style",
+              "value": "I13 included opening\n",
               "location": [
                 {
                   "line": 3,
@@ -313,6 +446,24 @@
                   "file": [
                     "includes/styled_comment_open.adoc"
                   ]
+                },
+                {
+                  "line": 3,
+                  "col": 21,
+                  "file": [
+                    "includes/styled_comment_open.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I14 parent after included style",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 1
                 },
                 {
                   "line": 29,
@@ -348,10 +499,46 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I15 before included metadata\n:included-kind: source\n[{included-kind},text]\nI13 included opening\n// I16 still in parent code",
+              "value": "I15 before included metadata\n",
               "location": [
                 {
                   "line": 32,
+                  "col": 1
+                },
+                {
+                  "line": 32,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ":included-kind: source\n[{included-kind},text]\nI13 included opening\n",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_open.adoc"
+                  ]
+                },
+                {
+                  "line": 3,
+                  "col": 21,
+                  "file": [
+                    "includes/styled_comment_open.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I16 still in parent code",
+              "location": [
+                {
+                  "line": 34,
                   "col": 1
                 },
                 {
@@ -385,10 +572,48 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I17 before nested include\n// I02 included first comment\nI03 included body\n// I04 included last comment\n// I18 after nested include",
+              "value": "I17 before nested include\n",
               "location": [
                 {
                   "line": 37,
+                  "col": 1
+                },
+                {
+                  "line": 37,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I02 included first comment\nI03 included body\n// I04 included last comment\n",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_nested.adoc",
+                    "styled_comment_part.adoc"
+                  ]
+                },
+                {
+                  "line": 3,
+                  "col": 29,
+                  "file": [
+                    "includes/styled_comment_nested.adoc",
+                    "styled_comment_part.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I18 after nested include",
+              "location": [
+                {
+                  "line": 39,
                   "col": 1
                 },
                 {

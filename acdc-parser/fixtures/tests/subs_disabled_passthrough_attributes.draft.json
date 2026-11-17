@@ -46,6 +46,14 @@
     "style": "*Bold*",
     "word": "café"
   },
+  "attribute_parts": {
+    "raw": [
+      {
+        "text": "+{word}+ &copy;",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -68,6 +76,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -133,6 +142,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -141,11 +151,161 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D01 +café+ | ++café++ | +++café+++ | pass:[café] | pass:a[café].",
+              "value": "D01 +",
               "location": [
                 {
                   "line": 19,
                   "col": 1
+                },
+                {
+                  "line": 19,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 6
+                },
+                {
+                  "line": 19,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | ++",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 12
+                },
+                {
+                  "line": 19,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 18
+                },
+                {
+                  "line": 19,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | +++",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 24
+                },
+                {
+                  "line": 19,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 32
+                },
+                {
+                  "line": 19,
+                  "col": 37
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+++ | pass:[",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 38
+                },
+                {
+                  "line": 19,
+                  "col": 49
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 50
+                },
+                {
+                  "line": 19,
+                  "col": 55
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] | pass:a[",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 56
+                },
+                {
+                  "line": 19,
+                  "col": 66
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 67
+                },
+                {
+                  "line": 19,
+                  "col": 72
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 73
                 },
                 {
                   "line": 19,
@@ -198,11 +358,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "+café+",
+                  "value": "+",
                   "location": [
                     {
                       "line": 22,
                       "col": 6
+                    },
+                    {
+                      "line": 22,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 7
+                    },
+                    {
+                      "line": 22,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "+",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 13
                     },
                     {
                       "line": 22,
@@ -246,11 +436,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "pass:[café]",
+                  "value": "pass:[",
                   "location": [
                     {
                       "line": 22,
                       "col": 19
+                    },
+                    {
+                      "line": 22,
+                      "col": 24
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 25
+                    },
+                    {
+                      "line": 22,
+                      "col": 30
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "]",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 31
                     },
                     {
                       "line": 22,
@@ -294,11 +514,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "++café++",
+                  "value": "++",
                   "location": [
                     {
                       "line": 22,
                       "col": 38
+                    },
+                    {
+                      "line": 22,
+                      "col": 39
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 40
+                    },
+                    {
+                      "line": 22,
+                      "col": 45
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "++",
+                  "location": [
+                    {
+                      "line": 22,
+                      "col": 46
                     },
                     {
                       "line": 22,
@@ -358,11 +608,131 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D03 +café+ | ++café++ | +++café+++ | pass:[café] | pass:q[",
+              "value": "D03 +",
               "location": [
                 {
                   "line": 25,
                   "col": 1
+                },
+                {
+                  "line": 25,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 6
+                },
+                {
+                  "line": 25,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | ++",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 12
+                },
+                {
+                  "line": 25,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 18
+                },
+                {
+                  "line": 25,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | +++",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 24
+                },
+                {
+                  "line": 25,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 32
+                },
+                {
+                  "line": 25,
+                  "col": 37
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+++ | pass:[",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 38
+                },
+                {
+                  "line": 25,
+                  "col": 49
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 50
+                },
+                {
+                  "line": 25,
+                  "col": 55
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] | pass:q[",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 56
                 },
                 {
                   "line": 25,
@@ -463,11 +833,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "+café+",
+                  "value": "+",
                   "location": [
                     {
                       "line": 28,
                       "col": 6
+                    },
+                    {
+                      "line": 28,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 7
+                    },
+                    {
+                      "line": 28,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "+",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 13
                     },
                     {
                       "line": 28,
@@ -511,11 +911,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "pass:[café]",
+                  "value": "pass:[",
                   "location": [
                     {
                       "line": 28,
                       "col": 19
+                    },
+                    {
+                      "line": 28,
+                      "col": 24
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 25
+                    },
+                    {
+                      "line": 28,
+                      "col": 30
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "]",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 31
                     },
                     {
                       "line": 28,
@@ -559,11 +989,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "++café++",
+                  "value": "++",
                   "location": [
                     {
                       "line": 28,
                       "col": 38
+                    },
+                    {
+                      "line": 28,
+                      "col": 39
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 40
+                    },
+                    {
+                      "line": 28,
+                      "col": 45
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "++",
+                  "location": [
+                    {
+                      "line": 28,
+                      "col": 46
                     },
                     {
                       "line": 28,
@@ -1071,11 +1531,131 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D09 \\+café+ | \\++café++ | \\+++café+++ | \\pass:[café].",
+              "value": "D09 \\+",
               "location": [
                 {
                   "line": 42,
                   "col": 1
+                },
+                {
+                  "line": 42,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 7
+                },
+                {
+                  "line": 42,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | \\++",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 13
+                },
+                {
+                  "line": 42,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 20
+                },
+                {
+                  "line": 42,
+                  "col": 25
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | \\+++",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 26
+                },
+                {
+                  "line": 42,
+                  "col": 34
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 35
+                },
+                {
+                  "line": 42,
+                  "col": 40
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+++ | \\pass:[",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 41
+                },
+                {
+                  "line": 42,
+                  "col": 53
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 54
+                },
+                {
+                  "line": 42,
+                  "col": 59
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 42,
+                  "col": 60
                 },
                 {
                   "line": 42,
@@ -1107,11 +1687,86 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D10 ++ | ++++ | pass:[] | + +.",
+              "value": "D10 +",
               "location": [
                 {
                   "line": 45,
                   "col": 1
+                },
+                {
+                  "line": 45,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | ++",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 13
+                },
+                {
+                  "line": 45,
+                  "col": 18
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | pass:[",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 26
+                },
+                {
+                  "line": 45,
+                  "col": 36
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] | +",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 44
+                },
+                {
+                  "line": 45,
+                  "col": 48
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 49
+                },
+                {
+                  "line": 45,
+                  "col": 52
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+.",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 53
                 },
                 {
                   "line": 45,
@@ -1358,11 +2013,131 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D13 +café+ | ++café++ | +++café+++ | pass:[café].",
+              "value": "D13 +",
               "location": [
                 {
                   "line": 55,
                   "col": 1
+                },
+                {
+                  "line": 55,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 6
+                },
+                {
+                  "line": 55,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | ++",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 12
+                },
+                {
+                  "line": 55,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 18
+                },
+                {
+                  "line": 55,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | +++",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 24
+                },
+                {
+                  "line": 55,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 32
+                },
+                {
+                  "line": 55,
+                  "col": 37
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+++ | pass:[",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 38
+                },
+                {
+                  "line": 55,
+                  "col": 49
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 50
+                },
+                {
+                  "line": 55,
+                  "col": 55
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 56
                 },
                 {
                   "line": 55,
@@ -1410,11 +2185,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "+café+",
+                  "value": "+",
                   "location": [
                     {
                       "line": 59,
                       "col": 6
+                    },
+                    {
+                      "line": 59,
+                      "col": 6
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 59,
+                      "col": 7
+                    },
+                    {
+                      "line": 59,
+                      "col": 12
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "+",
+                  "location": [
+                    {
+                      "line": 59,
+                      "col": 13
                     },
                     {
                       "line": 59,
@@ -1458,11 +2263,41 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "pass:[café]",
+                  "value": "pass:[",
                   "location": [
                     {
                       "line": 59,
                       "col": 19
+                    },
+                    {
+                      "line": 59,
+                      "col": 24
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "café",
+                  "location": [
+                    {
+                      "line": 59,
+                      "col": 25
+                    },
+                    {
+                      "line": 59,
+                      "col": 30
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "]",
+                  "location": [
+                    {
+                      "line": 59,
+                      "col": 31
                     },
                     {
                       "line": 59,
@@ -1523,11 +2358,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D15 pass:[] | pass:a[] | pass:normal[] | pass:unknown[café].",
+              "value": "D15 pass:[] | pass:a[] | pass:normal[] | pass:unknown[",
               "location": [
                 {
                   "line": 62,
                   "col": 1
+                },
+                {
+                  "line": 62,
+                  "col": 54
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 62,
+                  "col": 55
+                },
+                {
+                  "line": 62,
+                  "col": 60
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 62,
+                  "col": 61
                 },
                 {
                   "line": 62,
@@ -1559,11 +2424,101 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D16 pass:[one [nested café]] | pass:[café | +café.",
+              "value": "D16 pass:[one [nested ",
               "location": [
                 {
                   "line": 65,
                   "col": 1
+                },
+                {
+                  "line": 65,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 23
+                },
+                {
+                  "line": 65,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]] | pass:[",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 29
+                },
+                {
+                  "line": 65,
+                  "col": 39
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 40
+                },
+                {
+                  "line": 65,
+                  "col": 45
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " | +",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 46
+                },
+                {
+                  "line": 65,
+                  "col": 49
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 50
+                },
+                {
+                  "line": 65,
+                  "col": 55
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 65,
+                  "col": 56
                 },
                 {
                   "line": 65,
@@ -1728,11 +2683,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D18 +*Bold*+ | pass:[*Bold*].",
+              "value": "D18 +",
               "location": [
                 {
                   "line": 71,
                   "col": 1
+                },
+                {
+                  "line": 71,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*Bold*",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 6
+                },
+                {
+                  "line": 71,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | pass:[",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 13
+                },
+                {
+                  "line": 71,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*Bold*",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 23
+                },
+                {
+                  "line": 71,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 30
                 },
                 {
                   "line": 71,
@@ -1803,7 +2818,7 @@
                 },
                 {
                   "line": 74,
-                  "col": 14
+                  "col": 15
                 }
               ]
             },
@@ -1855,7 +2870,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "café] | ++",
+              "value": "café",
               "location": [
                 {
                   "line": 74,
@@ -1863,7 +2878,22 @@
                 },
                 {
                   "line": 74,
-                  "col": 45
+                  "col": 40
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] | ++",
+              "location": [
+                {
+                  "line": 74,
+                  "col": 41
+                },
+                {
+                  "line": 74,
+                  "col": 46
                 }
               ]
             },
@@ -1885,7 +2915,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "café++.",
+              "value": "café",
               "location": [
                 {
                   "line": 74,
@@ -1893,7 +2923,22 @@
                 },
                 {
                   "line": 74,
-                  "col": 64
+                  "col": 62
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++.",
+              "location": [
+                {
+                  "line": 74,
+                  "col": 63
+                },
+                {
+                  "line": 74,
+                  "col": 65
                 }
               ]
             }
@@ -1922,11 +2967,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D20 ++{word}+ ",
+              "value": "D20 +",
               "location": [
                 {
                   "line": 77,
                   "col": 1
+                },
+                {
+                  "line": 77,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+{word}+ ",
+              "location": [
+                {
+                  "line": 77,
+                  "col": 6
                 },
                 {
                   "line": 77,
@@ -1952,11 +3012,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "+ | pass:[+{word}+ ",
+              "value": "+ | pass:[",
               "location": [
                 {
                   "line": 77,
                   "col": 11
+                },
+                {
+                  "line": 77,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+{word}+ ",
+              "location": [
+                {
+                  "line": 77,
+                  "col": 21
                 },
                 {
                   "line": 77,
@@ -2018,11 +3093,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D21 +anchor:target[]footnote:[Note.]indexterm2:[Term]+ | pass:[anchor:target[]footnote:[Note.]indexterm2:[Term]].",
+              "value": "D21 +",
               "location": [
                 {
                   "line": 80,
                   "col": 1
+                },
+                {
+                  "line": 80,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "anchor:target[]footnote:[Note.]indexterm2:[Term]",
+              "location": [
+                {
+                  "line": 80,
+                  "col": 6
+                },
+                {
+                  "line": 80,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | pass:[",
+              "location": [
+                {
+                  "line": 80,
+                  "col": 13
+                },
+                {
+                  "line": 80,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "anchor:target[]footnote:[Note.]indexterm2:[Term]",
+              "location": [
+                {
+                  "line": 80,
+                  "col": 23
+                },
+                {
+                  "line": 80,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 80,
+                  "col": 30
                 },
                 {
                   "line": 80,
@@ -2453,11 +3588,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D25 +https://example.org[café]+ | pass:[https://example.org[café]].",
+              "value": "D25 +https://example.org[",
               "location": [
                 {
                   "line": 92,
                   "col": 1
+                },
+                {
+                  "line": 92,
+                  "col": 25
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 26
+                },
+                {
+                  "line": 92,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]+ | pass:[https://example.org[",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 32
+                },
+                {
+                  "line": 92,
+                  "col": 62
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 63
+                },
+                {
+                  "line": 92,
+                  "col": 68
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]].",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 69
                 },
                 {
                   "line": 92,
@@ -2489,11 +3684,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D26 +café+",
+              "value": "D26 +",
               "location": [
                 {
                   "line": 95,
                   "col": 1
+                },
+                {
+                  "line": 95,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 95,
+                  "col": 6
+                },
+                {
+                  "line": 95,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+",
+              "location": [
+                {
+                  "line": 95,
+                  "col": 12
                 },
                 {
                   "line": 95,
@@ -2622,11 +3847,131 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D27 ++café\ncafé++ | pass:[café\ncafé].",
+              "value": "D27 ++",
               "location": [
                 {
                   "line": 98,
                   "col": 1
+                },
+                {
+                  "line": 98,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 98,
+                  "col": 7
+                },
+                {
+                  "line": 98,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\n",
+              "location": [
+                {
+                  "line": 98,
+                  "col": 13
+                },
+                {
+                  "line": 98,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 99,
+                  "col": 1
+                },
+                {
+                  "line": 99,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "++ | pass:[",
+              "location": [
+                {
+                  "line": 99,
+                  "col": 7
+                },
+                {
+                  "line": 99,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 99,
+                  "col": 18
+                },
+                {
+                  "line": 99,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\n",
+              "location": [
+                {
+                  "line": 99,
+                  "col": 24
+                },
+                {
+                  "line": 99,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café",
+              "location": [
+                {
+                  "line": 100,
+                  "col": 1
+                },
+                {
+                  "line": 100,
+                  "col": 6
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 100,
+                  "col": 7
                 },
                 {
                   "line": 100,
@@ -2673,11 +4018,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D28 +late+ | pass:[late].",
+              "value": "D28 +",
               "location": [
                 {
                   "line": 105,
                   "col": 1
+                },
+                {
+                  "line": 105,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "late",
+              "location": [
+                {
+                  "line": 105,
+                  "col": 6
+                },
+                {
+                  "line": 105,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | pass:[",
+              "location": [
+                {
+                  "line": 105,
+                  "col": 12
+                },
+                {
+                  "line": 105,
+                  "col": 21
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "late",
+              "location": [
+                {
+                  "line": 105,
+                  "col": 22
+                },
+                {
+                  "line": 105,
+                  "col": 27
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 105,
+                  "col": 28
                 },
                 {
                   "line": 105,
@@ -2728,11 +4133,71 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "D29 +late+ and pass:[late].",
+                            "value": "D29 +",
                             "location": [
                               {
                                 "line": 111,
                                 "col": 1
+                              },
+                              {
+                                "line": 111,
+                                "col": 5
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "late",
+                            "location": [
+                              {
+                                "line": 111,
+                                "col": 6
+                              },
+                              {
+                                "line": 111,
+                                "col": 11
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "+ and pass:[",
+                            "location": [
+                              {
+                                "line": 111,
+                                "col": 12
+                              },
+                              {
+                                "line": 111,
+                                "col": 23
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "late",
+                            "location": [
+                              {
+                                "line": 111,
+                                "col": 24
+                              },
+                              {
+                                "line": 111,
+                                "col": 29
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "].",
+                            "location": [
+                              {
+                                "line": 111,
+                                "col": 30
                               },
                               {
                                 "line": 111,
@@ -2797,11 +4262,95 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D30 +late+ | pass:[late].",
+              "value": "D30 +",
               "location": [
                 {
                   "line": 2,
                   "col": 1,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 2,
+                  "col": 5,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "late",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 6,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 2,
+                  "col": 11,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "+ | pass:[",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 12,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 2,
+                  "col": 21,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "late",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 22,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                },
+                {
+                  "line": 2,
+                  "col": 27,
+                  "file": [
+                    "includes/disabled_passthrough_attributes.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 28,
                   "file": [
                     "includes/disabled_passthrough_attributes.adoc"
                   ]

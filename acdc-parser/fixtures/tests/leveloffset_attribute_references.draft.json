@@ -72,6 +72,7 @@
         }
       ],
       "level": 3,
+      "id": "_referenced_sign",
       "blocks": [
         {
           "name": "leveloffset",
@@ -136,6 +137,7 @@
         }
       ],
       "level": 3,
+      "id": "_referenced_magnitude",
       "location": [
         {
           "line": 13,

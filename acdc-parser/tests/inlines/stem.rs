@@ -197,7 +197,13 @@ fn stem_keeps_its_bracket_escape_and_multiline_contracts() -> TestResult {
         ("stem:[a\\\\]", "a\\"),
         ("stem:[x\n  + y]", "x\n  + y"),
     ] {
-        let parsed = parse(source, &Options::default())?;
+        // Draft decoding; Asciidoctor mode: `formula_escapes_follow_the_selected_mode`.
+        let parsed = parse(
+            source,
+            &Options::builder()
+                .with_compatibility_mode(acdc_parser::CompatibilityMode::Draft)
+                .build()?,
+        )?;
         assert_eq!(inline_stem(&parsed)?.text(), expected);
     }
     Ok(())
@@ -224,8 +230,12 @@ fn stem_latex_removes_one_enclosing_dollar_pair() -> TestResult {
 
 #[test]
 fn stem_formula_validity_is_separate_from_container_syntax() -> TestResult {
+    // Draft: Asciidoctor mode keeps `stem:[]` literal (`empty_formulas_are_literal_in_asciidoctor_mode`).
+    let draft = Options::builder()
+        .with_compatibility_mode(acdc_parser::CompatibilityMode::Draft)
+        .build()?;
     for source in ["stem:[]", "latexmath:[\\notacommand{]", "stem:[α +]"] {
-        let parsed = parse(source, &Options::default())?;
+        let parsed = parse(source, &draft)?;
         inline_stem(&parsed)?;
         assert_eq!(parsed.warnings(), []);
     }

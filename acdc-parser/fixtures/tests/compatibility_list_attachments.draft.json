@@ -67,15 +67,15 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Attached text\n* Sibling or text",
+                  "value": "Attached text",
                   "location": [
                     {
                       "line": 5,
                       "col": 1
                     },
                     {
-                      "line": 6,
-                      "col": 17
+                      "line": 5,
+                      "col": 13
                     }
                   ]
                 }
@@ -86,6 +86,38 @@
                   "col": 1
                 },
                 {
+                  "line": 5,
+                  "col": 13
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 3,
+              "col": 1
+            },
+            {
+              "line": 5,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "listItem",
+          "type": "block",
+          "marker": "*",
+          "principal": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Sibling or text",
+              "location": [
+                {
+                  "line": 6,
+                  "col": 3
+                },
+                {
                   "line": 6,
                   "col": 17
                 }
@@ -94,7 +126,7 @@
           ],
           "location": [
             {
-              "line": 3,
+              "line": 6,
               "col": 1
             },
             {
@@ -126,7 +158,7 @@
         },
         {
           "line": 8,
-          "col": 4
+          "col": 3
         }
       ]
     },
@@ -165,15 +197,15 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Ordered text\n10. Sibling or text",
+                  "value": "Ordered text",
                   "location": [
                     {
                       "line": 12,
                       "col": 1
                     },
                     {
-                      "line": 13,
-                      "col": 19
+                      "line": 12,
+                      "col": 12
                     }
                   ]
                 }
@@ -184,6 +216,38 @@
                   "col": 1
                 },
                 {
+                  "line": 12,
+                  "col": 12
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 10,
+              "col": 1
+            },
+            {
+              "line": 12,
+              "col": 12
+            }
+          ]
+        },
+        {
+          "name": "listItem",
+          "type": "block",
+          "marker": "10.",
+          "principal": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Sibling or text",
+              "location": [
+                {
+                  "line": 13,
+                  "col": 5
+                },
+                {
                   "line": 13,
                   "col": 19
                 }
@@ -192,7 +256,7 @@
           ],
           "location": [
             {
-              "line": 10,
+              "line": 13,
               "col": 1
             },
             {
@@ -224,7 +288,7 @@
         },
         {
           "line": 15,
-          "col": 4
+          "col": 3
         }
       ]
     },
@@ -291,15 +355,15 @@
                   {
                     "name": "text",
                     "type": "string",
-                    "value": "Description text\nOther:: Sibling or text",
+                    "value": "Description text",
                     "location": [
                       {
                         "line": 19,
                         "col": 1
                       },
                       {
-                        "line": 20,
-                        "col": 23
+                        "line": 19,
+                        "col": 16
                       }
                     ]
                   }
@@ -310,8 +374,8 @@
                     "col": 1
                   },
                   {
-                    "line": 20,
-                    "col": 23
+                    "line": 19,
+                    "col": 16
                   }
                 ]
               }
@@ -322,6 +386,80 @@
                 "col": 8
               },
               {
+                "line": 19,
+                "col": 16
+              }
+            ]
+          },
+          "location": [
+            {
+              "line": 17,
+              "col": 1
+            },
+            {
+              "line": 19,
+              "col": 16
+            }
+          ]
+        },
+        {
+          "terms": [
+            {
+              "content": [
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "Other",
+                  "location": [
+                    {
+                      "line": 20,
+                      "col": 1
+                    },
+                    {
+                      "line": 20,
+                      "col": 5
+                    }
+                  ]
+                }
+              ],
+              "delimiter": "::",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 1
+                },
+                {
+                  "line": 20,
+                  "col": 7
+                }
+              ]
+            }
+          ],
+          "definition": {
+            "principal": [
+              {
+                "name": "text",
+                "type": "string",
+                "value": "Sibling or text",
+                "location": [
+                  {
+                    "line": 20,
+                    "col": 9
+                  },
+                  {
+                    "line": 20,
+                    "col": 23
+                  }
+                ]
+              }
+            ],
+            "blocks": [],
+            "location": [
+              {
+                "line": 20,
+                "col": 9
+              },
+              {
                 "line": 20,
                 "col": 23
               }
@@ -329,7 +467,7 @@
           },
           "location": [
             {
-              "line": 17,
+              "line": 20,
               "col": 1
             },
             {
@@ -361,7 +499,7 @@
         },
         {
           "line": 22,
-          "col": 4
+          "col": 3
         }
       ]
     },
@@ -459,7 +597,7 @@
         },
         {
           "line": 30,
-          "col": 4
+          "col": 3
         }
       ]
     },
@@ -589,7 +727,7 @@
         },
         {
           "line": 38,
-          "col": 4
+          "col": 3
         }
       ]
     },

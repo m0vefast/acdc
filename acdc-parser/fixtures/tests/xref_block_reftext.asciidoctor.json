@@ -558,11 +558,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": " Ada",
+            "value": " ",
             "location": [
               {
                 "line": 12,
                 "col": 33
+              },
+              {
+                "line": 12,
+                "col": 33
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "Ada",
+            "location": [
+              {
+                "line": 12,
+                "col": 34
               },
               {
                 "line": 12,
@@ -725,11 +740,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": " Ada",
+            "value": " ",
             "location": [
               {
                 "line": 19,
                 "col": 59
+              },
+              {
+                "line": 19,
+                "col": 59
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "Ada",
+            "location": [
+              {
+                "line": 19,
+                "col": 60
               },
               {
                 "line": 19,
@@ -891,11 +921,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": " Ada",
+            "value": " ",
             "location": [
               {
                 "line": 22,
                 "col": 41
+              },
+              {
+                "line": 22,
+                "col": 41
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "Ada",
+            "location": [
+              {
+                "line": 22,
+                "col": 42
               },
               {
                 "line": 22,
@@ -1217,11 +1262,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": "Named untitled Ada",
+            "value": "Named untitled ",
             "location": [
               {
                 "line": 43,
                 "col": 23
+              },
+              {
+                "line": 43,
+                "col": 37
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "Ada",
+            "location": [
+              {
+                "line": 43,
+                "col": 38
               },
               {
                 "line": 43,
@@ -1554,7 +1614,7 @@
                       },
                       {
                         "line": 54,
-                        "col": 28
+                        "col": 27
                       }
                     ]
                   }

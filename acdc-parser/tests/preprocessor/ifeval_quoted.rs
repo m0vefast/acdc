@@ -85,7 +85,9 @@ fn quoted_ifeval_keeps_caller_attribute_precedence(
     #[values(false, true)] locked: bool,
 ) -> Result<(), Error> {
     let source = include_str!("../../fixtures/tests/ifeval_quoted_contexts.adoc");
-    let builder = Options::builder();
+    // The fixture's quote-aware comparisons are Draft's reading; asciidoctor splits at the
+    // first operator character (`asciidoctor_mode_evaluates_ifeval_as_asciidoctor`).
+    let builder = Options::builder().with_compatibility_mode(acdc_parser::CompatibilityMode::Draft);
     let options = if locked {
         builder.with_attribute("state", "<early>").build()?
     } else {
@@ -117,5 +119,64 @@ fn quoted_ifeval_keeps_caller_attribute_precedence(
                 InlineKind::Plain(text) if text.text().starts_with("F01"))))
         });
     assert_eq!(old_value_matches, locked);
+    Ok(())
+}
+
+/// Whether the body of `ifeval::[{expression}]` is kept.
+fn ifeval_keeps(expression: &str, mode: acdc_parser::CompatibilityMode) -> Result<bool, Error> {
+    let source = format!(":markup: <tag>\n\nifeval::[{expression}]\nKEPT\nendif::[]\n");
+    let options = Options::builder().with_compatibility_mode(mode).build()?;
+    let parsed = parse(&source, &options)?;
+    Ok(parsed.document().blocks().count() > 0)
+}
+
+// asciidoctor 2.0.26 (measured 2026-11-16), `reader.rb` `preprocess_conditional_directive`
+// and `resolve_expr_val`: the expression splits at its first operator (`EvalExpressionRx`,
+// a lazy left operand), a quoted operand loses only its opening quote, references read
+// the stored value, and an ordering between different types skips the body.
+#[rstest::rstest]
+#[case(r#""<tag>" == "<tag>""#, false)]
+#[case("'<tag>' == '<tag>'", false)]
+#[case(r#""a == b" == 'a == b'"#, true)]
+#[case(r#""a < b" != "a > b""#, false)]
+#[case(r#""a" == "a""#, true)]
+#[case(r#""a" == 'a'"#, false)]
+#[case(r#""abc" < "abd""#, true)]
+#[case(r#""10" < '2'"#, true)]
+#[case(r#""true" == 'true'"#, false)]
+#[case("2 < 10", true)]
+#[case("1.5 < 2", true)]
+#[case("10 == 10.0", true)]
+#[case("true == true", true)]
+#[case("true < false", false)]
+#[case(r#""x" < 2"#, false)]
+#[case(r#""" == ''"#, false)]
+#[case("{missing} == ''", false)]
+#[case("'{markup}' == '<tag>'", false)]
+#[case("x == x", true)]
+#[case("abc == 0", true)]
+#[case("3abc == 3", true)]
+#[case(" 1 ==2", false)]
+#[case(r#""same == value" != 'same == value'"#, true)]
+#[case(r#"'z <= a' <= "a <= z""#, true)]
+#[case(r#"'a >= z' >= "z >= a""#, true)]
+fn asciidoctor_mode_evaluates_ifeval_as_asciidoctor(
+    #[case] expression: &str,
+    #[case] kept: bool,
+) -> Result<(), Error> {
+    assert_eq!(
+        ifeval_keeps(expression, acdc_parser::CompatibilityMode::Asciidoctor)?,
+        kept,
+        "{expression}"
+    );
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(r#""<tag>" == "<tag>""#, true)]
+#[case(r#""same == value" != 'same == value'"#, false)]
+#[case("2 < 10", true)]
+fn draft_mode_keeps_its_ifeval_reading(#[case] expression: &str, #[case] kept: bool) -> Result<(), Error> {
+    assert_eq!(ifeval_keeps(expression, acdc_parser::CompatibilityMode::Draft)?, kept, "{expression}");
     Ok(())
 }

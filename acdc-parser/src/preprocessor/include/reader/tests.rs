@@ -172,27 +172,29 @@ fn selected_line_after_oversized_skipped_line_keeps_origin() -> TestResult {
 }
 
 #[test]
-fn invalid_large_range_does_not_displace_a_valid_small_selection() -> TestResult {
+/// A range past the end still selects the lines the source has (asciidoctor),
+/// so an oversized first line in it exceeds the limit.
+fn a_range_past_the_end_selects_its_oversized_first_line() -> TestResult {
     let reader = io::repeat(b'x')
         .take(u64::try_from(MAX_SELECTED_BYTES + 1)?)
         .chain(Cursor::new(b"\nChosen."));
-    let selected = read(
+    let result = read(
         IncludeSource::from_reader(reader),
         None,
         "part.adoc",
         &ContentSelection::Lines(vec![LinesRange::Range(1, 3), LinesRange::Single(2)]),
-    )?;
-    assert_eq!(selected.text, "Chosen.");
+    );
+    assert!(matches!(result, Err(Error::IncludeSourceTooLarge(_))), "{:?}", result.err());
     Ok(())
 }
 
 #[test]
-fn discarded_candidates_from_a_past_eof_range_do_not_count_toward_the_cap() -> TestResult {
+fn a_range_past_the_end_counts_its_lines_toward_the_cap() -> TestResult {
     let line = format!("{}\n", "x".repeat(600_000));
     let input = format!("{}Chosen.", line.repeat(20));
     let selection = ContentSelection::Lines(vec![LinesRange::Range(1, 30), LinesRange::Single(21)]);
-    let selected = read(source(input, 8192), None, "part.adoc", &selection)?;
-    assert_eq!(selected.text, "Chosen.");
+    let result = read(source(input, 8192), None, "part.adoc", &selection);
+    assert!(matches!(result, Err(Error::IncludeSourceTooLarge(_))), "{:?}", result.err());
     Ok(())
 }
 

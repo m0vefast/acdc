@@ -91,19 +91,19 @@
 
 #text("P01 ")#metadata(none)<__indexterm-1>#text("Term ")#text("®")#text(" after.")
 
-#text("P02 ")#metadata(none)<__indexterm-2>#text("function(argument)")#text(" after.")
+#text("P02 ")#metadata(none)<__indexterm-2>#text("function(argument")#text(")")#text(" after.")
 
-#text("P03 Before ")#metadata(none)<__indexterm-3>#text("function(argument)")#text(" after.")
+#text("P03 Before ")#metadata(none)<__indexterm-3>#text("function(argument")#text(")")#text(" after.")
 
-#text("P04 ")#metadata(none)<__indexterm-4>#text("fn((x)) tail")#text(" after.")
+#text("P04 ")#metadata(none)<__indexterm-4>#text("fn((x")#text(" tail)) after.")
 
-#text("P05 Before ")#metadata(none)<__indexterm-5>#text("fn((x)) tail")#text(" after.")
+#text("P05 Before ")#metadata(none)<__indexterm-5>#text("fn((x")#text(" tail)) after.")
 
-#text("P06 ")#metadata(none)<__indexterm-6>#text("word")#text(") after.")
+#text("P06 ")#metadata(none)<__indexterm-6>#text("word")#text(")")#text(" after.")
 
-#text("P07 ")#metadata(none)<__indexterm-7>#text("word")#text(")) after.")
+#text("P07 ")#metadata(none)<__indexterm-7>#text("word)")#text(")")#text(" after.")
 
-#text("P08 ")#metadata(none)<__indexterm-8>#text("function(argument)")#text(") after.")
+#text("P08 ")#metadata(none)<__indexterm-8>#text("function(argument)")#text(")")#text(" after.")
 
 #text("P09 ")#metadata(none)<__indexterm-9>#text("first")#text(" and ")#metadata(none)<__indexterm-10>#text("second")#text(".")
 
@@ -121,19 +121,19 @@
 
 #text("P16 ")#text("((function(argument)))")#text(" after.")
 
-#text("P17 ")#text("(")#metadata(none)<__indexterm-18>#text("function(argument)")#text(") after.")
+#text("P17 ")#text("(")#metadata(none)<__indexterm-18>#text("function(argument))")#text(" after.")
 
 #text("P18 ")#metadata(none)<__indexterm-19>#text(" after.")
 
 #text("P19 ")#metadata(none)<__indexterm-20>#text("function(argument)")#text(" after.")
 
-#text("P20 ")#metadata(none)<__indexterm-21>#text("Term")#text(" after.")
+#text("P20 ")#metadata(none)<__indexterm-21>#text("Term")#text(")")#text(" after.")
 
-#text("P21 ")#metadata(none)<__indexterm-22>#text("Term")#text(" after.")
+#text("P21 ")#metadata(none)<__indexterm-22>#text("Term")#text(" tail &> Other)) after.")
 
-#text("P22 ")#metadata(none)<__indexterm-23>#text("café (déjà vu)")#text(" after.")
+#text("P22 ")#metadata(none)<__indexterm-23>#text("café (déjà vu")#text(")")#text(" after.")
 
-#text("P23 ")#metadata(none)<__indexterm-24>#text("First (one) and (two)")#text(" after.")
+#text("P23 ")#metadata(none)<__indexterm-24>#text("First (one) and (two")#text(")")#text(" after.")
 
 #text("P24 ")#metadata(none)<__indexterm-25>#text("Before ")#text("((literal))")#text(" after")#text(" end.")
 
@@ -196,7 +196,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("C")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("café (déjà vu)")#_acdc_index_pages((<__indexterm-23>,), "term")]
+#par(hanging-indent: 1em)[#text("café (déjà vu")#_acdc_index_pages((<__indexterm-23>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("E")]
 #v(0.25em)
@@ -206,10 +206,12 @@
 #text(weight: "bold")[#text("F")]
 #v(0.25em)
 #par(hanging-indent: 1em)[#text("first")#_acdc_index_pages((<__indexterm-9>,), "term")]
-#par(hanging-indent: 1em)[#text("First (one) and (two)")#_acdc_index_pages((<__indexterm-24>,), "term")]
-#par(hanging-indent: 1em)[#text("fn((x)) tail")#_acdc_index_pages((<__indexterm-4>,<__indexterm-5>,), "term")]
-#metadata(none) <__indextermdef-66756e6374696f6e28617267756d656e7429002374657874282266756e6374696f6e28617267756d656e74292229>
-#par(hanging-indent: 1em)[#text("function(argument)")#_acdc_index_pages((<__indexterm-2>,<__indexterm-3>,<__indexterm-8>,<__indexterm-18>,<__indexterm-19>,<__indexterm-20>,), "term")]
+#par(hanging-indent: 1em)[#text("First (one) and (two")#_acdc_index_pages((<__indexterm-24>,), "term")]
+#par(hanging-indent: 1em)[#text("fn((x")#_acdc_index_pages((<__indexterm-4>,<__indexterm-5>,), "term")]
+#metadata(none) <__indextermdef-66756e6374696f6e28617267756d656e74002374657874282266756e6374696f6e28617267756d656e742229>
+#par(hanging-indent: 1em)[#text("function(argument")#_acdc_index_pages((<__indexterm-2>,<__indexterm-3>,), "term")]
+#par(hanging-indent: 1em)[#text("function(argument)")#_acdc_index_pages((<__indexterm-8>,<__indexterm-19>,<__indexterm-20>,), "term")]
+#par(hanging-indent: 1em)[#text("function(argument))")#_acdc_index_pages((<__indexterm-18>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("L")]
 #v(0.25em)
@@ -230,10 +232,11 @@
 #v(0.75em)
 #text(weight: "bold")[#text("T")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Term") (see #link(<__indextermdef-66756e6374696f6e28617267756d656e7429002374657874282266756e6374696f6e28617267756d656e74292229>)[#text("function(argument)")])]
+#par(hanging-indent: 1em)[#text("Term") (see #link(<__indextermdef-66756e6374696f6e28617267756d656e74002374657874282266756e6374696f6e28617267756d656e742229>)[#text("function(argument")])]
 #par(hanging-indent: 1em)[#text("Term ")#text("®")#_acdc_index_pages((<__indexterm-1>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("W")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("word")#_acdc_index_pages((<__indexterm-6>,<__indexterm-7>,), "term")]
+#par(hanging-indent: 1em)[#text("word")#_acdc_index_pages((<__indexterm-6>,), "term")]
+#par(hanging-indent: 1em)[#text("word)")#_acdc_index_pages((<__indexterm-7>,), "term")]
 ]

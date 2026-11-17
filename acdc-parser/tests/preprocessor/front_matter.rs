@@ -8,7 +8,7 @@ use std::{
 
 use acdc_parser::{
     DocumentAttributeValue, Options, ParseResult,
-    ast::{BlockKind, BlockRef, InlineKind, InlineRef},
+    ast::{BlockKind, BlockRef},
     parse, parse_file, parse_from_reader,
 };
 
@@ -36,7 +36,7 @@ impl Drop for TempDirectory {
     }
 }
 
-fn paragraph_texts(result: &ParseResult) -> Result<Vec<&str>, Box<dyn Error>> {
+fn paragraph_texts(result: &ParseResult) -> Result<Vec<String>, Box<dyn Error>> {
     result
         .document()
         .blocks()
@@ -44,15 +44,8 @@ fn paragraph_texts(result: &ParseResult) -> Result<Vec<&str>, Box<dyn Error>> {
             let BlockKind::Paragraph(paragraph) = block.kind() else {
                 return Err(format!("unexpected block: {block:?}").into());
             };
-            let [InlineKind::Plain(text)] = &*paragraph
-                .content()
-                .inlines()
-                .map(InlineRef::kind)
-                .collect::<Vec<_>>()
-            else {
-                return Err(format!("unexpected paragraph: {paragraph:?}").into());
-            };
-            Ok(text.text())
+            crate::plain_text::plain_text(paragraph.content().inlines())
+                .ok_or_else(|| format!("unexpected paragraph: {paragraph:?}").into())
         })
         .collect()
 }

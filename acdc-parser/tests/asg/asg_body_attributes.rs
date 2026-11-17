@@ -185,12 +185,20 @@ fn trailing_open_block_attributes_keep_source_order(
         .and_then(Value::as_array)
         .and_then(|blocks| blocks.last())
         .ok_or("trailing event")?;
-    assert_eq!(trailing.get("attribute"), Some(&json!("imagesdir")));
-    assert_eq!(
-        trailing.pointer("/assignment/kind").and_then(Value::as_str),
-        Some(kind)
-    );
-    assert_eq!(trailing.pointer("/location/0/line"), Some(&json!(8)));
+    // asciidoctor 2.0.26 (measured 2026-11-16, `Document#playback_attributes`): an entry no
+    // block follows inside a compound block applies to nothing, so `after.png` sees `inner`.
+    let expected = if mode == CompatibilityMode::Asciidoctor {
+        assert_eq!(trailing.get("name"), Some(&json!("image")));
+        Some("inner")
+    } else {
+        assert_eq!(trailing.get("attribute"), Some(&json!("imagesdir")));
+        assert_eq!(
+            trailing.pointer("/assignment/kind").and_then(Value::as_str),
+            Some(kind)
+        );
+        assert_eq!(trailing.pointer("/location/0/line"), Some(&json!(8)));
+        expected
+    };
     let mut attributes = BTreeMap::from([("imagesdir".into(), "header".into())]);
     inspect_blocks(blocks, &mut attributes, &mut Vec::new(), &mut Vec::new())?;
     assert_eq!(attributes.get("imagesdir").map(String::as_str), expected);

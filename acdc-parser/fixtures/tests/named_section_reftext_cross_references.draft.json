@@ -333,6 +333,7 @@
         }
       ],
       "level": 1,
+      "id": "id",
       "metadata": {
         "reftext": [
           {
@@ -377,7 +378,7 @@
               },
               {
                 "line": 11,
-                "col": 20
+                "col": 19
               }
             ]
           }
@@ -415,6 +416,7 @@
         }
       ],
       "level": 1,
+      "id": "_generated_title",
       "metadata": {
         "reftext": [
           {
@@ -469,6 +471,7 @@
         }
       ],
       "level": 1,
+      "id": "formatted",
       "metadata": {
         "reftext": [
           {

@@ -1,5 +1,8 @@
 //! Parser integration tests for substitutions.
 
+#[path = "../support/plain_text.rs"]
+mod plain_text;
+
 mod block_substitutions;
 mod replacement_attribute_overrides;
 mod substitution_api;

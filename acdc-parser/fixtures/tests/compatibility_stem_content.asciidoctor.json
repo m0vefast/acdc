@@ -42,43 +42,12 @@
         {
           "name": "stem",
           "type": "inline",
-          "content": "",
+          "content": "] and latexmath:[",
           "notation": "latexmath",
           "location": [
             {
               "line": 5,
               "col": 1
-            },
-            {
-              "line": 5,
-              "col": 7
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": " and ",
-          "location": [
-            {
-              "line": 5,
-              "col": 8
-            },
-            {
-              "line": 5,
-              "col": 12
-            }
-          ]
-        },
-        {
-          "name": "stem",
-          "type": "inline",
-          "content": "",
-          "notation": "latexmath",
-          "location": [
-            {
-              "line": 5,
-              "col": 13
             },
             {
               "line": 5,
@@ -89,42 +58,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": " and ",
+          "value": " and asciimath:[].",
           "location": [
             {
               "line": 5,
               "col": 25
-            },
-            {
-              "line": 5,
-              "col": 29
-            }
-          ]
-        },
-        {
-          "name": "stem",
-          "type": "inline",
-          "content": "",
-          "notation": "asciimath",
-          "location": [
-            {
-              "line": 5,
-              "col": 30
-            },
-            {
-              "line": 5,
-              "col": 41
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": ".",
-          "location": [
-            {
-              "line": 5,
-              "col": 42
             },
             {
               "line": 5,
@@ -353,7 +291,7 @@
         {
           "name": "stem",
           "type": "inline",
-          "content": "[x]",
+          "content": "\\[x]",
           "notation": "latexmath",
           "location": [
             {
@@ -384,43 +322,12 @@
         {
           "name": "stem",
           "type": "inline",
-          "content": "a\\",
+          "content": "a\\] and stem:[α \\in [0,1]",
           "notation": "latexmath",
           "location": [
             {
               "line": 11,
               "col": 20
-            },
-            {
-              "line": 11,
-              "col": 29
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": " and ",
-          "location": [
-            {
-              "line": 11,
-              "col": 30
-            },
-            {
-              "line": 11,
-              "col": 34
-            }
-          ]
-        },
-        {
-          "name": "stem",
-          "type": "inline",
-          "content": "α \\in [0,1]",
-          "notation": "latexmath",
-          "location": [
-            {
-              "line": 11,
-              "col": 35
             },
             {
               "line": 11,
@@ -478,11 +385,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " and expanded.",
+          "value": " and ",
           "location": [
             {
               "line": 13,
               "col": 43
+            },
+            {
+              "line": 13,
+              "col": 47
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 13,
+              "col": 48
+            },
+            {
+              "line": 13,
+              "col": 54
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 13,
+              "col": 55
             },
             {
               "line": 13,

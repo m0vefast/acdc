@@ -512,6 +512,7 @@ impl<'doc> From<DocumentRef<'doc>> for Document<'doc> {
                         email: author.email,
                     })
                     .collect(),
+                revision: header.revision.clone(),
                 location: header.location.clone(),
             }),
             untitled_header_location: document.untitled_header_location.clone(),

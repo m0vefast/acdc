@@ -87,8 +87,8 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#text("H21 kept=header; authorcount=0.")
+#text("H21 kept=")#text("header")#text("; authorcount=")#text("0")#text(".")
 
 #text("H22 author={author}; revision={revnumber}.")
 
-#text("H23 kept=body.")
+#text("H23 kept=")#text("body")#text(".")

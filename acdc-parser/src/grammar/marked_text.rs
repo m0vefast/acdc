@@ -24,6 +24,9 @@ pub(super) trait MarkedText<'a>: Sized {
     /// Get a mutable reference to the content
     fn content_mut(&mut self) -> &mut Self::Content;
 
+    /// The attribute list written before the delimiter, when there is one.
+    fn attribute_location_mut(&mut self) -> &mut Option<Box<Location>>;
+
     /// Map the node and its content to source coordinates.
     fn map_locations(&mut self, ctx: &LocationMappingContext<'_, 'a>) -> Result<(), Error> {
         let mapped_outer = ctx.map_location(self.location())?;
@@ -33,6 +36,9 @@ pub(super) trait MarkedText<'a>: Sized {
             mapped_outer,
         );
         *self.location_mut() = extended_location;
+        if let Some(location) = self.attribute_location_mut() {
+            **location = ctx.map_location(location)?;
+        }
 
         if let Some(id) = self.id_mut() {
             id.location = ctx.map_location(&id.location)?;
@@ -88,6 +94,9 @@ macro_rules! impl_marked_text {
                     &mut self.content
                 }
 
+                fn attribute_location_mut(&mut self) -> &mut Option<Box<Location>> {
+                    &mut self.attribute_location
+                }
             }
         )+
     };

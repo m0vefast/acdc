@@ -89,24 +89,24 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("A01 Single [\\].")
+#text("A01 Single [")#text("\\")#text("].")
 
-#text("A02 Spaces [\\] and tab [\\].")
+#text("A02 Spaces [")#text("\\")#text("] and tab [")#text("\\")#text("].")
 
-#text("A03 Path [C:\\tmp\\] and repeated [\\\\].")
+#text("A03 Path [")#text("C:\\tmp\\")#text("] and repeated [")#text("\\\\")#text("].")
 
-#text("A04 Soft [Alpha Beta].")
+#text("A04 Soft [")#text("Alpha Beta")#text("].")
 
-#text("A05 Hard [Alpha")#linebreak()#text(" Beta].")
+#text("A05 Hard [")#text("Alpha")#linebreak()#text(" Beta")#text("].")
 
-#text("A06 Empty [] and ordinary control.")
+#text("A06 Empty [")#text("] and ordinary control.")
 
 #text("A07 This paragraph must remain outside the declaration.")
 
-#text("A08 Body value [\\].")
+#text("A08 Body value [")#text("\\")#text("].")
 
-#text("A09 Body continuation [body continuation].")
+#text("A09 Body continuation [")#text("body continuation")#text("].")
 
 #text("A10 After unset [{body}].")
 
-#text("A11 Colon-prefixed continuation [First :literal: Still value text].")
+#text("A11 Colon-prefixed continuation [")#text("First :literal: Still value text")#text("].")

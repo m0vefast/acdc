@@ -231,6 +231,10 @@ fn resolve_local_content<'doc, 'guard>(
     if guard.is_resolving() {
         return XrefDisplay::Nested(format!("[{fallback}]"));
     }
+    // A heading title is converted while parsing, before this target was registered.
+    if xref.precedes_target() {
+        return XrefDisplay::Fallback(format!("[{fallback}]"));
+    }
     if let Some(label) = label {
         XrefDisplay::Label(label, guard.enter())
     } else if let (Some(title), Some(name), Some(number)) = (
@@ -405,6 +409,34 @@ pub fn interdocument_xref_with_suffix(
     output_suffix: &str,
 ) -> Option<(String, String)> {
     map_interdocument_xref(target, |stem| format!("{stem}{output_suffix}"))
+}
+
+/// Map an inter-document cross-reference with the document's file controls:
+/// `relfilesuffix` (exact, when set), else `outfilesuffix` (default `.html`), and
+/// `relfileprefix` before any relative path (asciidoctor `Substitutors#sub_macros`,
+/// `relfileprefix` + path + `relfilesuffix`). Answers the destination and the fallback text.
+#[must_use]
+pub fn interdocument_link(
+    target: &str,
+    relfilesuffix: Option<&str>,
+    outfilesuffix: Option<&str>,
+    relfileprefix: Option<&str>,
+) -> Option<(String, String)> {
+    let (mut destination, mut text) = if let Some(suffix) = relfilesuffix {
+        interdocument_xref_with_suffix(target, suffix)
+    } else {
+        let extension = outfilesuffix.unwrap_or("html");
+        interdocument_xref(target, extension.strip_prefix('.').unwrap_or(extension))
+    }?;
+    if let Some(prefix) = relfileprefix
+        && !prefix.is_empty()
+        && !target.starts_with("//")
+        && url::Url::parse(target).is_err()
+    {
+        destination.insert_str(0, prefix);
+        text.insert_str(0, prefix);
+    }
+    Some((destination, text))
 }
 
 fn map_interdocument_xref(

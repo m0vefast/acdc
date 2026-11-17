@@ -31,52 +31,22 @@
 quoted\-operators \- compare quoted operands
 .SH "DESCRIPTION"
 .sp
-Q01 Double\-quoted markup matches.
-.sp
-Q02 Single\-quoted markup matches.
-.sp
 Q03 Every embedded operator stays text.
-.sp
-Q04 Unequal strings match.
-.sp
-Q05 Less\-than uses string order.
 .sp
 Q06 Less\-than\-or\-equal includes equality.
 .sp
-Q07 Greater\-than uses string order.
-.sp
 Q08 Greater\-than\-or\-equal includes equality.
 .sp
-Q09 Brackets remain inside quoted operands.
-.sp
-Q10 Attribute references compare with literal markup.
-.sp
-Q11 Attribute references preserve operator text.
-.sp
-Q12 Both quote styles represent the empty string.
-.sp
-Q13 Inner whitespace remains significant.
-.sp
-Q14 Outer whitespace does not enter the operand.
-.sp
-Q15 Comparison spaces are optional.
-.sp
-Q16 The other quote character is literal.
-.sp
-Q17 Double quotes inside single quotes stay literal.
-.sp
-Q18 Unicode strings compare across quote styles.
-.sp
-Q19 Backslashes stay literal, including before a closing quote.
-.sp
 Q20 Quoted numbers compare as strings.
-.sp
-Q21 Quoted booleans compare as strings.
-.sp
-Q22 Quoted arithmetic remains text.
 .sp
 Q23 Unquoted numbers still compare as numbers.
 .sp
 Q24 Unquoted booleans retain their meaning.
+.sp
+F03 Equal strings must not satisfy inequality.
+.sp
+F05 Reversed strings must not satisfy less\-than\-or\-equal.
+.sp
+F07 Reversed strings must not satisfy greater\-than\-or\-equal.
 .sp
 Q25 Content after all conditions remains visible.

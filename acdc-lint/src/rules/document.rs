@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn parser_table_warnings_are_linted() -> Result<(), Error> {
-        let report = report_for("[format=psv]\n|===\n|a\n|===\n")?;
+        let report = report_for("[format=xyz]\n|===\n|a\n|===\n")?;
 
         assert!(has_lint(&report, LintId::TableUnknownFormat));
         Ok(())

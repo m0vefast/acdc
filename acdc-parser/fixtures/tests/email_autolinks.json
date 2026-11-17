@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_bare_email_addresses",
       "blocks": [
         {
           "name": "paragraph",
@@ -236,6 +237,7 @@
         }
       ],
       "level": 1,
+      "id": "_quoted_email_addresses",
       "blocks": [
         {
           "name": "paragraph",
@@ -370,6 +372,7 @@
         }
       ],
       "level": 1,
+      "id": "_mailto_url_macros",
       "blocks": [
         {
           "name": "paragraph",
@@ -593,6 +596,7 @@
         }
       ],
       "level": 1,
+      "id": "_angle_bracketed_emails",
       "blocks": [
         {
           "name": "paragraph",
@@ -678,6 +682,7 @@
         }
       ],
       "level": 1,
+      "id": "_link_macro_with_mailto",
       "blocks": [
         {
           "name": "paragraph",
@@ -779,6 +784,7 @@
         }
       ],
       "level": 1,
+      "id": "_non_email_patterns_should_stay_plain",
       "blocks": [
         {
           "name": "paragraph",
@@ -844,6 +850,7 @@
         }
       ],
       "level": 1,
+      "id": "_edge_cases",
       "blocks": [
         {
           "name": "paragraph",

@@ -23,6 +23,9 @@ pub struct Subscript<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A `Superscript` represents a superscript section of text in a document.
@@ -33,6 +36,9 @@ pub struct Superscript<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A span enclosed in typographic double quotation marks.
@@ -43,6 +49,9 @@ pub struct DoubleQuotedSpan<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A span enclosed in typographic single quotation marks.
@@ -53,6 +62,9 @@ pub struct SingleQuotedSpan<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A `StandaloneCurvedApostrophe` represents a standalone curved apostrophe character.
@@ -82,6 +94,9 @@ pub struct Monospace<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A `Highlight` represents a highlighted section of text in a document.
@@ -98,6 +113,9 @@ pub struct Highlight<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A `Bold` represents a bold section of text in a document.
@@ -114,6 +132,9 @@ pub struct Bold<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// An `Italic` represents an italic section of text in a document.
@@ -124,6 +145,9 @@ pub struct Italic<'a> {
     pub(crate) form: FormattingForm,
     pub(crate) content: Vec<InlineNode<'a>>,
     pub(crate) location: Location,
+    /// The attribute list written before the delimiter (`[.role]`), which
+    /// `location` (the ASG span) leaves out.
+    pub(crate) attribute_location: Option<Box<Location>>,
 }
 
 /// A `LineBreak` represents a line break (inline).
@@ -450,7 +474,7 @@ macro_rules! span_edits {
             /// Construct a span from prepared inlines without parsing them.
             #[must_use]
             pub fn new(content: Vec<InlineNode<'a>>, form: FormattingForm, location: Location) -> Self {
-                Self { role: None, id: None, form, content, location }
+                Self { role: None, id: None, form, content, location, attribute_location: None }
             }
 
             /// Replace prepared content without updating document registrations.

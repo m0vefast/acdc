@@ -27,9 +27,13 @@ fn invalid() -> Result<ContentAttribute<'static>, Error> {
 #[test]
 fn source_interface_labels_keep_component_order_and_nested_content() -> Result<(), Error> {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/asg/ui_macros.adoc");
-    let expected: Value =
-        serde_json::from_str(&fs::read_to_string(source.with_extension("json"))?)?;
-    for mode in [CompatibilityMode::Asciidoctor, CompatibilityMode::Draft] {
+    // asciidoctor keeps `btn:[]` / `kbd:[]` literal; Draft keeps them as empty macros.
+    for (mode, extension) in [
+        (CompatibilityMode::Asciidoctor, "json"),
+        (CompatibilityMode::Draft, "draft.json"),
+    ] {
+        let expected: Value =
+            serde_json::from_str(&fs::read_to_string(source.with_extension(extension))?)?;
         let parsed = parse_file(
             &source,
             &Options::builder().with_compatibility_mode(mode).build()?,
@@ -45,11 +49,23 @@ fn source_interface_labels_keep_component_order_and_nested_content() -> Result<(
             ("/blocks/2/inlines/1/target/0/value", json!("File")),
             ("/blocks/2/inlines/1/items/0/0/value", json!("New")),
             ("/blocks/2/inlines/1/items/1/0/value", json!("Project")),
-            ("/blocks/3/inlines/1/inlines", json!([])),
-            ("/blocks/4/inlines/1/keys", json!([])),
             ("/blocks/5/inlines/1/items", json!([])),
         ] {
             assert_eq!(value.pointer(path), Some(&expected), "{path}");
+        }
+        let empties = if mode == CompatibilityMode::Asciidoctor {
+            [
+                ("/blocks/3/inlines/0/value", json!("Empty button btn:[].")),
+                ("/blocks/4/inlines/0/value", json!("Empty keyboard kbd:[].")),
+            ]
+        } else {
+            [
+                ("/blocks/3/inlines/1/inlines", json!([])),
+                ("/blocks/4/inlines/1/keys", json!([])),
+            ]
+        };
+        for (path, expected) in empties {
+            assert_eq!(value.pointer(path), Some(&expected), "{mode:?} {path}");
         }
         assert_eq!(serde_json::to_value(parsed.document())?, before);
     }

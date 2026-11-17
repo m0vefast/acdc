@@ -305,11 +305,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "*{name}* & <tag>",
+          "value": "*",
           "location": [
             {
               "line": 26,
               "col": 28
+            },
+            {
+              "line": 26,
+              "col": 28
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "{name}",
+          "location": [
+            {
+              "line": 26,
+              "col": 29
+            },
+            {
+              "line": 26,
+              "col": 35
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "* & <tag>",
+          "location": [
+            {
+              "line": 26,
+              "col": 36
             },
             {
               "line": 26,

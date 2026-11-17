@@ -25,6 +25,56 @@ fn text(content: ContentRef<'_>) -> Result<String, Error> {
     Ok(result)
 }
 
+/// Asciidoctor formats the whole title, then takes the subtitle after the last
+/// `: ` of the formatted text (`Document#doctitle(partition: true)`); the HTML
+/// `<h1>` draws the whole title. A `: ` inside a formatted span is no split point
+/// for an inline tree, so that title keeps its formatting and has no subtitle.
+#[rstest::rstest]
+#[case("= *Note: read me*\n\nBody.\n", vec!["Bold:Note: read me"], None)]
+#[case("= Guide: part *one*\n\nBody.\n", vec!["Plain:Guide"], Some(vec!["Plain:part ", "Bold:one"]))]
+#[case("= A: *b: c*\n\nBody.\n", vec!["Plain:A: ", "Bold:b: c"], None)]
+#[case("= _x_ y: z\n\nBody.\n", vec!["Italic:x", "Plain: y"], Some(vec!["Plain:z"]))]
+fn a_subtitle_splits_only_at_a_colon_outside_formatting(
+    #[case] source: &str,
+    #[case] title: Vec<&str>,
+    #[case] subtitle: Option<Vec<&str>>,
+) -> Result<(), Error> {
+    let parsed = parse(source, &Options::default())?;
+    let header = parsed.document().header().ok_or("header")?;
+    let shape = |content: ContentRef<'_>| -> Vec<String> {
+        content
+            .inlines()
+            .map(|inline| match inline.kind() {
+                InlineKind::Plain(node) => format!("Plain:{}", node.text()),
+                InlineKind::Bold(node) => format!("Bold:{}", text(node.content()).unwrap_or_default()),
+                InlineKind::Italic(node) => {
+                    let inner: String = node.content().inlines().filter_map(|i| match i.kind() {
+                        InlineKind::Plain(p) => Some(p.text().to_string()),
+                        _ => None,
+                    }).collect();
+                    format!("Italic:{inner}")
+                }
+                other => format!("{other:?}"),
+            })
+            .collect()
+    };
+    assert_eq!(shape(header.title().ok_or("title")?), title);
+    assert_eq!(header.subtitle().map(shape), subtitle.map(|s| s.into_iter().map(String::from).collect()));
+    Ok(())
+}
+
+/// Asciidoctor converts the doctitle after the header is read, so an attribute
+/// entry below the title still applies to it (`= {product}` then
+/// `:product: Glyph` draws "Glyph").
+#[test]
+fn a_header_attribute_below_the_title_applies_to_it() -> Result<(), Error> {
+    let parsed = parse("= {product}: {edition}\nAda Lovelace\n:product: Glyph\n:edition: Second\n\nBody.\n", &Options::default())?;
+    let header = parsed.document().header().ok_or("header")?;
+    assert_eq!(text(header.title().ok_or("title")?)?, "Glyph");
+    assert_eq!(text(header.subtitle().ok_or("subtitle")?)?, "Second");
+    Ok(())
+}
+
 #[rstest::rstest]
 fn header_reads_keep_title_subtitle_authors_and_revision_values(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,

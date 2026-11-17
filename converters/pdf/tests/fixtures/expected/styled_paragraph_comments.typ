@@ -99,7 +99,7 @@
 
 #raw(block: true, "C12 start after leading comment\n// C13 visible after content")
 
-#text("C14 ordinary C15 ordinary tail")
+#text("C14 ordinary ")#text("C15 ordinary tail")
 
 #raw(block: true, "C16 before continuation")
 

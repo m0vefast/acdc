@@ -48,15 +48,21 @@ pub(super) fn prepare_manpage_name_attributes<'input>(
             );
         }
 
-        let name = apply_attribute_substitutions(&section.attributes.name, HEADER, &attributes);
-        let name = name.split(',').next().unwrap_or_default().trim();
+        let names = apply_attribute_substitutions(&section.attributes.name, HEADER, &attributes);
+        let mannames = names.split(',').map(str::trim_start).collect::<Vec<_>>().join(", ");
+        let name = names.split(',').next().unwrap_or_default().trim();
         let name = state.intern_str(name);
+        let mannames = state.intern_str(&mannames);
         let purpose =
             apply_attribute_substitutions(&section.attributes.purpose, HEADER, &attributes);
         let purpose = state.intern_str(&purpose);
         let title = apply_attribute_substitutions(section.title, HEADER, &attributes);
         let title = state.intern_str(&title);
         set_manpage_name_attributes(state, name, Some(purpose), Some(title));
+        if state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor {
+            Rc::make_mut(&mut state.document_attributes).set_text("mannames".into(), mannames.into());
+            state.manname_from_section = true;
+        }
         return;
     }
 

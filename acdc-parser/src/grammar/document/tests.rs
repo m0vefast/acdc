@@ -300,7 +300,7 @@ fn test_authorcount_defaults_to_zero_without_author() -> Result<(), Error> {
 fn test_document_title() -> Result<(), Error> {
     let input = "= Document Title";
     let mut state = ParserState::new_for_test(input);
-    let result = document_parser::document_title(input, &mut state)?;
+    let result = document_parser::document_title(input, &mut state, false)?;
     assert_eq!(result.0.len(), 1);
     assert_eq!(
         result.0.as_inlines()[0],
@@ -323,7 +323,7 @@ fn test_document_title() -> Result<(), Error> {
 fn test_document_title_and_subtitle() -> Result<(), Error> {
     let input = "= Document Title: And a subtitle";
     let mut state = ParserState::new_for_test(input);
-    let result = document_parser::document_title(input, &mut state)?;
+    let result = document_parser::document_title(input, &mut state, false)?;
     assert_eq!(
         result,
         (
@@ -346,7 +346,8 @@ fn test_document_title_and_subtitle() -> Result<(), Error> {
                     end: Position::new(1, 32),
                 },
                 escaped: false,
-            })]))
+            })])),
+            None,
         )
     );
     Ok(())
@@ -1291,6 +1292,7 @@ fn test_grammar_warning_resolves_source_range() {
         start_line: 1,
         source_start_offset: 0,
         column_shift: 0,
+        stands_for: None,
     }];
 
     // Trigger warning at byte offset 40 (inside the included range)
@@ -1332,6 +1334,7 @@ fn test_grammar_warning_falls_back_to_entry_file() {
         start_line: 1,
         source_start_offset: 0,
         column_shift: 0,
+        stands_for: None,
     }];
 
     state.add_generic_warning_at("example warning".into(), state.create_location(17, 21));

@@ -150,7 +150,6 @@ fn unevaluable_conditionals_exclude_bodies_and_keep_nesting(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[values(
         "ifeval::[1 = 1]",
-        "ifeval::[1 == \"1\"]",
         "ifdef::a,b+c[]",
         "ifndef::a[",
         "ifeval::[1 == 1"
@@ -168,6 +167,37 @@ fn unevaluable_conditionals_exclude_bodies_and_keep_nesting(
     assert_eq!(parsed.preprocessed_source(), "Before.\n\n\nAfter.");
     assert_recovery(&parsed, "unevaluable content", 3)?;
     assert_eq!(parsed.warnings().len(), 1);
+    let decisions = parsed.conditionals().collect::<Vec<_>>();
+    let [outer, inner] = decisions.as_slice() else {
+        return Err("expected two conditional decisions".into());
+    };
+    assert!(!outer.is_active());
+    assert_eq!(outer.end_line(), Some(8));
+    assert!(!inner.is_active());
+    assert_eq!(inner.end_line(), Some(7));
+    Ok(())
+}
+
+// Draft cannot compare a number with a string and recovers; asciidoctor 2.0.26 compares
+// them as unequal and excludes the body without a diagnostic (measured 2026-11-16).
+#[rstest::rstest]
+#[case::asciidoctor(CompatibilityMode::Asciidoctor, 0)]
+#[case::draft(CompatibilityMode::Draft, 1)]
+fn mixed_type_equality_excludes_the_body(
+    #[case] mode: CompatibilityMode,
+    #[case] warnings: usize,
+) -> TestResult {
+    let options = Options::builder()
+        .with_safe_mode(acdc_parser::SafeMode::Unsafe)
+        .with_compatibility_mode(mode)
+        .build()?;
+    let source = "Before.\n\nifeval::[1 == \"1\"]\nExcluded.\nifndef::missing[]\ninclude::must-not-open.adoc[lines=nope]\nendif::[]\nendif::[]\n\nAfter.";
+    let parsed = parse(source, &options)?;
+    assert_eq!(parsed.preprocessed_source(), "Before.\n\n\nAfter.");
+    assert_eq!(parsed.warnings().len(), warnings);
+    if warnings == 1 {
+        assert_recovery(&parsed, "unevaluable content", 3)?;
+    }
     let decisions = parsed.conditionals().collect::<Vec<_>>();
     let [outer, inner] = decisions.as_slice() else {
         return Err("expected two conditional decisions".into());

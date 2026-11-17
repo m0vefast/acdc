@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_bullet_children",
       "blocks": [
         {
           "name": "listing",
@@ -166,7 +167,7 @@
                   },
                   {
                     "line": 8,
-                    "col": 20
+                    "col": 19
                   }
                 ]
               }
@@ -246,7 +247,7 @@
                           },
                           {
                             "line": 11,
-                            "col": 28
+                            "col": 27
                           }
                         ]
                       }
@@ -546,6 +547,7 @@
         }
       ],
       "level": 1,
+      "id": "_ordered_children_after_a_blank_line",
       "blocks": [
         {
           "name": "listing",
@@ -875,6 +877,7 @@
         }
       ],
       "level": 1,
+      "id": "_description_children",
       "blocks": [
         {
           "name": "listing",
@@ -1012,7 +1015,7 @@
                           },
                           {
                             "line": 36,
-                            "col": 22
+                            "col": 21
                           }
                         ]
                       }
@@ -1288,6 +1291,7 @@
         }
       ],
       "level": 1,
+      "id": "_explicit_children",
       "blocks": [
         {
           "name": "listing",
@@ -1427,7 +1431,7 @@
                           },
                           {
                             "line": 49,
-                            "col": 19
+                            "col": 18
                           }
                         ]
                       }
@@ -1694,6 +1698,7 @@
         }
       ],
       "level": 1,
+      "id": "_explicit_paragraph_returns_to_parent",
       "blocks": [
         {
           "name": "listing",
@@ -1952,6 +1957,7 @@
         }
       ],
       "level": 1,
+      "id": "_inline_registration_order",
       "blocks": [
         {
           "name": "listing",
@@ -2464,6 +2470,7 @@
         }
       ],
       "level": 1,
+      "id": "_callout_markers_before_description_delimiters",
       "blocks": [
         {
           "name": "listing",
@@ -2689,6 +2696,7 @@
         }
       ],
       "level": 1,
+      "id": "_separate_lists",
       "blocks": [
         {
           "name": "listing",
@@ -2892,7 +2900,7 @@
             },
             {
               "line": 92,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -2912,7 +2920,7 @@
                   },
                   {
                     "line": 94,
-                    "col": 19
+                    "col": 18
                   }
                 ]
               }
@@ -3075,6 +3083,7 @@
         }
       ],
       "level": 1,
+      "id": "_blank_metadata_separates_the_child",
       "blocks": [
         {
           "name": "listing",
@@ -3208,7 +3217,7 @@
                   },
                   {
                     "line": 106,
-                    "col": 16
+                    "col": 15
                   }
                 ]
               }
@@ -3270,7 +3279,7 @@
             },
             {
               "line": 110,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -3386,6 +3395,7 @@
         }
       ],
       "level": 1,
+      "id": "_literal_controls",
       "blocks": [
         {
           "name": "list",
@@ -3514,7 +3524,7 @@
             },
             {
               "line": 119,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -3645,7 +3655,7 @@
             },
             {
               "line": 124,
-              "col": 4
+              "col": 3
             }
           ]
         },

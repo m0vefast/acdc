@@ -28,6 +28,24 @@ pub(super) fn walk_document_locations_mut<F: FnMut(&mut Location)>(
     .unwrap_or_else(|never: Infallible| match never {});
 }
 
+/// Visit every location in a block sequence.
+pub(super) fn walk_block_locations_mut<F: FnMut(&mut Location) + ?Sized>(
+    blocks: &mut [Block<'_>],
+    visit: &mut F,
+) {
+    AstWalker::new(
+        |location| {
+            visit(location);
+            Ok(())
+        },
+        |_| Ok(()),
+        |_, _| Ok(()),
+        |_| Ok(true),
+    )
+    .blocks(blocks)
+    .unwrap_or_else(|never: Infallible| match never {});
+}
+
 /// Visit every inline node in a whole document.
 pub(crate) fn walk_document_inline_nodes_mut<'a, F: FnMut(&mut InlineNode<'a>)>(
     doc: &mut Document<'a>,
@@ -47,7 +65,7 @@ pub(crate) fn walk_document_inline_nodes_mut<'a, F: FnMut(&mut InlineNode<'a>)>(
 }
 
 /// Visit a single inline node's location and recurse into any inline children.
-pub(super) fn walk_inline_locations_mut<F: FnMut(&mut Location)>(
+pub(super) fn walk_inline_locations_mut<F: FnMut(&mut Location) + ?Sized>(
     node: &mut InlineNode<'_>,
     visit: &mut F,
 ) {
@@ -403,6 +421,7 @@ where
                 self.inlines(l.title.inlines_mut())?;
                 for item in &mut l.items {
                     (self.visit_location)(&mut item.location)?;
+                    (self.visit_location)(&mut item.callout.location)?;
                     self.inlines(&mut item.principal)?;
                     self.blocks(&mut item.blocks)?;
                 }
@@ -442,7 +461,10 @@ where
                 self.metadata(&mut block.metadata)?;
                 self.inlines(block.title.inlines_mut())?;
             }
-            Block::TableOfContents(block) => self.metadata(&mut block.metadata)?,
+            Block::TableOfContents(block) => {
+                self.metadata(&mut block.metadata)?;
+                self.inlines(block.title.inlines_mut())?;
+            }
             Block::DocumentAttribute(_) | Block::Comment(_) => {}
         }
         Ok(())
@@ -485,14 +507,14 @@ where
         // The formatted-text variants are distinct struct types, so each needs its own
         // arm (they can't share an or-pattern binding).
         match node {
-            InlineNode::BoldText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::ItalicText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::MonospaceText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::HighlightText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::SubscriptText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::SuperscriptText(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::DoubleQuotedSpan(t) => self.formatting(&mut t.id, &mut t.content)?,
-            InlineNode::SingleQuotedSpan(t) => self.formatting(&mut t.id, &mut t.content)?,
+            InlineNode::BoldText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::ItalicText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::MonospaceText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::HighlightText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::SubscriptText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::SuperscriptText(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::DoubleQuotedSpan(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
+            InlineNode::SingleQuotedSpan(t) => self.formatting(&mut t.id, &mut t.attribute_location, &mut t.content)?,
             InlineNode::Macro(m) => self.inline_macro(m)?,
             InlineNode::InlineAnchor(anchor) => {
                 self.reference_text(&mut anchor.xreflabel, &mut anchor.reftext_source)?;
@@ -525,10 +547,14 @@ where
     fn formatting(
         &mut self,
         id: &mut Option<crate::ElementId<'a>>,
+        attribute_location: &mut Option<Box<crate::Location>>,
         content: &mut [InlineNode<'a>],
     ) -> Result<(), E> {
         if let Some(id) = id {
             (self.visit_location)(&mut id.location)?;
+        }
+        if let Some(location) = attribute_location {
+            (self.visit_location)(location)?;
         }
         self.inlines(content)
     }
@@ -549,18 +575,21 @@ where
                 if let Some(id) = &mut l.metadata.id {
                     (self.visit_location)(&mut id.location)?;
                 }
+                (self.visit_location)(&mut l.target_location.0)?;
                 self.inlines(&mut l.text)?;
             }
             InlineMacro::UrlMacro(u) => {
                 if let Some(id) = &mut u.metadata.id {
                     (self.visit_location)(&mut id.location)?;
                 }
+                (self.visit_location)(&mut u.target_location.0)?;
                 self.inlines(&mut u.text)?;
             }
             InlineMacro::Mailto(m) => {
                 if let Some(id) = &mut m.metadata.id {
                     (self.visit_location)(&mut id.location)?;
                 }
+                (self.visit_location)(&mut m.target_location.0)?;
                 self.inlines(&mut m.text)?;
             }
             InlineMacro::CrossReference(x) => {
@@ -584,6 +613,7 @@ where
                 if let Some(id) = &mut x.metadata.id {
                     (self.visit_location)(&mut id.location)?;
                 }
+                (self.visit_location)(&mut x.target_location)?;
                 self.inlines(&mut x.text)?;
             }
             InlineMacro::IndexTerm(term) => self.index_term(term)?,

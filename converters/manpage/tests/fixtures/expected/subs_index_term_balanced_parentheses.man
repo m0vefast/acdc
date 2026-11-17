@@ -47,7 +47,7 @@ S04 Code (R) after \c
 S05 Code \(rg after \c
 .URL "https://example.org/05" "Next05" "\fR\c"
 
-S06 fn((x)) tail after \c
+S06 fn((x tail)) after \c
 .URL "https://example.org/06" "Next06" "\fR\c"
 
 S07 Code \(rg) after \c
@@ -92,24 +92,24 @@ S16 [1] after.
 .RE
 .SS "A"
 .RS 4
-Attribute (R)
+Attribute (R
 .br
 .RE
 .SS "C"
 .RS 4
-Code (R)
+Code (R
 .br
 Code \(rg
 .br
 .RE
 .SS "F"
 .RS 4
-fn((x)) tail
+fn((x
 .br
 .RE
 .SS "L"
 .RS 4
-Late (R)
+Late (R
 .br
 Late attribute {symbol}
 .br
@@ -120,7 +120,7 @@ Late open {open}literal
 .RE
 .SS "T"
 .RS 4
-Term (R)
+Term (R
 .br
 Term \(rg
 .br

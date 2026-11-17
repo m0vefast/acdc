@@ -105,17 +105,17 @@
 
 #text("Escaped triple formatting: ")#text("+")#strong[#text("bold")]#text("+")
 
-#text("Escaped single attribute: +Ada+")
+#text("Escaped single attribute: +")#text("Ada")#text("+")
 
 #text("Escaped double attribute: ")#text("+{name}")#text("+")
 
 #text("Escaped triple attribute: ")#text("+")#text("Ada")#text("+")
 
-#text("Escaped single markup: +<mark>")#strong[#text("bold")]#text("</mark>+")
+#text("Escaped single markup: +<mark>*bold*</mark>+")
 
 #text("Escaped double markup: ")#text("+<mark>*bold*</mark>")#text("+")
 
-#text("Escaped triple markup: ")#text("+")#text("<mark>")#strong[#text("bold")]#text("</mark>")#text("+")
+#text("Escaped triple markup: ")#text("+")#text("<mark>*bold*</mark>")#text("+")
 
 #text("Escaped single numeric: +")#text("©")#text("+")
 

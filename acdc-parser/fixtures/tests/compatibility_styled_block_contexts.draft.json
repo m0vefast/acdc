@@ -566,11 +566,29 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Parent paragraph ending inside an include\nIncluded final café line",
+          "value": "Parent paragraph ending inside an include\n",
           "location": [
             {
               "line": 36,
               "col": 1
+            },
+            {
+              "line": 36,
+              "col": 42
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Included final café line",
+          "location": [
+            {
+              "line": 11,
+              "col": 1,
+              "file": [
+                "includes/compatibility_styled_block_contexts.adoc"
+              ]
             },
             {
               "line": 11,

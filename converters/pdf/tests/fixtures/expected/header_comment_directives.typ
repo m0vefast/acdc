@@ -85,10 +85,10 @@
 
 #heading(level: 1)[#text("Checks")] <id-5f636865636b73>
 
-#text("D01 kept=original; hidden={hidden}.")
+#text("D01 kept=")#text("original")#text("; hidden={hidden}.")
 
 #text("D03 Correct conditional branch.")
 
-#text("D04 After different-length delimiters: original.")
+#text("D04 After different-length delimiters: ")#text("original")#text(".")
 
-#text("D05 After an apparent attribute continuation: original.")
+#text("D05 After an apparent attribute continuation: ")#text("original")#text(".")

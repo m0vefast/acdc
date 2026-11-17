@@ -36,7 +36,7 @@ index\-dash\-context \- neighboring index text
 .sp
 S01 prefix\(emtail
 .sp
-S02 prefix\(emtail
+S02 prefix\-\-tail
 .sp
 S03 prefix\-\-tail
 .sp
@@ -58,7 +58,7 @@ S09 prefix\(emtail \c
 S10 prefix\(emtail \c
 .URL "https://next.example/10" "Next10" "\fR\c"
 
-S11 prefix\(emtail \c
+S11 prefix\-\-tail \c
 .URL "https://next.example/11" "Next11" "\fR\c"
 
 S12 prefixbegin\(emendtail \c
@@ -114,7 +114,7 @@ S32 \c
 \-\-tail
 .EE
 .EX
-S27 prefix\(emtail \c
+S27 prefix\-\-tail \c
 .URL "https://next.example/27" "Next27" "\fR\c"
 .EE
 .EX
@@ -146,7 +146,7 @@ S35 prefix\(emtail \c
 S36 prefix \(em tail \c
 .URL "https://next.example/36" "Next36" "\fR\c"
 
-S37 prefix \(em tail \c
+S37 prefix \-\- tail \c
 .URL "https://next.example/37" "Next37" "\fR\c"
 
 S38 prefix  \(em  tail \c
@@ -200,19 +200,19 @@ S53 prefix \(em  \(em tail \c
 .sp
 S54 prefix \(em tail
 .sp
-S55 prefix \(em tail
+S55 prefix \-\- tail
 .sp
 S56 prefix \-\- tail
 .sp
 S57 Sam\(cqs
 .sp
-S58 Sam\(cqs
+S58 Sam\(aqs
 .sp
 S59 Sam\(aqs
 .sp
 S60 prefix\(emtail
 .sp
-S61 prefix\(emtail
+S61 prefix\-\-tail
 .sp
 S62 prefix\-\-tail
 .EX

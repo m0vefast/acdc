@@ -91,7 +91,7 @@
 
 #text("S01 prefix")#metadata(none)<__indexterm-1>#text("—​")#text("tail")
 
-#text("S02 prefix")#metadata(none)<__indexterm-2>#text("—​")#text("tail")
+#text("S02 prefix")#metadata(none)<__indexterm-2>#text("--")#text("tail")
 
 #text("S03 prefix")#metadata(none)<__indexterm-3>#text("--")#text("tail")
 
@@ -152,7 +152,7 @@
     ((21, 27, body => link("https://next.example/08", body)), ),
     ((21, 27, body => link("https://next.example/09", body)), ),
     ((21, 27, body => link("https://next.example/10", body)), ),
-    ((10, 10, body => [#metadata(none)<id-636f64652d6265666f7265>] + []), (16, 16, body => [#metadata(none)<id-636f64652d6166746572>] + []), (21, 27, body => link("https://next.example/11", body)), ),
+    ((10, 10, body => [#metadata(none)<id-636f64652d6265666f7265>] + []), (12, 12, body => [#metadata(none)<id-636f64652d6166746572>] + []), (17, 23, body => link("https://next.example/11", body)), ),
     ((29, 35, body => link("https://next.example/12", body)), ),
     ((20, 26, body => link("https://next.example/13", body)), ),
     ((21, 27, body => link("https://next.example/14", body)), ),
@@ -182,7 +182,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
-  raw(block: true, "S07 prefix—​tail Next07\nS08 prefix—​tail Next08\nS09 prefix—​tail Next09\nS10 prefix—​tail Next10\nS11 prefix—​tail Next11\nS12 prefixbegin—​endtail Next12\nS13 pré—​été Next13\nS14 word_—​_tail Next14\nS15 prefix--tail Next15\nS16 prefix---tail Next16\nS17 prefix---tail Next17\nS18 prefix---tail Next18\nS19 prefix-- Next19\nS20 --tail Next20\nS21 prefix.--tail Next21\nS22 prefix--.tail Next22\nS23 prefix — tail Next23\nS24 prefix--tail Next24\nS25 prefix — tail Next25\nS26 prefix--tail Next26\nS31 prefix--Tail31\nS32 Prefix32--tail")
+  raw(block: true, "S07 prefix—​tail Next07\nS08 prefix—​tail Next08\nS09 prefix—​tail Next09\nS10 prefix—​tail Next10\nS11 prefix--tail Next11\nS12 prefixbegin—​endtail Next12\nS13 pré—​été Next13\nS14 word_—​_tail Next14\nS15 prefix--tail Next15\nS16 prefix---tail Next16\nS17 prefix---tail Next17\nS18 prefix---tail Next18\nS19 prefix-- Next19\nS20 --tail Next20\nS21 prefix.--tail Next21\nS22 prefix--.tail Next22\nS23 prefix — tail Next23\nS24 prefix--tail Next24\nS25 prefix — tail Next25\nS26 prefix--tail Next26\nS31 prefix--Tail31\nS32 Prefix32--tail")
 }
 #{
   let index-anchors = (
@@ -210,7 +210,7 @@
     }
   }
   let links = (
-    ((21, 27, body => link("https://next.example/27", body)), ),
+    ((17, 23, body => link("https://next.example/27", body)), ),
   )
   let code-links(line) = {
     let start = 0
@@ -223,7 +223,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
-  raw(block: true, "S27 prefix—​tail Next27")
+  raw(block: true, "S27 prefix--tail Next27")
 }
 #{
   let index-anchors = (
@@ -334,7 +334,7 @@
     ((21, 27, body => link("https://next.example/34", body)), ),
     ((21, 27, body => link("https://next.example/35", body)), ),
     ((24, 30, body => link("https://next.example/36", body)), ),
-    ((10, 10, body => [#metadata(none)<id-73706163652d6265666f7265>] + []), (19, 19, body => [#metadata(none)<id-73706163652d6166746572>] + []), (24, 30, body => link("https://next.example/37", body)), ),
+    ((11, 11, body => [#metadata(none)<id-73706163652d6265666f7265>] + []), (13, 13, body => [#metadata(none)<id-73706163652d6166746572>] + []), (19, 25, body => link("https://next.example/37", body)), ),
     ((26, 32, body => link("https://next.example/38", body)), ),
     ((12, 18, body => link("https://next.example/39", body)), ),
     ((12, 18, body => link("https://next.example/40", body)), ),
@@ -363,23 +363,23 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
-  raw(block: true, "S33 prefix—​tail Next33\nS34 prefix—​tail Next34\nS35 prefix—​tail Next35\nS36 prefix — tail Next36\nS37 prefix — tail Next37\nS38 prefix  —  tail Next38\nS39 Sam’s Next39\nS40 Sam’s Next40\nS41 Sam’s Next41\nS42 pré’été Next42\nS43 3'4 Next43\nS44 _'s Next44\nS45 Sam's Next45\nS46 Sam’s Next46\nS47 Sam’s Next47\nS48 prefix--tail Next48\nS49 prefix -- tail Next49\nS50 prefix -- tail Next50\nS51 prefix  —  tail Next51\nS52 prefix -- — -- tail Next52\nS53 prefix —  — tail Next53")
+  raw(block: true, "S33 prefix—​tail Next33\nS34 prefix—​tail Next34\nS35 prefix—​tail Next35\nS36 prefix — tail Next36\nS37 prefix -- tail Next37\nS38 prefix  —  tail Next38\nS39 Sam’s Next39\nS40 Sam’s Next40\nS41 Sam’s Next41\nS42 pré’été Next42\nS43 3'4 Next43\nS44 _'s Next44\nS45 Sam's Next45\nS46 Sam’s Next46\nS47 Sam’s Next47\nS48 prefix--tail Next48\nS49 prefix -- tail Next49\nS50 prefix -- tail Next50\nS51 prefix  —  tail Next51\nS52 prefix -- — -- tail Next52\nS53 prefix —  — tail Next53")
 }
 #text("S54 prefix")#metadata(none)<__indexterm-61>#text(" — ")#text("tail")
 
-#text("S55 prefix")#metadata(none)<__indexterm-62>#text(" — ")#text("tail")
+#text("S55 prefix ")#metadata(none)<__indexterm-62>#text("--")#text(" tail")
 
 #text("S56 prefix ")#metadata(none)<__indexterm-63>#text("--")#text(" tail")
 
 #text("S57 Sa")#metadata(none)<__indexterm-64>#text("m")#text("’")#text("s")
 
-#text("S58 Sa")#metadata(none)<__indexterm-65>#text("m")#text("’")#text("s")
+#text("S58 Sa")#metadata(none)<__indexterm-65>#text("m")#text("'s")
 
 #text("S59 Sa")#metadata(none)<__indexterm-66>#text("m")#text("'s")
 
 #text("S60 prefix")#text("—​")#metadata(none)<__indexterm-67>#text("tail")
 
-#text("S61 prefix")#text("—​")#metadata(none)<__indexterm-68>#text("tail")
+#text("S61 prefix-")#metadata(none)<__indexterm-68>#text("-")#text("tail")
 
 #text("S62 prefix-")#metadata(none)<__indexterm-69>#text("-")#text("tail")
 
@@ -464,12 +464,12 @@
 #v(0.25em)
 #par(hanging-indent: 1em)[#text("'")#_acdc_index_pages((<__indexterm-45>,<__indexterm-46>,<__indexterm-47>,<__indexterm-48>,), "term")]
 #par(hanging-indent: 1em)[#text("-")#_acdc_index_pages((<__indexterm-35>,<__indexterm-36>,<__indexterm-37>,<__indexterm-38>,<__indexterm-53>,<__indexterm-67>,<__indexterm-68>,<__indexterm-69>,), "term")]
-#par(hanging-indent: 1em)[#text("--")#_acdc_index_pages((<__indexterm-1>,<__indexterm-3>,<__indexterm-5>,<__indexterm-6>,<__indexterm-10>,<__indexterm-11>,<__indexterm-14>,<__indexterm-15>,<__indexterm-18>,<__indexterm-19>,<__indexterm-20>,<__indexterm-21>,<__indexterm-22>,<__indexterm-23>,<__indexterm-24>,<__indexterm-25>,<__indexterm-27>,<__indexterm-28>,<__indexterm-29>,<__indexterm-31>,<__indexterm-33>,<__indexterm-34>,<__indexterm-40>,<__indexterm-41>,<__indexterm-42>,<__indexterm-54>,<__indexterm-55>,<__indexterm-57>,<__indexterm-58>,<__indexterm-59>,<__indexterm-60>,<__indexterm-61>,<__indexterm-63>,), "term")]
+#par(hanging-indent: 1em)[#text("--")#_acdc_index_pages((<__indexterm-1>,<__indexterm-2>,<__indexterm-3>,<__indexterm-5>,<__indexterm-6>,<__indexterm-10>,<__indexterm-11>,<__indexterm-14>,<__indexterm-15>,<__indexterm-18>,<__indexterm-19>,<__indexterm-20>,<__indexterm-21>,<__indexterm-22>,<__indexterm-23>,<__indexterm-24>,<__indexterm-25>,<__indexterm-27>,<__indexterm-28>,<__indexterm-29>,<__indexterm-30>,<__indexterm-31>,<__indexterm-33>,<__indexterm-34>,<__indexterm-40>,<__indexterm-41>,<__indexterm-42>,<__indexterm-54>,<__indexterm-55>,<__indexterm-57>,<__indexterm-58>,<__indexterm-59>,<__indexterm-60>,<__indexterm-61>,<__indexterm-62>,<__indexterm-63>,), "term")]
 #par(hanging-indent: 1em)[#text("---")#_acdc_index_pages((<__indexterm-17>,), "term")]
 #par(hanging-indent: 1em)[#text("--tail")#_acdc_index_pages((<__indexterm-7>,), "term")]
 #par(hanging-indent: 1em)[#text("\\'")#_acdc_index_pages((<__indexterm-49>,), "term")]
 #par(hanging-indent: 1em)[#text("\\--")#_acdc_index_pages((<__indexterm-16>,), "term")]
-#par(hanging-indent: 1em)[#text(" — ")#_acdc_index_pages((<__indexterm-2>,<__indexterm-4>,<__indexterm-26>,<__indexterm-30>,<__indexterm-32>,<__indexterm-56>,<__indexterm-62>,), "term")]
+#par(hanging-indent: 1em)[#text(" — ")#_acdc_index_pages((<__indexterm-4>,<__indexterm-26>,<__indexterm-32>,<__indexterm-56>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("B")]
 #v(0.25em)

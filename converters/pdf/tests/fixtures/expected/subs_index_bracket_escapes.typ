@@ -148,7 +148,7 @@
 
 #metadata(none)<__indexterm-9>#text("Expanded ")#text("\\]")#text(" term")
 
-#link("https://example.org")[#metadata(none)<__indexterm-10>#text("Linked Expanded ")#text("\\]")#text(" term")]
+#link("https://example.org")[#metadata(none)<__indexterm-10>#text("Linked ")#text("Expanded ")#text("\\]")#text(" term")]
 
 #heading(level: 1)[#text("Index")] <id-5f696e646578>
 

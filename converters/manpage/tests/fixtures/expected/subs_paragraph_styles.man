@@ -38,7 +38,7 @@ styled\-paragraphs \- style tests
 .br
 .RS 4
 .sp
-Sidebar \fBBold\fR expanded.
+Sidebar \fBBold\fR expanded\&.
 .RE
 .sp
 .RS 4

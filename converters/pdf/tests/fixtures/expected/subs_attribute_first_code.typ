@@ -85,15 +85,15 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("C01 ``.")
+#text("C01 `")#text("`.")
 
-#text("C02 `code `.")
+#text("C02 `code")#text(" ")#text("`.")
 
-#text("C03 ` code`.")
+#text("C03 `")#text(" ")#text("code`.")
 
-#text("C04 `code `.")
+#text("C04 `code ")#text("`.")
 
-#text("C05 ` code`.")
+#text("C05 `")#text(" code`.")
 
 #text("C06 ")#raw("code `; tail")#text(".")
 
@@ -109,7 +109,7 @@
 
 #text("C12 ")#raw("café")#strong[#text("End")]#text(".")
 
-#text("C13 ")#strong[#text("``")]#text(".")
+#text("C13 ")#strong[#text("`")#text("`")]#text(".")
 
 #text("C14 ")#strong[#raw("café")]#raw("")#text(".")
 
@@ -119,7 +119,7 @@
 
 #text("C17 ")#metadata(none)<id-6b657074>#raw("café")#text(".")
 
-#text("C18 [.token#literal]``.")
+#text("C18 [.token#literal]`")#text("`.")
 
 #text("C19 ")#raw("{word}")#text(" and ")#raw("{word}")#text(".")
 
@@ -131,11 +131,11 @@
 
 #text("C23 ")#link("https://example.org")[#raw("café")]#raw("")#text(".")
 
-#text("C24 ")#link("https://example.org")[#text("``")]#text(".")
+#text("C24 ")#link("https://example.org")[#text("`")#text("`")]#text(".")
 
 #text("C25 ")#metadata(none)<id-746172676574>#counter(footnote).update(0)#footnote[#text("Only once.")]#raw("Term")#text(".")
 
-#text("C26 `café`.")
+#text("C26 `")#text("café")#text("`.")
 
 #text("C27 ")#raw("{word}")#text(".")
 
@@ -145,7 +145,7 @@
 
 #text("C30 ")#raw(" ")#text(".")
 
-#text("C31 ``.")
+#text("C31 `")#text("`.")
 
 #text("C32 ")#raw("first `; tail")#text(".")
 
@@ -153,12 +153,12 @@
 
 #raw(block: true, "C34 café.")
 
-#text("C35 `code `.")
+#text("C35 `code")#text(" ")#text("`.")
 
-#text("C36 `café`.")
+#text("C36 `")#text("café")#text("`.")
 
 #text("C37 ")#raw("café ")#text(".")
 
-#text("C38 `")#text("{word}")#text(" `.")
+#text("C38 `")#text("{word}")#text(" ")#text("`.")
 
-#text("C39 ` ")#strong[#text("bold")]#text("`.")
+#text("C39 `")#text(" ")#strong[#text("bold")]#text("`.")

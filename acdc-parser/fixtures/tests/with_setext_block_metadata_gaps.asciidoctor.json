@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_first",
       "blocks": [
         {
           "name": "paragraph",
@@ -118,6 +119,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -129,7 +131,7 @@
               },
               {
                 "line": 8,
-                "col": 11
+                "col": 10
               }
             ]
           }

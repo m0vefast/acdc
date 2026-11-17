@@ -61,20 +61,6 @@ impl<'a> LocationMappingContext<'_, 'a> {
         })
     }
 
-    fn map_symbol_location(&self, loc: &Location) -> Result<Location, Error> {
-        let mapped = self.map_location(loc)?;
-        let start = self
-            .processed
-            .source_map
-            .map_token_position(self.base_location.absolute_start + loc.absolute_start)?;
-        let start = snap_to_boundary(
-            self.state.input,
-            start.min(self.state.input.len()),
-            RoundDirection::Backward,
-        );
-        Ok(self.state.create_location(start, mapped.absolute_end))
-    }
-
     /// Map an inclusive preprocessed span to source coordinates, preserving
     /// the end bias of substitutions.
     pub(super) fn map_location(&self, loc: &Location) -> Result<Location, Error> {
@@ -94,7 +80,9 @@ impl<'a> LocationMappingContext<'_, 'a> {
         let processed_abs_end = base_location.absolute_start + loc.absolute_end;
 
         // Map those through the preprocessor source map back to original source
-        let mut mapped_abs_start = processed.source_map.map_position(processed_abs_start)?;
+        let mut mapped_abs_start = processed
+            .source_map
+            .map_token_position(processed_abs_start)?;
         let mut mapped_abs_end = processed.source_map.map_end_position(processed_abs_end)?;
 
         // Clamp to input bounds - preprocessor expansion can produce positions beyond input length
@@ -194,10 +182,10 @@ pub(super) fn map_inner_content_locations<'a>(
             InlineNode::Macro(inline_macro) => map_inline_macro(inline_macro, ctx)?,
             InlineNode::InlineAnchor(anchor) => map_anchor_locations(anchor, ctx)?,
             InlineNode::CharacterReference(reference) => {
-                reference.location = ctx.map_symbol_location(&reference.location)?;
+                reference.location = ctx.map_location(&reference.location)?;
             }
             InlineNode::Symbol(symbol) => {
-                symbol.location = ctx.map_symbol_location(&symbol.location)?;
+                symbol.location = ctx.map_location(&symbol.location)?;
             }
             InlineNode::RawText(raw) => {
                 raw.location = ctx.map_location(&raw.location)?;
@@ -255,9 +243,11 @@ fn map_nodes<'a>(
     Ok(mapped)
 }
 
+const PLACEHOLDER_MARKER: &str = "���";
+
 fn contains_passthrough_placeholders(content: &str, processed: &ProcessedContent<'_>) -> bool {
     !processed.passthroughs.is_empty()
-        && content.contains("���")
+        && content.contains(PLACEHOLDER_MARKER)
         && processed.passthroughs.iter().enumerate().any(|(index, _)| {
             let placeholder = format!("���{index}���");
             content.contains(&placeholder)
@@ -320,10 +310,10 @@ fn map_locations<'a>(
                 standalone.location = ctx.map_location(&standalone.location)?;
             }
             InlineNode::CharacterReference(reference) => {
-                reference.location = ctx.map_symbol_location(&reference.location)?;
+                reference.location = ctx.map_location(&reference.location)?;
             }
             InlineNode::Symbol(symbol) => {
-                symbol.location = ctx.map_symbol_location(&symbol.location)?;
+                symbol.location = ctx.map_location(&symbol.location)?;
             }
             InlineNode::Macro(inline_macro) => map_inline_macro(inline_macro, &ctx)?,
             InlineNode::LineBreak(lb) => lb.location = ctx.map_location(&lb.location)?,
@@ -408,6 +398,7 @@ fn resolve_profile_context<'a>(
     state
         .attribute_value_ranges
         .sort_unstable_by_key(|range| range.start);
+    state.passthrough_spans = super::inline_processing::passthrough_spans(ctx.processed);
     super::inlines::typography::resolve_plain(nodes, &state, paragraph && empty_profile)
 }
 
@@ -662,6 +653,7 @@ fn map_inline_macro<'a>(
         }
         InlineMacro::UrlMacro(url) => {
             url.location = ctx.map_location(&url.location)?;
+            url.target_location.0 = ctx.map_location(&url.target_location.0)?;
             if let Some(id) = &mut url.metadata.id {
                 id.location = ctx.map_location(&id.location)?;
             }
@@ -669,6 +661,7 @@ fn map_inline_macro<'a>(
         }
         InlineMacro::Mailto(mailto) => {
             mailto.location = ctx.map_location(&mailto.location)?;
+            mailto.target_location.0 = ctx.map_location(&mailto.target_location.0)?;
             if let Some(id) = &mut mailto.metadata.id {
                 id.location = ctx.map_location(&id.location)?;
             }
@@ -676,6 +669,7 @@ fn map_inline_macro<'a>(
         }
         InlineMacro::Link(link) => {
             link.location = ctx.map_location(&link.location)?;
+            link.target_location.0 = ctx.map_location(&link.target_location.0)?;
             if let Some(id) = &mut link.metadata.id {
                 id.location = ctx.map_location(&id.location)?;
             }
@@ -702,6 +696,7 @@ fn map_inline_macro<'a>(
         }
         InlineMacro::CrossReference(xref) => {
             xref.location = ctx.map_location(&xref.location)?;
+            xref.target_location = ctx.map_location(&xref.target_location)?;
             if let Some(id) = &mut xref.metadata.id {
                 id.location = ctx.map_location(&id.location)?;
             }
@@ -710,6 +705,7 @@ fn map_inline_macro<'a>(
                 let restored = replace_passthrough_placeholders(xref.target, processed);
                 if restored != xref.target {
                     xref.target = state.intern_str(&restored);
+                    xref.written_target = xref.target;
                     xref.target_is_local = xref.source_syntax.target_is_local(xref.target);
                     xref.resolve_natural_target = false;
                     if state.options.force_local_file_xrefs() {
@@ -958,7 +954,8 @@ fn attribute_fragments<'a>(
             let mut fragment = plain.clone();
             fragment.content = &plain.content[cursor..offset];
             fragment.location.absolute_start += cursor;
-            fragment.location.absolute_end = plain.location.absolute_start + offset - 1;
+            let last = fragment.content.chars().next_back().map_or(1, char::len_utf8);
+            fragment.location.absolute_end = plain.location.absolute_start + offset - last;
             let expanded = map_plain_text_inline_locations(&mut fragment, ctx)?;
             fragments.extend(expanded.unwrap_or_else(|| vec![InlineNode::PlainText(fragment)]));
         }
@@ -1005,18 +1002,37 @@ fn map_plain_text_inline_locations<'a>(
     plain: &mut Plain<'a>,
     ctx: &LocationMappingContext<'_, 'a>,
 ) -> Result<Option<Vec<InlineNode<'a>>>, Error> {
+    if let Some(nodes) = reference_pieces(plain, ctx)? {
+        return Ok(Some(nodes));
+    }
     if let Some(fragments) = attribute_fragments(plain, ctx)? {
         return Ok(Some(fragments));
     }
-    plain.location = ctx.map_location(&plain.location)?;
     if contains_passthrough_placeholders(plain.content, ctx.processed) {
-        // Passthrough locations use the mapped document coordinates as their base.
+        let processed_start = plain.location.absolute_start;
+        let offsets = ctx
+            .processed
+            .text
+            .get(processed_start..)
+            .and_then(|processed| processed_offsets(plain.content, processed));
+        let at = |offset: usize, side: usize| {
+            offsets
+                .as_ref()
+                .and_then(|offsets| offsets.get(offset))
+                .map_or(offset, |sides| sides[side])
+        };
         let mut nodes = super::passthrough_processing::process_passthrough_placeholders(
             plain.content,
             ctx.processed,
             ctx.state,
-            &plain.location,
-        );
+            &|start, end| {
+                ctx.map_location(&Location {
+                    absolute_start: processed_start + at(start, 0),
+                    absolute_end: processed_start + at(end, 1),
+                    ..Location::default()
+                })
+            },
+        )?;
         // Expanded nodes already have mapped locations and bypass map_inline_macro.
         for node in &mut nodes {
             super::location_walk::walk_inline_nodes_mut(node, &mut |node| {
@@ -1027,7 +1043,161 @@ fn map_plain_text_inline_locations<'a>(
         }
         return Ok(Some(nodes));
     }
+    plain.location = ctx.map_location(&plain.location)?;
     Ok(None)
+}
+
+/// A plain text cut where the text a reference expanded to begins and ends, and
+/// where a reference expanded to nothing, so that every piece is either the
+/// source's own bytes or stands for one whole reference.
+fn reference_pieces<'a>(
+    plain: &Plain<'a>,
+    ctx: &LocationMappingContext<'_, 'a>,
+) -> Result<Option<Vec<InlineNode<'a>>>, Error> {
+    let map = &ctx.processed.source_map;
+    let base = ctx.base_location.absolute_start;
+    let start = plain.location.absolute_start;
+    let input_start = map.map_token_position(base + start)?;
+    let input_end = map.map_end_position(base + plain.location.absolute_end)?;
+    let gaps = ctx.state.text_gaps();
+    // Whether the source does not continue somewhere in `(low, high]`.
+    let crosses = |low: usize, high: usize| -> Result<bool, Error> {
+        let first = gaps.partition_point(|&gap| gap <= low);
+        if gaps.get(first).is_some_and(|&gap| gap <= high) {
+            return Ok(true);
+        }
+        let mut found = false;
+        map.for_each_piece_boundary(&mut |cut| found |= cut > low && cut <= high)?;
+        Ok(found)
+    };
+    if !crosses(input_start, input_end)? {
+        return Ok(None);
+    }
+    let text = plain.content;
+    let offsets = match align(text, ctx.processed.text.get(start..).unwrap_or_default()) {
+        Alignment::Same => None,
+        Alignment::Offsets(offsets) => Some(offsets),
+        Alignment::Unaligned => return Ok(None),
+    };
+    let processed_side = |index: usize, side: usize| {
+        offsets
+            .as_ref()
+            .and_then(|offsets| offsets.get(index))
+            .map_or(index, |sides| sides[side])
+    };
+    let processed_at = |index: usize| processed_side(index, 0);
+    // An escaping backslash a reference expanded to is not text: the first
+    // piece starts at its own first character.
+    let mut first_start = processed_at(0);
+    let mut reached = input_start;
+    let own = processed_side(0, 1);
+    if own != first_start {
+        let own_input = map.map_token_position(base + start + own)?;
+        if crosses(input_start, own_input)? {
+            first_start = own;
+            reached = own_input;
+        }
+    }
+    let moved = first_start != processed_at(0);
+    let mut nodes = Vec::new();
+    let mut push = |from: usize, to: usize| -> Result<(), Error> {
+        let mut piece = plain.clone();
+        piece.content = &text[from..to];
+        piece.location.absolute_start = start + if from == 0 { first_start } else { processed_at(from) };
+        if to < text.len() {
+            let last = text[from..to].chars().next_back().map_or(1, char::len_utf8);
+            piece.location.absolute_end = start + processed_side(to - last, 1);
+        }
+        match map_plain_text_inline_locations(&mut piece, ctx)? {
+            Some(expanded) => nodes.extend(expanded),
+            None => nodes.push(InlineNode::PlainText(piece)),
+        }
+        Ok(())
+    };
+    // A passthrough placeholder is one construct; no boundary falls inside it.
+    let mut placeholders = Vec::new();
+    let mut rest = 0;
+    while let Some(open) = text.get(rest..).and_then(|tail| tail.find(PLACEHOLDER_MARKER)) {
+        let open = rest + open;
+        let digits_at = open + PLACEHOLDER_MARKER.len();
+        let digits = text[digits_at..].bytes().take_while(u8::is_ascii_digit).count();
+        if digits > 0 && text[digits_at + digits..].starts_with(PLACEHOLDER_MARKER) {
+            let close = digits_at + digits + PLACEHOLDER_MARKER.len();
+            placeholders.push(open + 1..close);
+            rest = close;
+        } else {
+            rest = digits_at;
+        }
+    }
+    let in_placeholder = |index: usize| placeholders.iter().any(|span| span.contains(&index));
+    // Source positions only grow along the text: a character starts a piece
+    // when the source breaks between the previous character and it.
+    let mut from = 0;
+    for index in (1..text.len()).filter(|&index| text.is_char_boundary(index) && !in_placeholder(index)) {
+        let at = map.map_token_position(base + start + processed_at(index))?;
+        if at <= reached {
+            continue;
+        }
+        if crosses(reached, at)? {
+            push(from, index)?;
+            from = index;
+        }
+        reached = at;
+    }
+    if from == 0 && !moved {
+        return Ok(None);
+    }
+    push(from, text.len())?;
+    Ok(Some(nodes))
+}
+
+/// Where each byte of a node's text stands in the processed text it was read
+/// from, as `[start, end]`: a byte starting a piece owns the escaping
+/// backslashes the text dropped in front of it. `None` when the text is that
+/// processed text byte for byte.
+fn processed_offsets(text: &str, processed: &str) -> Option<Vec<[usize; 2]>> {
+    match align(text, processed) {
+        Alignment::Offsets(offsets) => Some(offsets),
+        Alignment::Same | Alignment::Unaligned => None,
+    }
+}
+
+/// How a node's text reads against the processed text it stands at.
+enum Alignment {
+    /// The text is the processed text byte for byte.
+    Same,
+    /// The text is the processed text without some escaping backslashes.
+    Offsets(Vec<[usize; 2]>),
+    /// The text is not read from the processed text at all: it was frozen or
+    /// restored before later substitutions ran.
+    Unaligned,
+}
+
+fn align(text: &str, processed: &str) -> Alignment {
+    if processed.starts_with(text) {
+        return Alignment::Same;
+    }
+    let mut offsets = Vec::with_capacity(text.len());
+    let mut source = processed.char_indices().peekable();
+    for character in text.chars() {
+        let Some(&(from, _)) = source.peek() else {
+            return Alignment::Unaligned;
+        };
+        loop {
+            let Some((at, found)) = source.next() else {
+                return Alignment::Unaligned;
+            };
+            if found == character {
+                offsets.push([from, at]);
+                offsets.extend((at + 1..at + character.len_utf8()).map(|byte| [byte, byte]));
+                break;
+            }
+            if found != '\\' {
+                return Alignment::Unaligned;
+            }
+        }
+    }
+    Alignment::Offsets(offsets)
 }
 
 #[cfg(test)]
@@ -1138,7 +1308,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         for prefix in ["", "First paragraph.\n\n"] {
             for character in ["a", "é", "😀"] {
-                let source = format!("{prefix}+0+\t \\#{character}");
+                let source = format!("{prefix}+0+\t \\##b##{character}");
                 let parsed = parse(&source, &Options::default())?;
                 let Some(Block::Paragraph(paragraph)) = parsed.document_storage().blocks.last()
                 else {
@@ -1153,7 +1323,7 @@ mod tests {
                 assert_eq!(location.absolute_end, location.absolute_start);
                 assert_eq!(source.get(location.absolute_start..), Some(character));
                 assert_eq!(location.start.line, if prefix.is_empty() { 1 } else { 3 });
-                assert_eq!(location.start.column, 8);
+                assert_eq!(location.start.column, 12);
                 assert_eq!(location.end, location.start);
             }
         }

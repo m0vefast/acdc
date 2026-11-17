@@ -21,9 +21,9 @@ P02 <a id="_indexterm_1"></a>function(argument) after.
 
 P03 Before <a id="_indexterm_2"></a>function(argument) after.
 
-P04 <a id="_indexterm_3"></a>fn((x)) tail after.
+P04 <a id="_indexterm_3"></a>fn((x tail)) after.
 
-P05 Before <a id="_indexterm_4"></a>fn((x)) tail after.
+P05 Before <a id="_indexterm_4"></a>fn((x tail)) after.
 
 P06 <a id="_indexterm_5"></a>word) after.
 
@@ -53,9 +53,9 @@ P18 <a id="_indexterm_18"></a> after.
 
 P19 <a id="_indexterm_19"></a>function(argument) after.
 
-P20 <a id="_indexterm_20"></a>Term after.
+P20 <a id="_indexterm_20"></a>Term) after.
 
-P21 <a id="_indexterm_21"></a>Term after.
+P21 <a id="_indexterm_21"></a>Term tail &amp;\> Other)) after.
 
 P22 <a id="_indexterm_22"></a>café (déjà vu) after.
 
@@ -86,7 +86,7 @@ P28 <a id="_indexterm_26"></a> after.
 
 ### C
 
-- café (déjà vu) — [Description](#_indexterm_22)
+- café (déjà vu — [Description](#_indexterm_22)
 
 ### E
 
@@ -95,10 +95,12 @@ P28 <a id="_indexterm_26"></a> after.
 
 ### F
 
-- First (one) and (two) — [Description](#_indexterm_23)
+- First (one) and (two — [Description](#_indexterm_23)
 - first — [Description](#_indexterm_8)
-- fn((x)) tail — [Description](#_indexterm_3), [Description (2)](#_indexterm_4)
-- <a id="_indextermdef_66756e6374696f6e28617267756d656e7429"></a>function(argument) — [Description](#_indexterm_1), [Description (2)](#_indexterm_2), [Description (3)](#_indexterm_7), [Description (4)](#_indexterm_17), [Description (5)](#_indexterm_18), [Description (6)](#_indexterm_19)
+- fn((x — [Description](#_indexterm_3), [Description (2)](#_indexterm_4)
+- <a id="_indextermdef_66756e6374696f6e28617267756d656e74"></a>function(argument — [Description](#_indexterm_1), [Description (2)](#_indexterm_2)
+- function(argument) — [Description](#_indexterm_7), [Description (2)](#_indexterm_18), [Description (3)](#_indexterm_19)
+- function(argument)) — [Description](#_indexterm_17)
 
 ### L
 
@@ -119,9 +121,10 @@ P28 <a id="_indexterm_26"></a> after.
 
 ### T
 
-- Term — see [function(argument)](#_indextermdef_66756e6374696f6e28617267756d656e7429)
+- Term — see [function(argument](#_indextermdef_66756e6374696f6e28617267756d656e74)
 - Term ® — [Description](#_indexterm_0)
 
 ### W
 
-- word — [Description](#_indexterm_5), [Description (2)](#_indexterm_6)
+- word — [Description](#_indexterm_5)
+- word) — [Description](#_indexterm_6)

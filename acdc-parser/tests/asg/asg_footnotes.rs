@@ -28,9 +28,13 @@ fn document(
 #[test]
 fn registered_bodies_have_one_owner_and_occurrences_keep_identity() -> Result<(), Error> {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/asg/footnotes.adoc");
-    let expected: Value =
-        serde_json::from_str(&fs::read_to_string(source.with_extension("json"))?)?;
-    for mode in [CompatibilityMode::Asciidoctor, CompatibilityMode::Draft] {
+    // asciidoctor keeps `footnote:missing[]` an unresolved reference; Draft keeps `[missing]`.
+    for (mode, extension) in [
+        (CompatibilityMode::Asciidoctor, "json"),
+        (CompatibilityMode::Draft, "draft.json"),
+    ] {
+        let expected: Value =
+            serde_json::from_str(&fs::read_to_string(source.with_extension(extension))?)?;
         let parsed = parse_file(
             &source,
             &Options::builder().with_compatibility_mode(mode).build()?,
@@ -64,18 +68,29 @@ fn registered_bodies_have_one_owner_and_occurrences_keep_identity() -> Result<()
             .iter()
             .filter(|node| node.get("name") == Some(&json!("footnote")))
             .collect::<Vec<_>>();
+        let mut numbers = vec![Some(json!(1)), Some(json!(2)), Some(json!(2))];
+        if mode == CompatibilityMode::Asciidoctor {
+            numbers.push(Some(json!(0)));
+        }
         assert_eq!(
             notes
                 .iter()
                 .map(|note| note.get("number").cloned())
                 .collect::<Vec<_>>(),
-            [Some(json!(1)), Some(json!(2)), Some(json!(2))]
+            numbers
         );
         assert!(notes.iter().all(|note| note.get("inlines").is_none()));
-        assert!(
-            body.iter()
-                .filter_map(|node| node.get("value").and_then(Value::as_str))
-                .any(|text| text.contains("[missing]"))
+        let literal = body
+            .iter()
+            .filter_map(|node| node.get("value").and_then(Value::as_str))
+            .any(|text| text.contains("[missing]"));
+        let reference = notes
+            .iter()
+            .any(|note| note.get("id") == Some(&json!("missing")) && note.get("form") == Some(&json!("reference")));
+        assert_eq!(
+            (literal, reference),
+            if mode == CompatibilityMode::Asciidoctor { (false, true) } else { (true, false) },
+            "{mode:?}"
         );
         assert!(
             matches!(asg::export_document(parsed.document()),Err(asg::Error::Unsupported{path,..}) if path=="/footnotes/0")

@@ -336,6 +336,7 @@
         }
       ],
       "level": 1,
+      "id": "_discrete_leaf",
       "metadata": {
         "style": "discrete"
       },

@@ -34,4 +34,4 @@ dates \- date controls
 dates
 .SH "DESCRIPTION"
 .sp
-Revision date: 2004\-05\-06.
+Revision date: 2004\-05\-06\&.

@@ -39,11 +39,11 @@ P03 $\fBBold\fR $\fIItalic\fR $\f(CRCode\fR $\fBMark\fR\&.
 .sp
 P04 @\fBBold\fR @\fIItalic\fR @\f(CRCode\fR @\fBMark\fR\&.
 .sp
-P05 <\fBBold\fR <\fIItalic\fR <\f(CRCode\fR <\fBMark\fR\&.
+P05 <*Bold* <_Italic_ <`Code` <#Mark#.
 .sp
-P06 >\fBBold\fR >\fIItalic\fR >\f(CRCode\fR >\fBMark\fR\&.
+P06 >*Bold* >_Italic_ >`Code` >#Mark#.
 .sp
-P07 &\fBBold\fR &\fIItalic\fR &\f(CRCode\fR &#Mark#.
+P07 &*Bold* &_Italic_ &`Code` &#Mark#.
 .sp
 P08 :*Bold* :_Italic_ :`Code` :#Mark#.
 .sp
@@ -71,9 +71,9 @@ P19 :\fBBold\fR ;\fIItalic\fR }\f(CRCode\fR _\fBMark\fR\&.
 .sp
 P20 [\fBBold\fR] (\fBBold\fR) {\fBBold\fR} /\fBBold\fR/ |\fBBold\fR|.
 .sp
-P21 <del>\fBBold\fR</del> <del>\fIItalic\fR</del> <del>\f(CRCode\fR</del> <del>\fBMark\fR</del>.
+P21 <del>*Bold*</del> <del>_Italic_</del> <del>`Code`</del> <del>#Mark#</del>.
 .sp
-P22 \(rA\fBBold\fR\&.
+P22 \(rA*Bold*.
 .sp
 P23 =\fBBold\fR =\f(CRCode\fR\&.
 .sp

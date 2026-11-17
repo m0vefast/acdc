@@ -79,15 +79,15 @@
 ]
 #v(1em)
 
-#text(size: 1.25em)[#text("Default ")#metadata(none)<__indexterm-1>#text("Early Expanded")#text(" and ")#metadata(none)<__indexterm-2>#text("Early ")#strong[#text("bold")]#text(".")]
+#text(size: 1.25em)[#text("Default ")#metadata(none)<__indexterm-1>#text("Early ")#text("Expanded")#text(" and ")#metadata(none)<__indexterm-2>#text("Early ")#strong[#text("bold")]#text(".")]
 
-#text("Late ")#metadata(none)<__indexterm-3>#text("Late Expanded ")#strong[#text("bold")]#text(" and ")#metadata(none)<__indexterm-4>#text("Macro Expanded ")#strong[#text("bold")]#text(".")
+#text("Late ")#metadata(none)<__indexterm-3>#text("Late ")#text("Expanded")#text(" ")#strong[#text("bold")]#text(" and ")#metadata(none)<__indexterm-4>#text("Macro ")#text("Expanded")#text(" ")#strong[#text("bold")]#text(".")
 
 #text("Hidden ")#metadata(none)<__indexterm-5>#text(" and ")#metadata(none)<__indexterm-6>#text(".")
 
 #metadata(none)<__indexterm-7>#text(" ")#metadata(none)<__indexterm-8>
 
-#strong[#text("Outer ")#metadata(none)<__indexterm-9>#text("Nested Expanded")#text(" word")]#text(" and ")#metadata(none)<__indexterm-10>#text("Early ")#strong[#text("bold")]#text(" Expanded")#text(".")
+#strong[#text("Outer ")#metadata(none)<__indexterm-9>#text("Nested ")#text("Expanded")#text(" word")]#text(" and ")#metadata(none)<__indexterm-10>#text("Early ")#strong[#text("bold")]#text(" ")#text("Expanded")#text(".")
 
 #metadata(none)<__indexterm-11>#text("Expanded ")#strong[#text("Styled")]#text(" and ")#metadata(none)<__indexterm-12>#text(".")
 
@@ -197,7 +197,7 @@
 #v(0.25em)
 #par(hanging-indent: 1em)[#text("Early ")#strong[#text("bold")]#_acdc_index_pages((<__indexterm-2>,), "term")]
 #par(hanging-indent: 1em)[#text("Early ")#strong[#text("bold")]#text(" {name}")#_acdc_index_pages((<__indexterm-10>,), "term")]
-#par(hanging-indent: 1em)[#text("Early Expanded")#_acdc_index_pages((<__indexterm-1>,), "term")]
+#par(hanging-indent: 1em)[#text("Early ")#text("Expanded")#_acdc_index_pages((<__indexterm-1>,), "term")]
 #par(hanging-indent: 1em)[#text("Expanded *Styled*")#_acdc_index_pages((<__indexterm-11>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("F")]

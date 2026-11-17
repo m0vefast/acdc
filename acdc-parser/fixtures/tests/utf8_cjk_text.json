@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_第一节",
       "blocks": [
         {
           "name": "paragraph",
@@ -295,6 +296,7 @@
             }
           ],
           "level": 2,
+          "id": "_第二节",
           "blocks": [
             {
               "name": "section",
@@ -317,6 +319,7 @@
                 }
               ],
               "level": 3,
+              "id": "_深层嵌套",
               "blocks": [
                 {
                   "name": "paragraph",

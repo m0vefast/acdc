@@ -56,6 +56,7 @@
         }
       ],
       "level": 1,
+      "id": "_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -64,11 +65,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Inline control: Literal ",
+              "value": "Inline control: ",
               "location": [
                 {
                   "line": 7,
                   "col": 1
+                },
+                {
+                  "line": 7,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Literal ",
+              "location": [
+                {
+                  "line": 7,
+                  "col": 17
                 },
                 {
                   "line": 7,

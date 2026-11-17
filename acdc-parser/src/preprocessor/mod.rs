@@ -17,7 +17,7 @@ use crate::{
     IncludeSourceError, IncludeSourceErrorKind, IncludeSourceProvider, IncludeSourceTarget,
     Location, Options, Warning, WarningKind,
     error::{Error, SourceLocation},
-    model::{LeveloffsetRange, Position, SourceRange},
+    model::{LeveloffsetRange, Position, SourceRange, StandsFor},
     warning::WarningCollection,
 };
 
@@ -27,6 +27,7 @@ mod conditional;
 mod include;
 #[cfg(test)]
 mod include_budget_tests;
+mod lexical_path;
 mod tag;
 
 use comment::CommentScanner;
@@ -74,6 +75,8 @@ pub(crate) struct PreprocessorResult<'input> {
     /// without their extensions. Partial and unsuccessful includes are omitted.
     pub(crate) included_files: HashSet<String>,
     pub(crate) conditionals: Vec<ConditionalEvaluation>,
+    /// The include directives acted on in this input, not in the files it includes.
+    pub(crate) include_directives: Vec<crate::IncludeDirective>,
     /// Front matter captured from the primary input. Included front matter does not replace it.
     pub(crate) front_matter: Option<String>,
     comment_context: comment::BlockContext,
@@ -91,6 +94,7 @@ impl PreprocessorResult<'_> {
             source_ranges: self.source_ranges,
             included_files: self.included_files,
             conditionals: self.conditionals,
+            include_directives: self.include_directives,
             front_matter: self.front_matter,
             comment_context: self.comment_context,
         }
@@ -372,10 +376,53 @@ impl SourceLineOrigin {
     }
 }
 
+/// Record an include directive acted on in this input. Kept out of the directive
+/// handler, which recurses once per include level, so its locals do not grow
+/// every recursive frame.
+#[inline(never)]
+fn record_include_directive(
+    line: &str,
+    source_line: usize,
+    options: &Options,
+    out: &mut PreprocessorState<'_>,
+) {
+    let Some(target) = line
+        .strip_prefix("include::")
+        .and_then(|body| body.strip_suffix(']'))
+        .and_then(|body| body.split_once('['))
+        .map(|(target, _)| target)
+    else {
+        return;
+    };
+    let resolved_target =
+        crate::substitute_attributes(target, |name| options.document_attributes.get(name))
+            .into_owned();
+    let path = lexical_path::normalize_lexical(Path::new(&resolved_target))
+        .to_string_lossy()
+        .into_owned();
+    out.include_directives.push(crate::IncludeDirective {
+        line: source_line,
+        target_column: "include::".len(),
+        target: target.to_string(),
+        resolved_target,
+        path,
+    });
+}
+
 /// Make a path absolute and collapse `.` and `..` without resolving symlinks.
 /// For example, `/workspace/docs/chapters/../shared.adoc` becomes
 /// `/workspace/docs/shared.adoc`, even if `chapters` is a symlink.
+///
+/// A POSIX-absolute path is normalized lexically. On `wasm32-unknown-unknown`
+/// every path is: there is no working directory, and `std::path` does not
+/// treat `/a` as absolute there, so a custom include loader is handed the path
+/// it was given.
 fn absolute_normalized(path: &Path) -> Result<PathBuf, Error> {
+    if cfg!(all(target_arch = "wasm32", target_os = "unknown"))
+        || path.to_string_lossy().starts_with('/')
+    {
+        return Ok(lexical_path::normalize_lexical(path));
+    }
     let absolute = std::path::absolute(path)?;
     let mut normalized = PathBuf::new();
     for component in absolute.components() {
@@ -424,6 +471,9 @@ struct PreprocessorState<'input> {
     source_ranges: Vec<SourceRange>,
     included_files: HashSet<String>,
     conditionals: Vec<ConditionalEvaluation>,
+    /// Include directives acted on in this input. A nested preprocess of included
+    /// content has its own state and its directives are never merged here.
+    include_directives: Vec<crate::IncludeDirective>,
     /// The file the in-progress output is being read from, used as the `file`
     /// of the main-file [`SourceRange`]s recorded below. `None` for stdin/string
     /// input — ranges are still recorded (so line/offset remapping works) with a
@@ -478,6 +528,7 @@ impl<'input> PreprocessorState<'input> {
             source_ranges: Vec::new(),
             included_files: HashSet::new(),
             conditionals: Vec::new(),
+            include_directives: Vec::new(),
             source_file: source_origin
                 .and_then(|origin| origin.as_path().map(|path| Arc::new(path.to_path_buf()))),
             src_line_starts,
@@ -526,6 +577,7 @@ impl<'input> PreprocessorState<'input> {
             source_ranges: self.source_ranges,
             included_files: self.included_files,
             conditionals: self.conditionals,
+            include_directives: self.include_directives,
             front_matter,
             comment_context,
         }
@@ -625,6 +677,7 @@ impl<'input> PreprocessorState<'input> {
             start_line: origin.line,
             source_start_offset: origin.offset,
             column_shift: origin.column_shift,
+            stands_for: None,
         });
     }
 
@@ -650,7 +703,7 @@ impl<'input> PreprocessorState<'input> {
     /// standalone [`SourceRange`] anchored at `src_start_line`, so it never
     /// shares a run with surrounding lines whose output-newline count would
     /// otherwise be miscounted.
-    fn push_chunk(&mut self, content: String, input_line: usize) {
+    fn push_chunk(&mut self, content: String, input_line: usize, stands_for: Option<StandsFor>) {
         self.flush_run();
         let start = self.byte_offset;
         let origin = self.origin_of_line(input_line);
@@ -662,6 +715,9 @@ impl<'input> PreprocessorState<'input> {
             Vec::new(),
             origin,
         );
+        if let Some(range) = self.source_ranges.last_mut() {
+            range.stands_for = stands_for;
+        }
     }
 }
 
@@ -1143,9 +1199,11 @@ impl Preprocessor {
         include_result: IncludeResult,
         state: &mut PreprocessorState<'_>,
         input_line: usize,
+        directive: &str,
     ) {
         if include_result.synthetic {
-            state.push_chunk(include_result.content, input_line);
+            let stands_for = StandsFor::new(directive, &include_result.content);
+            state.push_chunk(include_result.content, input_line, Some(stands_for));
             return;
         }
 
@@ -1266,12 +1324,16 @@ impl Preprocessor {
             || line.starts_with("ifeval::")
         {
             let mut content = String::new();
-            let conditional = match conditional::parse_line(
-                line,
-                ctx.source_line,
-                ctx.current_offset,
-                ctx.current_file(),
-            ) {
+            let parsed = match conditional::asciidoctor_ifeval(line, scanner.compatibility_mode()) {
+                Some(conditional) => Ok(conditional),
+                None => conditional::parse_line(
+                    line,
+                    ctx.source_line,
+                    ctx.current_offset,
+                    ctx.current_file(),
+                ),
+            };
+            let conditional = match parsed {
                 Ok(conditional) => conditional,
                 Err(Error::InvalidConditionalDirective(_)) => {
                     self.recover_content_at(
@@ -1314,7 +1376,7 @@ impl Preprocessor {
             if is_inline {
                 if active {
                     scanner.record_expansion(&content, attributes);
-                    out.push_chunk(content, ctx.input_line);
+                    out.push_chunk(content, ctx.input_line, None);
                 }
             } else {
                 stack.push(ConditionalFrame {
@@ -1403,6 +1465,7 @@ impl Preprocessor {
                 scanner.record(line, &options.document_attributes);
                 return Ok(());
             }
+            record_include_directive(line, ctx.source_line, options, out);
             // Included content carries its own source ranges; close the main-file
             // run first so it does not overlap them.
             out.flush_run();
@@ -1425,7 +1488,7 @@ impl Preprocessor {
                     scanner.record_expansion(&include_result.content, &options.document_attributes);
                 }
                 let document_attributes = include_result.document_attributes.take();
-                Self::handle_include_result(include_result, out, ctx.input_line);
+                Self::handle_include_result(include_result, out, ctx.input_line, line);
                 if let Some(document_attributes) = document_attributes {
                     options.document_attributes = document_attributes;
                 }
@@ -1469,6 +1532,7 @@ impl Preprocessor {
                 source_ranges: Vec::new(),
                 included_files: HashSet::new(),
                 conditionals: Vec::new(),
+                include_directives: Vec::new(),
                 front_matter: None,
                 comment_context: scanner.block_context(),
             });
@@ -1530,6 +1594,7 @@ impl Preprocessor {
                 source_ranges,
                 included_files: HashSet::new(),
                 conditionals: Vec::new(),
+                include_directives: Vec::new(),
                 front_matter: None,
                 comment_context: scanner.block_context(),
             };

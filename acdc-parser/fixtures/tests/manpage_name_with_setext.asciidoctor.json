@@ -35,7 +35,9 @@
     "docname": "tool",
     "doctype": "manpage",
     "manname": "tool",
+    "manname-id": "_command_name",
     "manname-title": "COMMAND NAME",
+    "mannames": "tool",
     "manpurpose": "performs useful work",
     "mantitle": "tool",
     "manvolnum": "1",
@@ -63,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_command_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -136,11 +140,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Uses tool.",
+              "value": "Uses ",
               "location": [
                 {
                   "line": 13,
                   "col": 1
+                },
+                {
+                  "line": 13,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "tool",
+              "location": [
+                {
+                  "line": 13,
+                  "col": 6
+                },
+                {
+                  "line": 13,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 13,
+                  "col": 15
                 },
                 {
                   "line": 13,

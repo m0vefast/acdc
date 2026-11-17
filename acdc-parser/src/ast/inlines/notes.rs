@@ -15,6 +15,24 @@ impl<'doc> FootnoteRef<'doc> {
         self.node.number
     }
 
+    /// False for a reference to no registered definition (asciidoctor's unresolved
+    /// `footnoteref`); it then has number 0 and no body.
+    #[must_use]
+    pub fn is_resolved(self) -> bool {
+        !self.node.is_unresolved()
+    }
+
+    /// What a text rendering writes between brackets: the number, or an unresolved
+    /// reference's key (asciidoctor's `[missing]`).
+    #[must_use]
+    pub fn mark(self) -> String {
+        if self.is_resolved() {
+            self.node.number.to_string()
+        } else {
+            self.node.id.unwrap_or_default().to_owned()
+        }
+    }
+
     /// The retained definition body, including an explicitly empty body.
     /// References, including repeated source definitions, return `None`.
     #[must_use]

@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("DESCRIPTION")] <id-5f6465736372697074696f6e>
 
-#text("before prefix ")#strong[#text("Éva")]#text(" / ")#emph[#text("Italic")]#text(" suffix after")#text(" / ")#text("*Literal*")#text(" / ")#strong[#text("Éva")]#text(" / ")#text("https://example.org[Protected] before ")#strong[#text("Éva")]#text(" / ")#emph[#text("Italic")]#text(" after")#text(" / {bold} / ")#text("https://example.org[Literal]")#text(" / ")#strong[#text("Éva")]#text(" / ")#text("https://example.org[Literal]")#text(" / ")#strong[#text("Éva")]#text(".")
+#text("before prefix ")#strong[#text("Éva")]#text(" / ")#emph[#text("Italic")]#text(" suffix after")#text(" / ")#text("*Literal*")#text(" / ")#strong[#text("Éva")]#text(" / ")#text("https://example.org[Protected] before ")#strong[#text("Éva")]#text(" / ")#emph[#text("Italic")]#text(" after")#text(" / ")#text("{bold}")#text(" / ")#text("https://example.org[Literal]")#text(" / ")#strong[#text("Éva")]#text(" / ")#text("https://example.org[Literal]")#text(" / ")#strong[#text("Éva")]#text(".")
 
 #text(" / ")#strong[#text("{missing}")]#text(" / ")#strong[#text("{name}")]#text(" / ")#strong[#text("Early")]#text(".")
 

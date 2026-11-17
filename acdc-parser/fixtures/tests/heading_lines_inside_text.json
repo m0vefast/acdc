@@ -562,6 +562,7 @@
         }
       ],
       "level": 1,
+      "id": "_real_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -627,6 +628,7 @@
         }
       ],
       "level": 1,
+      "id": "_sibling_section",
       "blocks": [
         {
           "name": "paragraph",

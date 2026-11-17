@@ -57,6 +57,7 @@
         }
       ],
       "level": 1,
+      "id": "_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -65,11 +66,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Frozen title: Early ",
+              "value": "Frozen title: ",
               "location": [
                 {
                   "line": 9,
                   "col": 1
+                },
+                {
+                  "line": 9,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early ",
+              "location": [
+                {
+                  "line": 9,
+                  "col": 15
                 },
                 {
                   "line": 9,
@@ -164,11 +180,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": ". Current seed: Late.",
+              "value": ". Current seed: ",
               "location": [
                 {
                   "line": 9,
                   "col": 26
+                },
+                {
+                  "line": 9,
+                  "col": 41
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Late",
+              "location": [
+                {
+                  "line": 9,
+                  "col": 42
+                },
+                {
+                  "line": 9,
+                  "col": 47
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 9,
+                  "col": 48
                 },
                 {
                   "line": 9,

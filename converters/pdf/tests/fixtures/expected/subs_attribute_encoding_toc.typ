@@ -100,8 +100,8 @@
 
 #heading(level: 1)[#text("Section")] <id-5f73656374696f6e>
 
-#text("Inline control: Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(".")
+#text("Inline control: ")#text("Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(".")
 
-#text("Body control: Body ")#text("&")#text(" ")#text("<")#text("value")#text(">")#text(".")
+#text("Body control: ")#text("Body ")#text("&")#text(" ")#text("<")#text("value")#text(">")#text(".")
 
 #text("Symbols: ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(".")

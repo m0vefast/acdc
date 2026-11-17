@@ -139,17 +139,23 @@ fn ui_payloads_keep_attribute_like_text_and_empty_values(
         found,
         ["Save,role=red", "Ctrl", "role=red", "Open", "role=red"]
     );
-    let mut empty = 0;
+    // asciidoctor 2.0.26 (measured 2026-11-16): `btn:[]` needs one character, so it runs to the
+    // menu's `]` and is the button `] menu:File[`.
+    let mut seen = Vec::new();
     for inline in paragraphs.next().ok_or("empty paragraph")?.inlines() {
         if let InlineKind::Button(button) = inline.kind() {
-            assert!(button.label().is_empty());
-            empty += 1;
+            seen.push(format!("btn:{}", text(button.label())?));
         } else if let InlineKind::MenuPath(menu) = inline.kind() {
             assert!(menu.items().next().is_none());
-            empty += 1;
+            seen.push("menu".to_owned());
         }
     }
-    assert_eq!(empty, 2);
+    let expected: &[&str] = if mode == CompatibilityMode::Asciidoctor {
+        &["btn:] menu:File["]
+    } else {
+        &["btn:", "menu"]
+    };
+    assert_eq!(seen, expected);
     let none = KeyboardShortcut::new(Vec::new(), Location::default());
     let one = KeyboardShortcut::new(vec![ContentAttribute::default()], Location::default());
     assert!(KeyboardShortcutRef::from(&none).keys().next().is_none());

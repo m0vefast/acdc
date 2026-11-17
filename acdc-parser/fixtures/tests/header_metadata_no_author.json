@@ -62,6 +62,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -127,6 +128,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -135,11 +137,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H11 chain=root-next; authorcount=0.",
+              "value": "H11 chain=",
               "location": [
                 {
                   "line": 18,
                   "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "root-next",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 11
+                },
+                {
+                  "line": 18,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; authorcount=",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 18
+                },
+                {
+                  "line": 18,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "0",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 32
+                },
+                {
+                  "line": 18,
+                  "col": 44
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 45
                 },
                 {
                   "line": 18,

@@ -114,6 +114,8 @@
           "value": "; unresolved "
         },
         {
+          "form": "reference",
+          "id": "missing",
           "location": [
             {
               "col": 32,
@@ -124,9 +126,9 @@
               "line": 4
             }
           ],
-          "name": "text",
-          "type": "string",
-          "value": "[missing]"
+          "name": "footnote",
+          "number": 0,
+          "type": "inline"
         },
         {
           "location": [

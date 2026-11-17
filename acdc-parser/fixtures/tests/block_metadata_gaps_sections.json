@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_first",
       "blocks": [
         {
           "name": "paragraph",
@@ -118,6 +119,7 @@
         }
       ],
       "level": 1,
+      "id": "anchor-adjacent",
       "metadata": {
         "anchors": [
           {
@@ -129,7 +131,7 @@
               },
               {
                 "line": 7,
-                "col": 20
+                "col": 19
               }
             ]
           }
@@ -200,6 +202,7 @@
         }
       ],
       "level": 1,
+      "id": "anchor-blank",
       "metadata": {
         "anchors": [
           {
@@ -211,7 +214,7 @@
               },
               {
                 "line": 12,
-                "col": 17
+                "col": 16
               }
             ]
           }
@@ -282,6 +285,7 @@
         }
       ],
       "level": 1,
+      "id": "anchor-multiple",
       "metadata": {
         "anchors": [
           {
@@ -293,7 +297,7 @@
               },
               {
                 "line": 18,
-                "col": 20
+                "col": 19
               }
             ]
           }
@@ -364,6 +368,7 @@
         }
       ],
       "level": 1,
+      "id": "anchor-whitespace",
       "metadata": {
         "anchors": [
           {
@@ -375,7 +380,7 @@
               },
               {
                 "line": 25,
-                "col": 22
+                "col": 21
               }
             ]
           }
@@ -446,6 +451,7 @@
         }
       ],
       "level": 1,
+      "id": "shorthand-adjacent",
       "metadata": {
         "anchors": [
           {
@@ -457,7 +463,7 @@
               },
               {
                 "line": 31,
-                "col": 22
+                "col": 21
               }
             ]
           }
@@ -528,6 +534,7 @@
         }
       ],
       "level": 1,
+      "id": "shorthand-blank",
       "metadata": {
         "anchors": [
           {
@@ -539,7 +546,7 @@
               },
               {
                 "line": 36,
-                "col": 19
+                "col": 18
               }
             ]
           }
@@ -610,6 +617,7 @@
         }
       ],
       "level": 1,
+      "id": "shorthand-multiple",
       "metadata": {
         "anchors": [
           {
@@ -621,7 +629,7 @@
               },
               {
                 "line": 42,
-                "col": 22
+                "col": 21
               }
             ]
           }
@@ -692,6 +700,7 @@
         }
       ],
       "level": 1,
+      "id": "shorthand-whitespace",
       "metadata": {
         "anchors": [
           {
@@ -703,7 +712,7 @@
               },
               {
                 "line": 49,
-                "col": 24
+                "col": 23
               }
             ]
           }
@@ -774,6 +783,7 @@
         }
       ],
       "level": 1,
+      "id": "attribute-adjacent",
       "metadata": {
         "id": {
           "id": "attribute-adjacent",
@@ -854,6 +864,7 @@
         }
       ],
       "level": 1,
+      "id": "attribute-blank",
       "metadata": {
         "id": {
           "id": "attribute-blank",
@@ -934,6 +945,7 @@
         }
       ],
       "level": 1,
+      "id": "attribute-multiple",
       "metadata": {
         "id": {
           "id": "attribute-multiple",
@@ -1014,6 +1026,7 @@
         }
       ],
       "level": 1,
+      "id": "attribute-whitespace",
       "metadata": {
         "id": {
           "id": "attribute-whitespace",

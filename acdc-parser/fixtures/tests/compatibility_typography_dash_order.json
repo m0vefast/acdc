@@ -76,11 +76,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "right; s",
+          "value": "right; ",
           "location": [
             {
               "line": 7,
               "col": 11
+            },
+            {
+              "line": 7,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "s",
+          "location": [
+            {
+              "line": 7,
+              "col": 18
             },
             {
               "line": 7,
@@ -142,11 +157,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s; left",
+          "value": "s",
           "location": [
             {
               "line": 7,
               "col": 41
+            },
+            {
+              "line": 7,
+              "col": 48
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; left",
+          "location": [
+            {
+              "line": 7,
+              "col": 49
             },
             {
               "line": 7,
@@ -164,7 +194,7 @@
           "location": [
             {
               "line": 7,
-              "col": 55
+              "col": 62
             },
             {
               "line": 7,
@@ -212,7 +242,7 @@
           "location": [
             {
               "line": 7,
-              "col": 77
+              "col": 84
             },
             {
               "line": 7,
@@ -238,11 +268,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s.",
+          "value": "s",
           "location": [
             {
               "line": 7,
               "col": 99
+            },
+            {
+              "line": 7,
+              "col": 106
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 7,
+              "col": 107
             },
             {
               "line": 7,
@@ -306,11 +351,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "right; s",
+          "value": "right; ",
           "location": [
             {
               "line": 10,
               "col": 11
+            },
+            {
+              "line": 10,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "s",
+          "location": [
+            {
+              "line": 10,
+              "col": 18
             },
             {
               "line": 10,
@@ -366,11 +426,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s; left",
+          "value": "s",
           "location": [
             {
               "line": 10,
               "col": 41
+            },
+            {
+              "line": 10,
+              "col": 48
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; left",
+          "location": [
+            {
+              "line": 10,
+              "col": 49
             },
             {
               "line": 10,
@@ -430,7 +505,7 @@
           "location": [
             {
               "line": 10,
-              "col": 77
+              "col": 84
             },
             {
               "line": 10,
@@ -456,11 +531,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s.",
+          "value": "s",
           "location": [
             {
               "line": 10,
               "col": 99
+            },
+            {
+              "line": 10,
+              "col": 106
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 10,
+              "col": 107
             },
             {
               "line": 10,
@@ -527,11 +617,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "right; s",
+          "value": "right; ",
           "location": [
             {
               "line": 13,
               "col": 11
+            },
+            {
+              "line": 13,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "s",
+          "location": [
+            {
+              "line": 13,
+              "col": 18
             },
             {
               "line": 13,
@@ -593,11 +698,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s; left",
+          "value": "s",
           "location": [
             {
               "line": 13,
               "col": 41
+            },
+            {
+              "line": 13,
+              "col": 48
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; left",
+          "location": [
+            {
+              "line": 13,
+              "col": 49
             },
             {
               "line": 13,
@@ -623,11 +743,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "s.",
+          "value": "s",
           "location": [
             {
               "line": 13,
               "col": 59
+            },
+            {
+              "line": 13,
+              "col": 66
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 13,
+              "col": 67
             },
             {
               "line": 13,

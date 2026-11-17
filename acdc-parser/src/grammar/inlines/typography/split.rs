@@ -85,10 +85,11 @@ pub(super) fn resolve<'a>(
     result
 }
 
+// Any replacement token can span fragments: `--`, `(R)`, `...`, `->`.
 fn has_dash(nodes: &[InlineNode<'_>]) -> bool {
     nodes.iter().any(|node| {
         if let InlineNode::PlainText(plain) = node {
-            return !plain.escaped && plain.content.contains('-');
+            return !plain.escaped && plain.content.contains(['-', '(', ')', '.', '=', '<', '>']);
         }
         if let InlineNode::Macro(InlineMacro::IndexTerm(term)) = node {
             return matches!(&term.kind, IndexTermKind::Flow(nodes) if has_dash(nodes));
@@ -114,14 +115,31 @@ impl<'tree, 'source> Planner<'tree, 'source, '_> {
                 });
                 continue;
             }
+            // Replacements before macros (asciidoctor's order): the macro is still its source, so
+            // the words around it meet its source edges and a label stands between its delimiters.
+            if let Some((head, tail)) = neighbors::source_delimiters(node, self.state) {
+                self.flush(false, Some(head));
+                self.at_start = false;
+                if let InlineNode::Macro(InlineMacro::IndexTerm(term)) = node
+                    && let IndexTermKind::Flow(nodes) = &term.kind
+                {
+                    self.before = Some(('[', true));
+                    self.collect(nodes, Some(index));
+                    self.flush(false, Some((']', true)));
+                }
+                self.before = Some(tail);
+                continue;
+            }
             if let InlineNode::Macro(InlineMacro::IndexTerm(term)) = node {
                 if let IndexTermKind::Flow(nodes) = &term.kind {
                     self.collect(nodes, Some(index));
                 }
                 continue;
             }
-            if matches!(node, InlineNode::InlineAnchor(anchor) if !anchor.is_bibliography())
-                || matches!(node, InlineNode::RawText(raw) if raw.content.is_empty())
+            if matches!(node, InlineNode::InlineAnchor(anchor)
+                    if !anchor.is_bibliography() && !neighbors::anchor_is_markup(self.state))
+                || matches!(node, InlineNode::RawText(raw)
+                    if raw.content.is_empty() && !neighbors::isolated_passthrough(raw, self.state))
             {
                 continue;
             }
@@ -136,7 +154,7 @@ impl<'tree, 'source> Planner<'tree, 'source, '_> {
     }
 
     fn flush(&mut self, at_end: bool, after: Option<(char, bool)>) {
-        if self.text.contains("--") {
+        if super::has_candidate(&self.text) {
             let edges = Edges {
                 start: self.at_start
                     && self.fragments.first().is_none_or(|fragment| {
@@ -160,8 +178,18 @@ impl<'tree, 'source> Planner<'tree, 'source, '_> {
                 },
                 |range, _| self.allowed(range),
             );
+            // A token inside one fragment was resolved with that fragment; a dash keeps its own
+            // word-context rule, any other token is planned only where it spans fragments.
             for edit in edits {
-                if self.text[edit.range.clone()].contains("--") {
+                let spans = self
+                    .fragments
+                    .iter()
+                    .filter(|fragment| intersection(&edit.range, &fragment.range).len() > 0)
+                    .count()
+                    > 1;
+                if self.text[edit.range.clone()].contains("--")
+                    || spans && matches!(edit.value, ReplacementValue::Symbol(_))
+                {
                     self.record(&edit);
                 }
             }
@@ -217,9 +245,12 @@ impl<'tree, 'source> Planner<'tree, 'source, '_> {
     }
 
     fn record(&mut self, edit: &Replacement) {
-        let dash = self.text[edit.range.clone()]
-            .find("--")
-            .map(|offset| edit.range.start + offset);
+        // The symbol belongs to the fragment holding a dash's `--`, or any other token's start.
+        let dash = Some(
+            self.text[edit.range.clone()]
+                .find("--")
+                .map_or(edit.range.start, |offset| edit.range.start + offset),
+        );
         let first = self
             .fragments
             .partition_point(|fragment| fragment.range.end <= edit.range.start);

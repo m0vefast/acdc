@@ -116,7 +116,7 @@ L20 \fBÉva \c
  τέλος\fR\&.
 .sp
 L21 \fBBefore \c
-.URL "https://example.org/escaped" "\fB*Literal* after" "\fB\c"
+.URL "https://example.org/escaped" "\fB*Literal\e* after" "\fB\c"
  end\fR\&.
 .sp
 L22 \fBBefore \c

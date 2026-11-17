@@ -78,6 +78,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "_cell_index",
                         "metadata": {
                           "style": "index"
                         },

@@ -753,11 +753,15 @@ fn render_inline_macro_to_writer<'a, W: Write + ?Sized>(
             };
             maybe_render_osc8_link(&target, &text, w, converter)?;
         }
+        // A reference to no note is its bracketed key, as text.
+        InlineKind::Footnote(footnote) if !footnote.is_resolved() => {
+            write!(w, "[{}]", footnote.mark())?;
+        }
         InlineKind::Footnote(footnote) => {
             // Render footnote as superscript number in terminal
             // For terminal output, we'll show [n] format since true superscript is limited
             w.queue(PrintStyledContent(
-                format!("[{}]", footnote.number()).cyan().bold(),
+                format!("[{}]", footnote.mark()).cyan().bold(),
             ))?;
         }
         InlineKind::Button(b) => render_button(b, w, converter, traversal)?,

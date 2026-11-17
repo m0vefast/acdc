@@ -87,22 +87,22 @@
 
 #raw(block: true, "A01 Generated\nA02 {name}\nA03 \\{name}\nA04 Before  after.\nA05 prefix pass:[Embedded]\nA06 \\pass:[Escaped]\nA07 a[b\\]c]d\nA08 Generated / {name}\nA09 pass:[Nested]\nA10 first second\nA11 café α\nA15 ©")
 
-#text("P01 Generated | {name} | Generated / {name} | pass:[Nested]")
+#text("P01 ")#text("Generated")#text(" | ")#text("{name}")#text(" | ")#text("Generated / {name}")#text(" | ")#text("pass:[Nested]")
 
 #text("P02 ")#strong[#text("{name}")]#text(" | ")#emph[#text("pass:[Nested]")]#text(" | ")#raw("{name}")
 
-#text("P03 prefix pass:[Embedded] | \\pass:[Escaped]")
+#text("P03 ")#text("prefix pass:[Embedded]")#text(" | ")#text("\\pass:[Escaped]")
 
-#text("P04 first second | café α")
+#text("P04 ")#text("first second")#text(" | ")#text("café α")
 
-#text("P05 Before after.")
+#text("P05 Before ")#text("after.")
 
 #text("P07 ")#text("©")
 
-#text("P08 \\{name} | ")#strong[#text("\\{name}")]
+#text("P08 ")#text("\\{name}")#text(" | ")#strong[#text("\\{name}")]
 
 #raw(block: true, "A12 Body\nA13 Generated / {name}")
 
-#text("P06 Body")
+#text("P06 ")#text("Body")
 
 #raw(block: true, "A14 {plain}")

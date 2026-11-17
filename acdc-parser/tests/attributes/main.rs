@@ -1,5 +1,8 @@
 //! Parser integration tests for attributes.
 
+#[path = "../support/plain_text.rs"]
+mod plain_text;
+
 mod attribute_aggregation;
 mod attribute_boundaries;
 mod attribute_brace_escapes;

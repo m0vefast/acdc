@@ -85,17 +85,17 @@
 
 #heading(level: 1)[#text("DESCRIPTION")] <id-5f6465736372697074696f6e>
 
-#text("E01 ")#text("{value}")#text(" / ")#text("{value}")#text(" / ")#text("{value}")#text(" / Expanded.")
+#text("E01 ")#text("{value}")#text(" / ")#text("{value}")#text(" / ")#text("{value}")#text(" / ")#text("Expanded")#text(".")
 
 #text("E02 ")#text("{missing}")#text(" / ")#text("{missing}")#text(" / ")#text("{missing}")#text(".")
 
-#text("E03 ")#text("{empty}")#text(" / ")#text("{empty}")#text(" / ")#text("{empty}")#text(" / .")
+#text("E03 ")#text("{empty}")#text(" / ")#text("{empty}")#text(" / ")#text("{empty}")#text(" / ")#text(".")
 
 #text("E04 ")#text("{markup}")#text(" / ")#text("{markup}")#text(" / ")#text("{markup}")#text(".")
 
 #text("E05 α ")#text("{value}")#text(" β ")#text("{value}")#text(" γ.")
 
-#text("E06 ")#text("{value}")#text("{value}")#text("Expanded / x")#text("{value}")#text("y.")
+#text("E06 ")#text("{value}")#text("{value}")#text("Expanded")#text(" / x")#text("{value}")#text("y.")
 
 #text("E07 \\")#text("{value}")#text(" / \\")#text("{value}")#text(" / \\\\")#text("{value}")#text(".")
 
@@ -127,4 +127,4 @@
 
 #text("E22 ")#text("{_value_}")#text(" / ")#text("{_value_}")#text(" / ")#text("{_value_}")#text(".")
 
-#text("E20 ")#text("{value}")#text(" / ")#text("{value}")#text(" / Later.")
+#text("E20 ")#text("{value}")#text(" / ")#text("{value}")#text(" / ")#text("Later")#text(".")

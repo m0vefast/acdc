@@ -132,6 +132,7 @@
         }
       ],
       "level": 1,
+      "id": "_valid_hard_line_break",
       "blocks": [
         {
           "name": "paragraph",
@@ -226,6 +227,7 @@
         }
       ],
       "level": 1,
+      "id": "_indented_plus_should_be_literal",
       "blocks": [
         {
           "name": "list",
@@ -241,10 +243,40 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Parent item\n  +\n  Indented text",
+                  "value": "Parent item\n",
                   "location": [
                     {
                       "line": 12,
+                      "col": 3
+                    },
+                    {
+                      "line": 12,
+                      "col": 14
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "+\n",
+                  "location": [
+                    {
+                      "line": 13,
+                      "col": 3
+                    },
+                    {
+                      "line": 13,
+                      "col": 4
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "Indented text",
+                  "location": [
+                    {
+                      "line": 14,
                       "col": 3
                     },
                     {
@@ -310,6 +342,7 @@
         }
       ],
       "level": 1,
+      "id": "_multiple_cases",
       "blocks": [
         {
           "name": "paragraph",

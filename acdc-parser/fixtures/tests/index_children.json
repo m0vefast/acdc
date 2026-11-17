@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_body",
       "blocks": [
         {
           "name": "paragraph",
@@ -150,6 +151,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },
@@ -206,6 +208,7 @@
             }
           ],
           "level": 2,
+          "id": "_first_child",
           "blocks": [
             {
               "name": "section",
@@ -228,6 +231,7 @@
                 }
               ],
               "level": 3,
+              "id": "_grandchild",
               "blocks": [
                 {
                   "name": "paragraph",
@@ -305,6 +309,7 @@
             }
           ],
           "level": 2,
+          "id": "_second_child",
           "blocks": [
             {
               "name": "paragraph",
@@ -382,6 +387,7 @@
         }
       ],
       "level": 1,
+      "id": "_following",
       "blocks": [
         {
           "name": "section",
@@ -404,6 +410,7 @@
             }
           ],
           "level": 2,
+          "id": "_allowed_child",
           "blocks": [
             {
               "name": "paragraph",

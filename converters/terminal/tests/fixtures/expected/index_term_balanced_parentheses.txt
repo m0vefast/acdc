@@ -17,8 +17,8 @@ index-parentheses - complete index labels
 P01 Term ® after.
 P02 function(argument) after.
 P03 Before function(argument) after.
-P04 fn((x)) tail after.
-P05 Before fn((x)) tail after.
+P04 fn((x tail)) after.
+P05 Before fn((x tail)) after.
 P06 word) after.
 P07 word)) after.
 P08 function(argument)) after.
@@ -33,8 +33,8 @@ P16 ((function(argument))) after.
 P17 (function(argument)) after.
 P18  after.
 P19 function(argument) after.
-P20 Term after.
-P21 Term after.
+P20 Term) after.
+P21 Term tail &> Other)) after.
 P22 café (déjà vu) after.
 P23 First (one) and (two) after.
 P24 Before ((literal)) after end.
@@ -56,17 +56,19 @@ P28  after.
   Before ((literal)) after
 
 [38;5;14m[1mC[0m
-  café (déjà vu)
+  café (déjà vu
 
 [38;5;14m[1mE[0m
   Escaped \( literal
   Escaped \) literal
 
 [38;5;14m[1mF[0m
-  First (one) and (two)
+  First (one) and (two
   first
-  fn((x)) tail
+  fn((x
+  function(argument
   function(argument)
+  function(argument))
 
 [38;5;14m[1mL[0m
   Linked ®
@@ -82,8 +84,9 @@ P28  after.
   second
 
 [38;5;14m[1mT[0m
-  Term (see function(argument))
+  Term (see function(argument)
   Term ®
 
 [38;5;14m[1mW[0m
   word
+  word)

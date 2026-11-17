@@ -91,7 +91,7 @@
 
 #raw(block: true, "I08 before boundary include\n// I09 included code comment")
 
-#text("I10 ordinary included paragraph I11 ordinary included tail I12 ordinary after include")
+#text("I10 ordinary included paragraph ")#text("I11 ordinary included tail ")#text("I12 ordinary after include")
 
 #raw(block: true, "I13 included opening\n// I14 parent after included style")
 

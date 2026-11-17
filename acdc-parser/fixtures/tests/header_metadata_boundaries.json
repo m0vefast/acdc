@@ -93,6 +93,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -158,6 +159,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -166,11 +168,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H21 kept=header; authorcount=0.",
+              "value": "H21 kept=",
               "location": [
                 {
                   "line": 17,
                   "col": 1
+                },
+                {
+                  "line": 17,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "header",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 10
+                },
+                {
+                  "line": 17,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; authorcount=",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 16
+                },
+                {
+                  "line": 17,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "0",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 30
+                },
+                {
+                  "line": 17,
+                  "col": 42
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 43
                 },
                 {
                   "line": 17,
@@ -243,11 +305,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H23 kept=body.",
+              "value": "H23 kept=",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "body",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 10
+                },
+                {
+                  "line": 23,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 16
                 },
                 {
                   "line": 23,

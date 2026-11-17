@@ -1,5 +1,8 @@
 //! Parser integration tests for preprocessor.
 
+#[path = "../support/plain_text.rs"]
+mod plain_text;
+
 mod diagnostic_source_offsets;
 mod front_matter;
 mod ifeval_quoted;

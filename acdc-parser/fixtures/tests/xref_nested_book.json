@@ -153,6 +153,7 @@
                       }
                     ],
                     "level": 1,
+                    "id": "chapter",
                     "metadata": {
                       "anchors": [
                         {
@@ -164,7 +165,7 @@
                             },
                             {
                               "line": 12,
-                              "col": 12
+                              "col": 11
                             }
                           ]
                         }

@@ -26,6 +26,7 @@
         }
       ],
       "level": 0,
+      "id": "_book_title",
       "location": [
         {
           "line": 3,
@@ -58,6 +59,7 @@
         }
       ],
       "level": 0,
+      "id": "_part_one",
       "blocks": [
         {
           "name": "section",
@@ -80,6 +82,7 @@
             }
           ],
           "level": 1,
+          "id": "_chapter",
           "blocks": [
             {
               "name": "paragraph",

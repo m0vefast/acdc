@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("T01 ")#text("<")#text("tag")#text(">")#text(" ")#text("&")#text(" {name} | Early")
+#text("T01 ")#text("<")#text("tag")#text(">")#text(" ")#text("&")#text(" {name}")#text(" | ")#text("Early")
 
 #text("T02 ")#strong[#text("<")#text("tag")#text(">")#text(" ")#text("&")#text(" {name}")]#text(" | ")#emph[#text("<")#text("tag")#text(">")#text(" ")#text("&")#text(" {name}")]#text(" | ")#raw("<tag> & {name}")
 
@@ -104,9 +104,9 @@
 
 #text("T09 ")#text("<")#text("tag")#text(">")#text(" ")#text("&")#text(" {name}")
 
-#text("T10 Body Late")
+#text("T10 ")#text("Body Late")
 
-#text("T11 Before after.")
+#text("T11 Before ")#text("after.")
 
 #text("T12 {value}")
 

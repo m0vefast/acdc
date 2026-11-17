@@ -218,11 +218,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Text Beta.",
+              "value": "Text ",
               "location": [
                 {
                   "line": 18,
                   "col": 22
+                },
+                {
+                  "line": 18,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Beta",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 27
+                },
+                {
+                  "line": 18,
+                  "col": 32
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 33
                 },
                 {
                   "line": 18,

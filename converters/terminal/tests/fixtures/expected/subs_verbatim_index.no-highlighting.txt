@@ -50,7 +50,7 @@ Indented IndentedTerm.
   BlankLineTerm
 
 [38;5;14m[1mE[0m
-  EscapedHidden
+  EscapedHidden)
 
 [38;5;14m[1mF[0m
   FromAttribute

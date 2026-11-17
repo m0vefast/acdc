@@ -81,6 +81,7 @@ pub(super) fn process_mapped_inlines<'a>(
     child.document_attributes = Rc::clone(attributes);
     child.warnings = Rc::default();
     child.warnings_start = 0;
+    child.text_gaps = local_gaps(state, text, source_map)?;
     let parsed = process_inlines(&mut child, metadata, 0, text.len(), 0, text);
     for mut warning in std::mem::take(&mut *child.warnings.borrow_mut()).into_vec() {
         if let Some(location) = &mut warning.location {
@@ -116,6 +117,46 @@ pub(super) fn process_mapped_inlines<'a>(
         });
     }
     Ok(nodes)
+}
+
+/// `text`'s offsets, through `source_map`, where the source does not continue:
+/// the outer input's gaps and where an attribute reference or removed
+/// indentation begins or ends.
+fn local_gaps(
+    state: &ParserState<'_>,
+    text: &str,
+    source_map: &SourceMap,
+) -> Result<Option<Rc<[usize]>>, Error> {
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let outer = state.text_gaps();
+    // Whether the source does not continue somewhere in `(low, high]`.
+    let crosses = |low: usize, high: usize| -> Result<bool, Error> {
+        let first = outer.partition_point(|&gap| gap <= low);
+        if outer.get(first).is_some_and(|&gap| gap <= high) {
+            return Ok(true);
+        }
+        let mut found = false;
+        source_map.for_each_piece_boundary(&mut |at| found |= at > low && at <= high)?;
+        Ok(found)
+    };
+    let mut reached = source_map.map_token_position(0)?;
+    if !crosses(reached, source_map.map_end_position(text.len() - 1)?)? {
+        return Ok(None);
+    }
+    let mut gaps = Vec::new();
+    for index in (1..text.len()).filter(|&index| text.is_char_boundary(index)) {
+        let at = source_map.map_token_position(index)?;
+        if at <= reached {
+            continue;
+        }
+        if crosses(reached, at)? {
+            gaps.push(index);
+        }
+        reached = at;
+    }
+    Ok((!gaps.is_empty()).then(|| gaps.into()))
 }
 
 fn mapped_source_location(
@@ -443,6 +484,32 @@ fn parse_processed_inlines<'a>(
     )
 }
 
+/// Spans of the passthroughs asciidoctor extracts before every substitution, recorded only when
+/// one could meet a replacement (its own replacements, `'` or `-` at its edge or beside its
+/// placeholder). An attribute value is not one: asciidoctor substitutes it in the attributes stage.
+pub(super) fn passthrough_spans(processed: &ProcessedContent<'_>) -> Option<Rc<[Range<usize>]>> {
+    let candidate = |character: Option<char>| matches!(character, Some('\'' | '-'));
+    let extracted =
+        |pass: &&crate::Passthrough<'_>| pass.kind != crate::PassthroughKind::AttributeRef;
+    let touches = processed.passthroughs.iter().filter(extracted).any(|pass| {
+        pass.substitutions.contains(&Substitution::Replacements)
+            || pass.text.is_some_and(|text| {
+                candidate(text.chars().next()) || candidate(text.chars().next_back())
+            })
+    }) || processed.text.match_indices("\u{FFFD}\u{FFFD}\u{FFFD}").any(|(start, marker)| {
+        candidate(processed.text[..start].chars().next_back())
+            || candidate(processed.text[start + marker.len()..].chars().next())
+    });
+    touches.then(|| {
+        processed
+            .passthroughs
+            .iter()
+            .filter(extracted)
+            .map(|pass| pass.location.absolute_start..pass.location.absolute_end)
+            .collect()
+    })
+}
+
 fn parse_inline_syntax<'a>(
     processed: &ProcessedContent<'a>,
     text: &'a str,
@@ -497,6 +564,7 @@ fn parse_inline_syntax<'a>(
     inline_peg_state.attribute_value_ranges = attribute_value_ranges(processed, state, location);
     inline_peg_state.resolved_reference_ranges =
         resolved_reference_ranges(processed, state, location);
+    inline_peg_state.passthrough_spans = passthrough_spans(processed);
     if inline_ctx
         .substitutions
         .precedes(&Substitution::Macros, &Substitution::Attributes)

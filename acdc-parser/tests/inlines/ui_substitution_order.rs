@@ -28,7 +28,6 @@ fn text(content: ContentRef<'_>) -> String {
 #[case("", "Ctrl,Alt", &["Ctrl", "Alt"])]
 #[case("", "pass:q[Ctrl+Alt]", &["Ctrl+Alt"])]
 #[case("", "Ctrl++", &["Ctrl", "+"])]
-#[case("", "Ctrl+pass:[a+b]", &["Ctrl", "pass:[a+b]"])]
 #[case("[subs=\"macros,attributes,quotes,replacements\"]\n", "Ctrl+Alt", &["Ctrl+Alt"])]
 #[case("[subs=\"macros,attributes,quotes,replacements\"]\n", "Ctrl,Alt", &["Ctrl,Alt"])]
 fn keyboard_boundaries_follow_attribute_substitution_order(

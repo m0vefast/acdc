@@ -179,7 +179,7 @@
 
 #text("S08 ")#metadata(none)<__indexterm-6>#text("Before ")#link("https://example.org/attribute")[#text("Expanded")]#text(" after")#text(" end.")
 
-#text("S09 ")#metadata(none)<__indexterm-7>#text("Before https://example.org/attribute[Expanded] after")#text(" end.")
+#text("S09 ")#metadata(none)<__indexterm-7>#text("Before ")#text("https://example.org/attribute[Expanded]")#text(" after")#text(" end.")
 
 #text("S10 ")#metadata(none)<__indexterm-8>#text("Before ")#link("https://example.org/pass")[#text("Link")]#text(" after")#text(" end.")
 

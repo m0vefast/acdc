@@ -428,6 +428,48 @@ fn provider_bytes_are_decoded_before_line_selection() -> TestResult {
     Ok(())
 }
 
+/// asciidoctor `PathResolver#system_path`: with no jail (Unsafe), the include
+/// path is normalized lexically before it is read (`/vault/adoc` + `../../shared.adoc`
+/// reads `/shared.adoc`).
+#[test]
+fn unsafe_include_paths_reach_the_provider_normalized() -> TestResult {
+    for (target, expected) in [
+        ("../../shared.adoc", "/shared.adoc"),
+        ("./x/../y.adoc", "/vault/adoc/y.adoc"),
+    ] {
+        let provider = Arc::new(MapSourceProvider::default());
+        let options = Options::builder()
+            .with_safe_mode(SafeMode::Unsafe)
+            .with_include_loader(loader(&provider))
+            .with_base_dir("/vault/adoc")
+            .build()?;
+        let _ = parse(&format!("include::{target}[]"), &options)?;
+        assert_eq!(provider.requests(), [file_target(PathBuf::from(expected))], "{target}");
+    }
+    Ok(())
+}
+
+/// asciidoctor clamps a line range that runs past the file's end.
+#[test]
+fn a_line_range_past_the_end_stops_at_the_last_line() -> TestResult {
+    let directory = TempDirectory::new()?;
+    let base_dir = directory.0.as_path();
+    let target = base_dir.join("api.adoc");
+    let body = (1..=30).map(|n| format!("L{n}")).collect::<Vec<_>>().join("\n");
+    let provider = Arc::new(MapSourceProvider::new([(file_target(&target), body.into_bytes())]));
+    let options = Options::builder()
+        .with_safe_mode(SafeMode::Unsafe)
+        .with_include_loader(loader(&provider))
+        .with_base_dir(base_dir)
+        .build()?;
+
+    let result = parse("include::api.adoc[lines=10..50]", &options)?;
+
+    let expected = (10..=30).map(|n| format!("L{n}")).collect::<Vec<_>>().join("\n");
+    assert_eq!(paragraph_text(&result)?, expected);
+    Ok(())
+}
+
 #[test]
 fn provider_not_found_uses_normal_include_recovery() -> TestResult {
     let directory = TempDirectory::new()?;

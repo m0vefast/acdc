@@ -100,4 +100,4 @@
 
 #heading(level: 1)[#text("Section")] <id-5f73656374696f6e>
 
-#text("Inline control: Literal ")#text("&")#text(" and ")#text("©")#text(".")
+#text("Inline control: ")#text("Literal ")#text("&")#text(" and ")#text("©")#text(".")

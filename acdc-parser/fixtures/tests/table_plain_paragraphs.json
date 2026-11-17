@@ -61,6 +61,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -126,6 +127,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "table",
@@ -618,11 +620,26 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "P07 Before.\nP07 After.",
+                            "value": "P07 Before.\n",
                             "location": [
                               {
                                 "line": 57,
                                 "col": 2
+                              },
+                              {
+                                "line": 57,
+                                "col": 13
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "P07 After.",
+                            "location": [
+                              {
+                                "line": 59,
+                                "col": 1
                               },
                               {
                                 "line": 59,

@@ -299,7 +299,7 @@ fn constructed_tables_preserve_presence_and_exact_scalar_values() -> Result<(), 
 #[test]
 fn source_reads_preserve_url_spelling_and_target_kind() -> Result<(), Error> {
     let spelling = "HTTPS://Example.COM:443/a%2fb?x=%2F";
-    let url = Source::Url(SourceUrl::new(spelling)?);
+    let url = Source::Url(SourceUrl::new(spelling));
     assert_eq!(SourceRef::from(&url).kind(), SourceKind::Url(spelling));
     assert_eq!(SourceRef::from(&url).to_string(), spelling);
     let name = Source::Name("video-name");

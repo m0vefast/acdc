@@ -5,7 +5,7 @@
 
 Text with special chars: **asterisk**, *underscore*, `backtick`, <mark>hash</mark>, \[bracket\].
 
-Escaped chars: \*not bold\*, \_not italic\_.
+Escaped chars: \*not bold\\\*, \_not italic\\\_.
 
 <a id="_empty_sections"></a>
 ## Empty Sections

@@ -56,6 +56,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -121,6 +122,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -204,6 +206,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -1405,7 +1408,7 @@
                   },
                   {
                     "line": 30,
-                    "col": 21
+                    "col": 20
                   }
                 ]
               }
@@ -1470,7 +1473,7 @@
                   },
                   {
                     "line": 33,
-                    "col": 24
+                    "col": 23
                   }
                 ]
               }
@@ -1535,7 +1538,7 @@
                   },
                   {
                     "line": 36,
-                    "col": 33
+                    "col": 32
                   }
                 ]
               }
@@ -1600,7 +1603,7 @@
                   },
                   {
                     "line": 39,
-                    "col": 29
+                    "col": 28
                   }
                 ]
               }
@@ -1650,6 +1653,7 @@
         }
       ],
       "level": 1,
+      "id": "_chapter_details",
       "blocks": [
         {
           "name": "paragraph",

@@ -64,11 +64,101 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Direct: *Strong* / _Emphasis_ / `Code`.",
+          "value": "Direct: ",
           "location": [
             {
               "line": 14,
               "col": 1
+            },
+            {
+              "line": 14,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 14,
+              "col": 9
+            },
+            {
+              "line": 14,
+              "col": 16
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " / ",
+          "location": [
+            {
+              "line": 14,
+              "col": 17
+            },
+            {
+              "line": 14,
+              "col": 19
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "_Emphasis_",
+          "location": [
+            {
+              "line": 14,
+              "col": 20
+            },
+            {
+              "line": 14,
+              "col": 29
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " / ",
+          "location": [
+            {
+              "line": 14,
+              "col": 30
+            },
+            {
+              "line": 14,
+              "col": 32
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "`Code`",
+          "location": [
+            {
+              "line": 14,
+              "col": 33
+            },
+            {
+              "line": 14,
+              "col": 38
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 14,
+              "col": 39
             },
             {
               "line": 14,
@@ -95,11 +185,101 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Alias: *Strong* / *Early*. Joined: pre**Inside**post.",
+          "value": "Alias: ",
           "location": [
             {
               "line": 16,
               "col": 1
+            },
+            {
+              "line": 16,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 16,
+              "col": 8
+            },
+            {
+              "line": 16,
+              "col": 14
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " / ",
+          "location": [
+            {
+              "line": 16,
+              "col": 15
+            },
+            {
+              "line": 16,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Early*",
+          "location": [
+            {
+              "line": 16,
+              "col": 18
+            },
+            {
+              "line": 16,
+              "col": 27
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ". Joined: pre",
+          "location": [
+            {
+              "line": 16,
+              "col": 28
+            },
+            {
+              "line": 16,
+              "col": 40
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "**Inside**",
+          "location": [
+            {
+              "line": 16,
+              "col": 41
+            },
+            {
+              "line": 16,
+              "col": 55
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "post.",
+          "location": [
+            {
+              "line": 16,
+              "col": 56
             },
             {
               "line": 16,
@@ -211,11 +391,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " Word",
+              "value": " ",
               "location": [
                 {
                   "line": 18,
                   "col": 39
+                },
+                {
+                  "line": 18,
+                  "col": 45
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Word",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 46
                 },
                 {
                   "line": 18,
@@ -259,11 +454,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Word ",
+              "value": "Word",
               "location": [
                 {
                   "line": 18,
                   "col": 55
+                },
+                {
+                  "line": 18,
+                  "col": 58
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 59
                 },
                 {
                   "line": 18,
@@ -592,11 +802,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Explicit quotes first: *Strong*.",
+          "value": "Explicit quotes first: ",
           "location": [
             {
               "line": 25,
               "col": 1
+            },
+            {
+              "line": 25,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 25,
+              "col": 24
+            },
+            {
+              "line": 25,
+              "col": 31
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 25,
+              "col": 32
             },
             {
               "line": 25,
@@ -714,11 +954,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Incremental defaults: *Strong*.",
+          "value": "Incremental defaults: ",
           "location": [
             {
               "line": 31,
               "col": 1
+            },
+            {
+              "line": 31,
+              "col": 22
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 31,
+              "col": 23
+            },
+            {
+              "line": 31,
+              "col": 30
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 31,
+              "col": 31
             },
             {
               "line": 31,
@@ -750,11 +1020,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Explicit normal group: *Strong*.",
+          "value": "Explicit normal group: ",
           "location": [
             {
               "line": 34,
               "col": 1
+            },
+            {
+              "line": 34,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 34,
+              "col": 24
+            },
+            {
+              "line": 34,
+              "col": 31
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 34,
+              "col": 32
             },
             {
               "line": 34,

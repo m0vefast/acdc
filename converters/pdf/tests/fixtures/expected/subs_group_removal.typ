@@ -87,17 +87,17 @@
 
 #text("G01 *source* {value} (C) link:https://example.org[Link].")
 
-#text("G02 *source* *bold* (C) link:https://example.org[Link].")
+#text("G02 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
 #text("G03 ")#strong[#text("source")]#text(" {value} (C) link:https://example.org[Link].")
 
 #text("G04 *source* {value} (C) ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("G05 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
+#text("G05 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("G06 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" link:https://example.org[Link].")
+#text("G06 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" link:https://example.org[Link].")
 
-#text("G07 *source* *bold* (C) link:https://example.org[Link].")
+#text("G07 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
 #text("G08 *source* {value} (C) link:https://example.org[Link].")
 
@@ -105,17 +105,17 @@
 
 #text("G10 ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("G11 link:https://example.org[Link].")
+#text("G11 ")#text("link:https://example.org[Link]")#text(".")
 
 #text("G12 footnote:[Literal note.] anchor:literal[] indexterm:[Literal].")
 
-#text("G13 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
+#text("G13 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("G14 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
+#text("G14 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
 
 #text("G15 ")#strong[#text("source")]#text(" {value} (C) link:https://example.org[Link].")
 
-#text("G16 *source* *bold* (C) link:https://example.org[Link].")
+#text("G16 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
 #text("G17 before + after.")
 
@@ -147,6 +147,6 @@
 
 #raw(block: true, "G27 code <1>")
 
-#text("G28 café *accentué* *bold*.")
+#text("G28 café *accentué* ")#text("*bold*")#text(".")
 
 #text("G29 ")#strong[#text("defaults restored")]#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")

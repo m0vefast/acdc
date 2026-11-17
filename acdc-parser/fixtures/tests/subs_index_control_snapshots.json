@@ -52,11 +52,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Expanded ",
+              "value": "Expanded",
               "location": [
                 {
                   "line": 7,
                   "col": 13
+                },
+                {
+                  "line": 7,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 7,
+                  "col": 20
                 },
                 {
                   "line": 7,
@@ -195,11 +210,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Expanded ",
+              "value": "Expanded",
               "location": [
                 {
                   "line": 10,
                   "col": 13
+                },
+                {
+                  "line": 10,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 10,
+                  "col": 20
                 },
                 {
                   "line": 10,

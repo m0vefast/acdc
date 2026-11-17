@@ -71,6 +71,7 @@
         }
       ],
       "level": 1,
+      "id": "_one",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +131,7 @@
             }
           ],
           "level": 2,
+          "id": "_included",
           "blocks": [
             {
               "name": "paragraph",

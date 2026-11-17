@@ -128,7 +128,7 @@
     }
   }
   let links = (
-    ((5, 9, body => [#strong[#body]]), (11, 17, body => [#emph[#body]]), ),
+    ((13, 19, body => [#emph[#body]]), ),
   )
   let code-links(line) = {
     let start = 0
@@ -141,7 +141,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => code-links(line)
-  raw(block: true, "P11 >Bold =Italic &Code.")
+  raw(block: true, "P11 >*Bold* =Italic &`Code`.")
 }
 #{
   // Slice highlighted text without discarding its syntax styles.
@@ -166,7 +166,7 @@
     }
   }
   let links = (
-    ((5, 9, body => [#strong[#body]]), (11, 17, body => [#emph[#body]]), ),
+    ((13, 19, body => [#emph[#body]]), ),
   )
   let code-links(line) = {
     let start = 0
@@ -179,17 +179,17 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => code-links(line)
-  raw(block: true, "P12 >Bold =Italic &Code.")
+  raw(block: true, "P12 >*Bold* =Italic &`Code`.")
 }
-  - #text("P13 =")#strong[#text("Bold")]#text(" >")#emph[#text("Italic")]#text(" &")#raw("Code")#text(".")
+  - #text("P13 =")#strong[#text("Bold")]#text(" >_Italic_ &`Code`.")
 
-#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("P14 =")#strong[#text("Bold")]#text(" >")#emph[#text("Italic")]#text(" &")#raw("Code")#text(".")
+#table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("P14 =")#strong[#text("Bold")]#text(" >_Italic_ &`Code`.")
 
 ])
 
-#blocktitle[#text("P15 >")#strong[#text("Bold")]#text(" =")#emph[#text("Italic")]#text(" &")#raw("Code")#text(".")]
+#blocktitle[#text("P15 >*Bold* =")#emph[#text("Italic")]#text(" &`Code`.")]
 #text("paragraph.")
 
-#heading(level: 2)[#text("P16 >")#strong[#text("Bold")]#text(" =")#emph[#text("Italic")]#text(" &")#raw("Code")#text(".")] <id-5f7031365f626f6c645f6974616c69635f636f6465>
+#heading(level: 2)[#text("P16 >*Bold* =")#emph[#text("Italic")]#text(" &`Code`.")] <id-5f7031365f626f6c645f6974616c69635f636f6465>
 
 #text("end.")

@@ -8,13 +8,14 @@ use crate::{
     DelimitedBlockType, DocumentAttribute, DocumentAttributeAssignment, Error, HorizontalAlignment,
     InlineNode, Location, Paragraph, Table, TableCell, TablePresentation, TableRow, Verbatim,
     VerticalAlignment, Warning, WarningKind,
-    blocks::table::{CellSpecifier, MAX_TABLE_COLUMNS},
+    blocks::table::{CellSpecifier, MAX_TABLE_COLUMNS, TableFormat},
     grammar::{
         ParserState,
-        document::delimited::check_delimiters,
+        document::{content_origin::ContentOrigin, delimited::check_delimiters},
         document_parser,
         helpers::BlockParsingMetadata,
         inline_processing::{PreparedInlines, adjust_and_log_parse_error},
+        location_walk,
         state::BlockContext,
     },
 };
@@ -190,17 +191,16 @@ pub(super) fn parse_table_block_impl<'input>(
         }
     };
 
-    let separator = if let Some(AttributeValue::String(sep)) =
-        block_metadata.metadata.attributes.get("separator")
-    {
-        sep.to_string()
-    } else if let Some(AttributeValue::String(format)) =
-        block_metadata.metadata.attributes.get("format")
-    {
-        match &**format {
-            "csv" => ",",
-            "dsv" => ":",
-            "tsv" => "\t",
+    // asciidoctor `Table::ParserContext#initialize`: the format (from `format`, else
+    // the delimiter line) decides how the body is read; `separator` only replaces
+    // the format's delimiter.
+    let psv_separator = if default_separator == "!" { "!" } else { "|" };
+    let (format, format_separator) = match block_metadata.metadata.attributes.get("format") {
+        Some(AttributeValue::String(format)) => match &**format {
+            "psv" => (TableFormat::Psv, psv_separator),
+            "csv" => (TableFormat::Csv, ","),
+            "tsv" => (TableFormat::Csv, "\t"),
+            "dsv" => (TableFormat::Dsv, ":"),
             unknown_format => {
                 state.add_warning(Warning::new(
                     WarningKind::TableUnknownFormat {
@@ -208,12 +208,19 @@ pub(super) fn parse_table_block_impl<'input>(
                     },
                     Some(state.create_error_source_location(table_location.clone())),
                 ));
-                default_separator
+                (TableFormat::Psv, psv_separator)
             }
-        }
-        .to_string()
-    } else {
-        default_separator.to_string()
+        },
+        _ => match default_separator {
+            "," => (TableFormat::Csv, ","),
+            ":" => (TableFormat::Dsv, ":"),
+            _ => (TableFormat::Psv, psv_separator),
+        },
+    };
+    let separator = match block_metadata.metadata.attributes.get("separator") {
+        Some(AttributeValue::String(sep)) if sep.as_ref() == "\\t" => "\t".to_string(),
+        Some(AttributeValue::String(sep)) if !sep.is_empty() => sep.to_string(),
+        _ => format_separator.to_string(),
     };
 
     let (ncols, column_formats) = if let Some(AttributeValue::String(cols)) =
@@ -281,6 +288,7 @@ pub(super) fn parse_table_block_impl<'input>(
     let mut dropped_span = None;
     let raw_rows = Table::parse_rows_with_positions(
         content,
+        format,
         &separator,
         &mut has_header,
         content_start + offset,
@@ -352,10 +360,30 @@ pub(super) fn parse_table_block_impl<'input>(
                 {
                     spec.style = Some(col_format.style);
                 }
+                // asciidoctor keeps a literal PSV cell's leading whitespace (`| x` → ` x`).
+                let lead = state
+                    .input
+                    .get(cell.content_start.saturating_sub(cell.lead)..cell.content_start)
+                    .filter(|lead| {
+                        !lead.is_empty()
+                            && lead.chars().all(char::is_whitespace)
+                            && spec.style == Some(ColumnStyle::Literal)
+                            && format == TableFormat::Psv
+                            && state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+                    });
+                let (cell_content, content_start, removed) = match lead {
+                    Some(lead) => (
+                        state.intern_fmt(format_args!("{lead}{cell_content}")),
+                        cell.content_start - lead.len(),
+                        cell.removed.iter().map(|at| at + lead.len()).collect(),
+                    ),
+                    None => (cell_content, cell.content_start, cell.removed.clone()),
+                };
                 let parsed = parse_table_cell(
                     cell_content,
                     state,
-                    cell.content_start,
+                    content_start,
+                    &removed,
                     &spec,
                     &mut prepared,
                 )?;
@@ -602,7 +630,37 @@ fn parse_normal_cell<'a>(
     })
 }
 
+/// A cell whose escapes collapsed is parsed in its content's coordinates and
+/// moved to the source.
 fn parse_table_cell<'a>(
+    content: &'a str,
+    state: &mut ParserState<'a>,
+    cell_start_offset: usize,
+    removed: &[usize],
+    spec: &CellSpecifier,
+    prepared: &mut Option<Vec<PreparedTableCellParagraph<'a>>>,
+) -> Result<TableCell<'a>, Error> {
+    if removed.is_empty() {
+        return parse_table_cell_at(content, state, cell_start_offset, spec, prepared);
+    }
+    let origin = ContentOrigin::new(removed.iter().map(|&at| (at, 1)), cell_start_offset);
+    origin.parse(
+        content,
+        state,
+        |state| parse_table_cell_at(content, state, 0, spec, prepared),
+        |cell, visit| {
+            location_walk::walk_block_locations_mut(&mut cell.content, visit);
+            for footnote in cell.footnotes.iter_mut().flatten() {
+                visit(&mut footnote.location);
+                for node in &mut footnote.content {
+                    location_walk::walk_inline_locations_mut(node, visit);
+                }
+            }
+        },
+    )
+}
+
+fn parse_table_cell_at<'a>(
     content: &'a str,
     state: &mut ParserState<'a>,
     cell_start_offset: usize,

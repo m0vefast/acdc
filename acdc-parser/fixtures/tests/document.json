@@ -35,6 +35,38 @@
         "address": "nlopesml@gmail.com"
       }
     ],
+    "revision": {
+      "number": [
+        {
+          "line": 4,
+          "col": 2
+        },
+        {
+          "line": 4,
+          "col": 4
+        }
+      ],
+      "date": [
+        {
+          "line": 4,
+          "col": 7
+        },
+        {
+          "line": 4,
+          "col": 16
+        }
+      ],
+      "remark": [
+        {
+          "line": 4,
+          "col": 19
+        },
+        {
+          "line": 4,
+          "col": 34
+        }
+      ]
+    },
     "location": [
       {
         "line": 2,
@@ -80,7 +112,7 @@
         },
         {
           "line": 1,
-          "col": 32
+          "col": 31
         }
       ]
     }

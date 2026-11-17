@@ -354,14 +354,8 @@ impl<'a> Selection<'a> {
         })
     }
 
-    /// Minimum source length, in lines, that makes the next line part of the selection.
-    ///
-    /// For `lines=10..20`, the source must have at least 20 lines.
-    /// A single line or an open-ended range only needs the source to reach that line.
-    ///
-    /// If ranges overlap, use the lowest requirement for each line.
-    /// For example, `lines=1..100;2` selects line 2 from a source with only two lines.
-    /// It selects line 1 only if the source has at least 100 lines.
+    /// Minimum source length, in lines, that makes the next line part of the selection:
+    /// the line itself when any line selection names it, `None` otherwise.
     fn requirement(&self) -> Option<usize> {
         let number = self.number + 1;
         match self.selector {
@@ -375,12 +369,12 @@ impl<'a> Selection<'a> {
                 .iter()
                 .filter_map(|range| match *range {
                     LinesRange::Single(line) => (line == number).then_some(number),
+                    // asciidoctor expands a range to its line numbers and keeps each
+                    // line the source has (`Reader#preprocess_include_directive`), so a
+                    // range past the end stops at the last line.
                     LinesRange::Range(start, end) if start > 0 && number >= start => {
-                        if end < 0 {
-                            Some(number)
-                        } else {
-                            usize::try_from(end).ok().filter(|end| *end >= number)
-                        }
+                        (end < 0 || usize::try_from(end).is_ok_and(|end| end >= number))
+                            .then_some(number)
                     }
                     LinesRange::Range(_, _) => None,
                 })

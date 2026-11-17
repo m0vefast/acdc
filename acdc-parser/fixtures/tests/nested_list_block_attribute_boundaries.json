@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_immediate",
       "blocks": [
         {
           "name": "list",
@@ -195,6 +196,7 @@
         }
       ],
       "level": 1,
+      "id": "_after_blank_line",
       "blocks": [
         {
           "name": "list",
@@ -335,6 +337,7 @@
         }
       ],
       "level": 1,
+      "id": "_explicit_continuation",
       "blocks": [
         {
           "name": "list",
@@ -477,6 +480,7 @@
         }
       ],
       "level": 1,
+      "id": "_multiple_metadata_lines_and_gap",
       "blocks": [
         {
           "name": "list",
@@ -529,7 +533,7 @@
                           },
                           {
                             "line": 26,
-                            "col": 17
+                            "col": 16
                           }
                         ]
                       }
@@ -637,6 +641,7 @@
         }
       ],
       "level": 1,
+      "id": "_indented_attribute_line",
       "blocks": [
         {
           "name": "list",
@@ -652,10 +657,25 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Parent\n  [loweralpha,start=3]",
+                  "value": "Parent\n",
                   "location": [
                     {
                       "line": 35,
+                      "col": 3
+                    },
+                    {
+                      "line": 35,
+                      "col": 9
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "[loweralpha,start=3]",
+                  "location": [
+                    {
+                      "line": 36,
                       "col": 3
                     },
                     {
@@ -773,6 +793,7 @@
         }
       ],
       "level": 1,
+      "id": "_block_title",
       "blocks": [
         {
           "name": "list",

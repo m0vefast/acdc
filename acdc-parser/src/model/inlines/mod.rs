@@ -11,13 +11,16 @@ mod icon;
 mod macros;
 mod symbol;
 mod text;
+mod xref_form;
 
 pub use character_reference::{CharacterReference, CharacterReferenceKind};
+pub(crate) use hyperlinks::TargetLocation;
 pub use hyperlinks::{Link, Mailto, UrlMacro};
 pub use icon::Icon;
 pub use macros::*;
 pub use symbol::{Symbol, SymbolKind};
 pub use text::*;
+pub use xref_form::XrefForm;
 
 use crate::{Anchor, InlineImage, Location};
 
@@ -403,6 +406,9 @@ where
     map.serialize_entry("id", &f.id)?;
     if let Some(content) = &f.content {
         map.serialize_entry("inlines", content)?;
+    }
+    if f.is_unresolved() {
+        map.serialize_entry("unresolved", &true)?;
     }
     map.serialize_entry("location", &f.location)
 }

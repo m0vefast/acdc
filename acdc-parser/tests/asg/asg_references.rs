@@ -321,3 +321,22 @@ fn email_bracket_expansion_preserves_error_indices() -> Result<(), Error> {
     );
     Ok(())
 }
+
+/// A section whose generated ID is empty owns `""` (Asciidoctor registers it
+/// under that ID); the document top takes `""` only when no block does.
+#[test]
+fn a_section_with_an_empty_id_owns_the_empty_target() -> Result<(), Error> {
+    for source in ["== *\n", "= T\n\n== *\n", "== *\n\nsee <<>>\n"] {
+        let parsed = parse(source, &Options::default())?;
+        let value = asg::export_document_with_profile(parsed.document(), asg::Profile::Acdc)?;
+        let ids: Vec<&str> = value["blocks"]
+            .as_array()
+            .ok_or("blocks")?
+            .iter()
+            .filter(|block| block["name"] == "section")
+            .filter_map(|block| block["id"].as_str())
+            .collect();
+        assert_eq!(ids, [""], "{source:?}");
+    }
+    Ok(())
+}

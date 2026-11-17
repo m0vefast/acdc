@@ -87,13 +87,13 @@
 
 #text("S01 ")#strong[#text("bold")]#text(".")
 
-#text("S02 *bold*.")
+#text("S02 ")#text("*bold*")#text(".")
 
-#text("S03 *bold*.")
+#text("S03 ")#text("*bold*")#text(".")
 
-#text("S04 ``.")
+#text("S04 `")#text("`.")
 
-#text("S05 *bold *.")
+#text("S05 *bold")#text(" ")#text("*.")
 
 #text("S06 ")#raw("")#text(".")
 
@@ -101,7 +101,7 @@
 
 #text("S08 ")#strong[#text("bold")]#text(".")
 
-#text("S09 ")#strong[#text("source")]#text(" *bold*.")
+#text("S09 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(".")
 
 #text("S10 ")#strong[#text("source")]#text(" ")#strong[#text("bold")]#text(".")
 
@@ -153,10 +153,10 @@
 
 #text("S16 ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("S17 link:https://example.org[Link].")
+#text("S17 ")#text("link:https://example.org[Link]")#text(".")
 
 #raw(block: true, "S18 `` *café *.")
 
 #text("S19 {value}.")
 
-#text("S20 *bold*.")
+#text("S20 ")#text("*bold*")#text(".")

@@ -1,71 +1,483 @@
-//! List item locations and description-list nesting.
+//! Lists built from the lines Asciidoctor's list reader gives each item.
 
 use crate::{
     Block, BlockMetadata, DescriptionList, DescriptionListDefinition, DescriptionListItem,
-    Location, Title, grammar::ParserState,
+    DescriptionListTerm, Error, InlineNode, ListItem, ListItemCheckedStatus, Location, OrderedList,
+    Title, UnorderedList,
+    grammar::{
+        ParserState,
+        document::{
+            content_origin::ContentOrigin,
+            list_reader::{self, LineKind, ListLines, read_description_list, read_list},
+        },
+        document_parser,
+        helpers::BlockParsingMetadata,
+        inline_processing::{adjust_and_log_parse_error, process_inlines},
+        location_walk,
+        state::BlockContext,
+    },
+    model::ListLevel,
 };
 use bumpalo::collections::String as BumpString;
-use std::collections::VecDeque;
 
-#[derive(Clone, Copy, Debug, Default)]
-pub(in crate::grammar) struct OrdinaryListScope<'a> {
-    pub(crate) offset: usize,
-    pub(crate) unordered: Option<&'a str>,
-    pub(crate) ordered: Option<&'a str>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub(in crate::grammar) struct DescriptionListScope<'a> {
-    pub(crate) offset: usize,
-    // Each of the four delimiter spellings can start one active level.
-    markers: [&'a str; 4],
-}
-
-impl<'a> DescriptionListScope<'a> {
-    pub(crate) fn new(offset: usize) -> Self {
-        Self {
-            offset,
-            ..Self::default()
-        }
-    }
-
-    pub(crate) fn select(&mut self, marker: &'a str) {
-        let mut remaining = self.markers.iter_mut();
-        if let Some(current) = remaining.find(|old| old.is_empty() || **old == marker) {
-            *current = marker;
-            for child in remaining {
-                *child = "";
+/// An unordered or ordered list whose first marker line starts at `pos` in the
+/// PEG input, which begins `offset` bytes into `state.input`. Asciidoctor's
+/// reader decides each item's lines; the item is then parsed from those lines
+/// alone, so a list nested in it ends where the item ends. Returns the list,
+/// or the error parsing it, and the PEG input position after the last line it
+/// holds: the lines are the list's either way.
+pub(super) fn ordinary_list<'a>(
+    state: &mut ParserState<'a>,
+    input_len: usize,
+    start: usize,
+    pos: usize,
+    offset: usize,
+    metadata: &BlockParsingMetadata<'a>,
+    is_nested: bool,
+) -> (Result<Block<'a>, Error>, usize) {
+    let source = state.input;
+    let callout = state.callout_list_offset == Some(offset);
+    let stop = |line: &str| callout && list_reader::callout_parent_line(line);
+    let placeholders = state.placeholder_lines.clone();
+    let lines = read_list(source, pos + offset, input_len + offset, &placeholders, &stop);
+    let consumed = lines.consumed_end - offset;
+    let ListContent { text, removals, spans, placeholders } = list_content(source, &lines);
+    let base = lines.items.first().map_or(pos + offset, |item| item.marker_line.start);
+    let content = state.intern_str(&text);
+    let origin = ContentOrigin::new(removals, base);
+    let items = origin.parse(
+        content,
+        state,
+        |state| {
+            state.placeholder_lines = placeholders.into();
+            spans.iter().map(|&(from, to)| list_item(state, content, from, to, metadata)).collect::<Result<Vec<_>, Error>>()
+        },
+        |items, visit| {
+            for item in items {
+                visit(&mut item.location);
+                for node in &mut item.principal {
+                    location_walk::walk_inline_locations_mut(node, visit);
+                }
+                location_walk::walk_block_locations_mut(&mut item.blocks, visit);
             }
+        },
+    );
+    let items = match items {
+        Ok(items) => items,
+        Err(error) => return (Err(error), consumed),
+    };
+    let end = items.last().map_or(pos + offset, |item| item.location.absolute_end);
+    let marker = items.first().map_or("", |item| item.marker);
+    let title = if is_nested { Title::default() } else { metadata.title.clone() };
+    let block_metadata = if is_nested { BlockMetadata::default() } else { metadata.metadata.clone() };
+    let location = state.create_location(start + offset, end);
+    let unordered = list_reader::is_unordered_marker(marker);
+    let block = if unordered {
+        Block::UnorderedList(UnorderedList { title, metadata: block_metadata, items, marker, location })
+    } else {
+        Block::OrderedList(OrderedList { title, metadata: block_metadata, items, marker, location })
+    };
+    (Ok(block), consumed)
+}
+
+/// A description list whose first term line starts at `pos` in the PEG
+/// input (`Parser.parse_description_list`): each item holds the lines
+/// Asciidoctor's reader gives it, and a term without a definition joins the
+/// next one. `None` when the line is no description item.
+pub(super) fn description_list<'a>(
+    state: &mut ParserState<'a>,
+    input_len: usize,
+    start: usize,
+    pos: usize,
+    offset: usize,
+    metadata: &BlockParsingMetadata<'a>,
+) -> Option<(Result<Block<'a>, Error>, usize)> {
+    let source = state.input;
+    let callout = state.callout_list_offset == Some(offset);
+    let stop = |line: &str| callout && list_reader::callout_parent_line(line);
+    let placeholders = state.placeholder_lines.clone();
+    let (delimiter, lines) = read_description_list(source, pos + offset, input_len + offset, &placeholders, &stop)?;
+    let consumed = lines.consumed_end - offset;
+    let ListContent { text, removals, spans, placeholders } = list_content(source, &lines);
+    let base = lines.items.first().map_or(pos + offset, |item| item.marker_line.start);
+    let content = state.intern_str(&text);
+    let origin = ContentOrigin::new(removals, base);
+    let items = origin.parse(
+        content,
+        state,
+        |state| {
+            state.placeholder_lines = placeholders.into();
+            spans
+                .iter()
+                .enumerate()
+                .map(|(index, &(from, to))| {
+                    description_item(state, content, from, to, (index > 0).then_some(delimiter), metadata)
+                })
+                .collect::<Result<Vec<_>, Error>>()
+        },
+        |items, visit| {
+            for item in items {
+                visit(&mut item.location);
+                for term in &mut item.terms {
+                    visit(&mut term.location);
+                    if let Some(location) = &mut term.delimiter_location {
+                        visit(location);
+                    }
+                    for node in &mut term.content {
+                        location_walk::walk_inline_locations_mut(node, visit);
+                    }
+                }
+                if let Some(definition) = &mut item.definition {
+                    visit(&mut definition.location);
+                    for node in definition.principal.iter_mut().flatten() {
+                        location_walk::walk_inline_locations_mut(node, visit);
+                    }
+                    location_walk::walk_block_locations_mut(&mut definition.blocks, visit);
+                }
+            }
+        },
+    );
+    let block = items.map(|items| {
+        let end = items.last().map_or(pos + offset, |item| item.location.absolute_end);
+        let location = state.create_location(start + offset, end);
+        Block::DescriptionList(DescriptionList {
+            title: metadata.title.clone(),
+            metadata: metadata.metadata.clone(),
+            items: group_description_terms(items),
+            location,
+        })
+    });
+    Some((block, consumed))
+}
+
+/// One term and its definition from its span of the list content: the item
+/// text with the paragraph lines adjacent to it (`ListItem#fold_first`), or
+/// for a term without text the paragraph its reader starts with, then every
+/// block in the rest of its lines.
+fn description_item<'a>(
+    state: &mut ParserState<'a>,
+    content: &'a str,
+    from: usize,
+    to: usize,
+    sibling: Option<&str>,
+    metadata: &BlockParsingMetadata<'a>,
+) -> Result<DescriptionListItem<'a>, Error> {
+    let line_end = content[from..to].find('\n').map_or(to, |n| from + n);
+    let line = &content[from..line_end];
+    let found = list_reader::description_line(line, sibling)
+        .or_else(|| list_reader::description_line(line, None))
+        .ok_or_else(|| Error::Parse(Box::new(state.create_error_source_location(state.create_location(from, line_end))), "description list item".into()))?;
+    let term_text = &line[found.term.0..found.term.1];
+    let term_start = from + found.term.0;
+    let term_end = term_start + term_text.trim_end().len();
+    let delimiter_start = from + found.delimiter_start;
+    let delimiter_end = delimiter_start + found.delimiter.len();
+    let (mut term, _) = process_inlines(state, metadata, term_start, term_end, 0, term_text.trim_end())?;
+    // asciidoctor `parse_list_item`: a term's leading anchor without its own label takes the
+    // rest of the term as its label (`catalog_inline_anchor $1, ($2 || $'.lstrip)`).
+    if state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+        && term_text.starts_with("[[")
+        && let Some((InlineNode::InlineAnchor(anchor), rest)) = term.split_first_mut()
+        && anchor.xreflabel.is_none()
+        && !anchor.bibliography
+    {
+        let mut label = rest.to_vec();
+        if let Some(InlineNode::PlainText(text)) = label.first_mut() {
+            text.content = text.content.trim_start();
+        }
+        label.retain(|node| !matches!(node, InlineNode::PlainText(text) if text.content.is_empty()));
+        if !label.is_empty() {
+            anchor.xreflabel = Some(crate::ContentAttribute::new(label));
+        }
+    }
+    let delimiter_location = state.create_block_location(delimiter_start, delimiter_end, 0);
+    let term = DescriptionListTerm {
+        anchors: Vec::new(),
+        content: term,
+        delimiter: found.delimiter,
+        delimiter_location: Some(delimiter_location),
+        location: state.create_block_location(term_start, delimiter_end, 0),
+    };
+
+    let (folded, folded_end) = document_parser::folded_lines(&content[line_end..to], state, line_end)?;
+    let folded: Vec<(usize, &str)> = folded.into_iter().map(|(at, line)| (line_end + at, line)).collect();
+    let folded_end = line_end + folded_end;
+    let principal = match found.text {
+        Some(text_at) => Some(folded_principal(state, (from + text_at, &line[text_at..]), &folded, false, metadata)?),
+        None => match folded.split_first() {
+            Some((first, rest)) => Some(folded_principal(state, *first, rest, true, metadata)?),
+            None => None,
+        },
+    };
+    let principal_start = match found.text {
+        Some(text_at) => Some(from + text_at),
+        None => folded.first().map(|&(at, line)| at + line.len() - line.trim_start_matches([' ', '\t']).len()),
+    };
+    let principal_end = folded.last().map_or(line_end, |&(at, line)| at + line.trim_end().len());
+
+    let rest_start = folded_end + content[folded_end..to].len() - content[folded_end..to].trim_start_matches('\n').len();
+    let blocks = if rest_start < to {
+        let outer_context = std::mem::replace(&mut state.block_context, BlockContext::Compound);
+        let outer_item = state.list_item_offset.replace(rest_start);
+        let parsed = document_parser::compound_blocks(&content[rest_start..to], state, rest_start, metadata.parent_section_level);
+        state.list_item_offset = outer_item;
+        state.block_context = outer_context;
+        parsed.unwrap_or_else(|e| {
+            adjust_and_log_parse_error(&e, &content[rest_start..to], rest_start, state, "Error parsing a description list item's blocks");
+            Ok(Vec::new())
+        })?
+    } else {
+        Vec::new()
+    };
+    let blocks = super::metadata::order_block_prefix_events(blocks);
+
+    let actual_end = blocks.last().map_or_else(
+        || state.create_block_location(term_start, principal_end.max(delimiter_end), 0).absolute_end,
+        |block| block.location().absolute_end,
+    );
+    let definition = match (principal, principal_start) {
+        (Some(principal), Some(at)) => {
+            Some(DescriptionListDefinition { principal: Some(principal), blocks, location: state.create_location(at, actual_end) })
+        }
+        _ if !blocks.is_empty() => {
+            let first = blocks.first().map_or_else(Location::default, |block| block.location().clone());
+            let location = state.create_location(first.absolute_start, actual_end);
+            Some(DescriptionListDefinition { principal: None, blocks, location })
+        }
+        _ => None,
+    };
+    let item_end = if definition.is_some() { actual_end } else { term.location.absolute_end };
+    Ok(DescriptionListItem { terms: vec![term], definition, location: state.create_location(from, item_end) })
+}
+
+/// The item lines as one text, a source removal wherever a line was dropped
+/// or stands empty for a `+`, each item's span in that text, and where its
+/// placeholder lines start.
+struct ListContent {
+    text: String,
+    removals: Vec<(usize, usize)>,
+    spans: Vec<(usize, usize)>,
+    placeholders: Vec<usize>,
+}
+
+fn list_content(source: &str, lines: &ListLines) -> ListContent {
+    let mut content = String::new();
+    let mut removals: Vec<(usize, usize)> = Vec::new();
+    let remove = |at: usize, len: usize, removals: &mut Vec<(usize, usize)>| {
+        if len == 0 {
+            return;
+        }
+        match removals.last_mut() {
+            Some((last, total)) if *last == at => *total += len,
+            _ => removals.push((at, len)),
+        }
+    };
+    let mut spans = Vec::new();
+    let mut placeholders = Vec::new();
+    let mut previous_end = None;
+    for item in &lines.items {
+        let mut item_start = 0;
+        for (index, line) in std::iter::once(&item.marker_line).chain(&item.buffer).enumerate() {
+            if let Some(previous) = previous_end {
+                content.push('\n');
+                remove(content.len(), line.start - (previous + 1), &mut removals);
+            }
+            if index == 0 {
+                item_start = content.len();
+            }
+            content.push_str(line.text(source));
+            if line.kind == LineKind::Placeholder {
+                placeholders.push(content.len());
+                remove(content.len(), line.end - line.start, &mut removals);
+            }
+            previous_end = Some(line.end);
+        }
+        spans.push((item_start, content.len()));
+    }
+    ListContent { text: content, removals, spans, placeholders }
+}
+
+/// One item from its span of the list content: its principal text (the
+/// marker line and the paragraph lines adjacent to it, `ListItem#fold_first`)
+/// and every block in the rest of its lines (`next_block` over its reader).
+fn list_item<'a>(
+    state: &mut ParserState<'a>,
+    content: &'a str,
+    from: usize,
+    to: usize,
+    metadata: &BlockParsingMetadata<'a>,
+) -> Result<ListItem<'a>, Error> {
+    let text = &content[from..to];
+    let head = document_parser::ordinary_item_head(text, state, from)?;
+    let rest: Vec<(usize, &str)> = head.rest.iter().map(|&(at, line)| (from + at, line)).collect();
+    let principal = folded_principal(state, (from + head.first.0, head.first.1), &rest, false, metadata)?;
+    let ItemHead { checked, marker, marker_start, after_marker, end: first_line_end, .. } = head;
+    let empty = head.first.1.is_empty() && head.rest.is_empty();
+    let rest_start = from + first_line_end + content[from + first_line_end..to].len()
+        - content[from + first_line_end..to].trim_start_matches('\n').len();
+    // The item's reader holds blocks only, never a section (`parse_list_item`).
+    let blocks = if rest_start < to {
+        let outer_context = std::mem::replace(&mut state.block_context, BlockContext::Compound);
+        let outer_item = state.list_item_offset.replace(rest_start);
+        let parsed = document_parser::compound_blocks(&content[rest_start..to], state, rest_start, metadata.parent_section_level);
+        state.list_item_offset = outer_item;
+        state.block_context = outer_context;
+        parsed.unwrap_or_else(|e| {
+            adjust_and_log_parse_error(&e, &content[rest_start..to], rest_start, state, "Error parsing a list item's blocks");
+            Ok(Vec::new())
+        })?
+    } else {
+        Vec::new()
+    };
+    let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
+    let end = if blocks.is_empty() { calculate_item_end(empty, from + after_marker, from + first_line_end) } else { to - 1 };
+    Ok(ListItem {
+        principal,
+        blocks: super::metadata::order_block_prefix_events(blocks),
+        level,
+        marker,
+        checked,
+        location: state.create_location(from + marker_start, end),
+    })
+}
+
+/// An item's marker line and the adjacent paragraph lines folded into its
+/// text, positions local to the item's span.
+pub(in crate::grammar) struct ItemHead<'a> {
+    pub(super) checked: Option<ListItemCheckedStatus>,
+    pub(super) marker: &'a str,
+    pub(super) marker_start: usize,
+    pub(super) after_marker: usize,
+    pub(super) first: (usize, &'a str),
+    pub(super) rest: Vec<(usize, &'a str)>,
+    pub(super) end: usize,
+}
+
+/// The item's text: `first` (the text after the marker, or with `dedent_first`
+/// the first folded line) and the folded lines after it, positions in the
+/// current input. An indented first folded line reads as a literal paragraph
+/// (`Parser.next_block`), whose common indentation `adjust_indentation!`
+/// removes before `ListItem#fold_first` folds it in.
+fn folded_principal<'a>(
+    state: &mut ParserState<'a>,
+    first: (usize, &'a str),
+    rest: &[(usize, &'a str)],
+    dedent_first: bool,
+    metadata: &BlockParsingMetadata<'a>,
+) -> Result<Vec<InlineNode<'a>>, Error> {
+    let indent = |line: &str| line.len() - line.trim_start_matches([' ', '\t']).len();
+    let (start, first) = first;
+    let lead = if dedent_first { Some(first) } else { rest.first().map(|(_, line)| *line) };
+    let gutter = match lead {
+        Some(line) if indent(line) > 0 => {
+            let dedented = rest.iter().map(|(_, line)| *line).chain(dedent_first.then_some(first));
+            dedented.map(indent).min().unwrap_or(0)
+        }
+        _ => 0,
+    };
+    let end = rest.last().map_or(start + first.len(), |(at, line)| at + line.len());
+    if gutter == 0 {
+        let rest: Vec<&str> = rest.iter().map(|(_, line)| *line).collect();
+        let text = assemble_principal_text(state, first, &rest);
+        if text.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        return process_inlines(state, metadata, start, end, 0, text).map(|(nodes, _)| nodes);
+    }
+    let mut removals = Vec::new();
+    let mut text = if dedent_first {
+        removals.push((0, gutter));
+        String::from(&first[gutter..])
+    } else {
+        String::from(first)
+    };
+    for (_, line) in rest {
+        text.push('\n');
+        removals.push((text.len(), gutter));
+        text.push_str(&line[gutter..]);
+    }
+    let text = state.intern_str(&text);
+    ContentOrigin::new(removals, start).parse(
+        text,
+        state,
+        |state| process_inlines(state, metadata, 0, text.len(), 0, text).map(|(nodes, _)| nodes),
+        |nodes, visit| {
+            for node in nodes {
+                location_walk::walk_inline_locations_mut(node, visit);
+            }
+        },
+    )
+}
+
+/// The marker a list's items share (`Parser.resolve_list_marker`): a run of
+/// dots or stars is itself, any other ordered marker stands for its series.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::grammar) enum OrdinaryKey<'a> {
+    Unordered(&'a str),
+    Dots(usize),
+    Arabic,
+    LowerAlpha,
+    UpperAlpha,
+    LowerRoman,
+    UpperRoman,
+}
+
+impl<'a> OrdinaryKey<'a> {
+    /// `OrderedListMarkerRxMap`, tried in `ORDERED_LIST_STYLES` order with an
+    /// unanchored match, so `Iv)` is lower roman.
+    pub(crate) fn of(marker: ListMarker<'a>) -> Option<Self> {
+        match marker {
+            ListMarker::Unordered(marker) => Some(Self::Unordered(marker)),
+            ListMarker::Ordered(marker) if marker.starts_with('.') => Some(Self::Dots(marker.len())),
+            ListMarker::Ordered(marker) => Some(if let Some(numeral) = marker.strip_suffix(')') {
+                if numeral.ends_with(['i', 'v', 'x']) { Self::LowerRoman } else { Self::UpperRoman }
+            } else if marker.starts_with(|c: char| c.is_ascii_digit()) {
+                Self::Arabic
+            } else if marker.starts_with(|c: char| c.is_ascii_lowercase()) {
+                Self::LowerAlpha
+            } else {
+                Self::UpperAlpha
+            }),
+            ListMarker::Description(_) => None,
         }
     }
 
-    pub(crate) fn contains(self, marker: &str) -> bool {
-        self.markers.contains(&marker)
+    fn same(self, other: OrdinaryKey<'_>) -> bool {
+        match (self, other) {
+            (Self::Unordered(a), OrdinaryKey::Unordered(b)) => a == b,
+            (Self::Dots(a), OrdinaryKey::Dots(b)) => a == b,
+            (Self::Arabic, OrdinaryKey::Arabic)
+            | (Self::LowerAlpha, OrdinaryKey::LowerAlpha)
+            | (Self::UpperAlpha, OrdinaryKey::UpperAlpha)
+            | (Self::LowerRoman, OrdinaryKey::LowerRoman)
+            | (Self::UpperRoman, OrdinaryKey::UpperRoman) => true,
+            _ => false,
+        }
+    }
+
+    /// `Parser.is_sibling_list_item?`: the same list type and the same marker.
+    pub(crate) fn siblings(a: ListMarker<'_>, b: ListMarker<'_>) -> bool {
+        match (OrdinaryKey::of(a), OrdinaryKey::of(b)) {
+            (Some(a), Some(b)) => a.same(b),
+            _ => false,
+        }
     }
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum ListMarker<'a> {
+pub(in crate::grammar) enum ListMarker<'a> {
     Unordered(&'a str),
     Ordered(&'a str),
     Description(&'a str),
 }
 
-impl ListMarker<'_> {
-    pub(super) fn is_sibling_or_ancestor(self, next: Self) -> bool {
-        match (self, next) {
-            (Self::Unordered(parent), Self::Unordered(candidate))
-            | (Self::Description(parent), Self::Description(candidate)) => {
-                parent.starts_with(candidate)
-            }
-            (Self::Ordered(parent), Self::Ordered(candidate)) => {
-                parent.starts_with('.') == candidate.starts_with('.')
-                    && candidate.bytes().filter(|byte| *byte == b'.').count()
-                        <= parent.bytes().filter(|byte| *byte == b'.').count()
-            }
-            _ => false,
+impl<'a> ListMarker<'a> {
+    pub(super) const fn text(self) -> &'a str {
+        match self {
+            Self::Unordered(marker) | Self::Ordered(marker) | Self::Description(marker) => marker,
         }
     }
+
 }
 
 /// Join a list item's first line and continuation lines with newlines.
@@ -137,10 +549,6 @@ pub(super) fn find_dlist_marker(bytes: &[u8], pos: usize) -> bool {
     false
 }
 
-fn item_delimiter<'a>(item: &DescriptionListItem<'a>) -> &'a str {
-    item.terms.first().map_or("", |term| term.delimiter)
-}
-
 fn group_description_terms(items: Vec<DescriptionListItem<'_>>) -> Vec<DescriptionListItem<'_>> {
     let mut groups: Vec<DescriptionListItem<'_>> = Vec::with_capacity(items.len());
     for item in items {
@@ -156,80 +564,4 @@ fn group_description_terms(items: Vec<DescriptionListItem<'_>>) -> Vec<Descripti
         }
     }
     groups
-}
-
-fn description_list_location(items: &[DescriptionListItem<'_>]) -> Location {
-    let Some((first, rest)) = items.split_first() else {
-        return Location::default();
-    };
-    let last = rest.last().unwrap_or(first);
-    Location {
-        absolute_start: first.location.absolute_start,
-        absolute_end: last.location.absolute_end,
-        start: first.location.start.clone(),
-        end: last.location.end.clone(),
-    }
-}
-
-fn nest_description_list_items<'input>(
-    items: &mut VecDeque<DescriptionListItem<'input>>,
-    delimiter: &'input str,
-    ancestors: &mut Vec<&'input str>,
-) -> Vec<DescriptionListItem<'input>> {
-    let mut nested = Vec::new();
-
-    while items
-        .front()
-        .is_some_and(|item| item_delimiter(item) == delimiter)
-    {
-        let Some(mut item) = items.pop_front() else {
-            break;
-        };
-
-        if let Some(child_delimiter) = items.front().map(item_delimiter)
-            && child_delimiter != delimiter
-            && !ancestors.contains(&child_delimiter)
-        {
-            // A new delimiter starts one child level; only an ancestor delimiter unwinds it.
-            ancestors.push(delimiter);
-            let children = nest_description_list_items(items, child_delimiter, ancestors);
-            ancestors.pop();
-            let location = description_list_location(&children);
-            item.location.absolute_end = location.absolute_end;
-            item.location.end = location.end.clone();
-            let definition = item.definition.get_or_insert_with(|| {
-                DescriptionListDefinition::new(None, Vec::new(), location.clone())
-            });
-            definition.location.absolute_end = location.absolute_end;
-            definition.location.end = location.end.clone();
-            definition
-                .blocks
-                .push(Block::DescriptionList(DescriptionList {
-                    title: Title::default(),
-                    metadata: BlockMetadata::default(),
-                    items: children,
-                    location,
-                }));
-        }
-
-        nested.push(item);
-    }
-
-    group_description_terms(nested)
-}
-
-pub(super) fn build_description_list_topology(
-    items: Vec<DescriptionListItem<'_>>,
-) -> Vec<DescriptionListItem<'_>> {
-    if items.first().is_none_or(|first| {
-        items
-            .iter()
-            .all(|item| item_delimiter(item) == item_delimiter(first))
-    }) {
-        return group_description_terms(items);
-    }
-
-    let mut items = VecDeque::from(items);
-    let delimiter = items.front().map_or("", item_delimiter);
-    nest_description_list_items(&mut items, delimiter, &mut Vec::new())
 }

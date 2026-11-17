@@ -56,6 +56,7 @@
         }
       ],
       "level": 0,
+      "id": "_user_guide",
       "blocks": [
         {
           "name": "section",
@@ -78,6 +79,7 @@
             }
           ],
           "level": 1,
+          "id": "_install",
           "blocks": [
             {
               "name": "paragraph",

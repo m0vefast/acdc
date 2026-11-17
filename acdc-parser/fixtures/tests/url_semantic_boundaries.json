@@ -46,6 +46,20 @@
     "tail-space": "*Bold* ",
     "tail-word": "*Bold*tail"
   },
+  "attribute_parts": {
+    "raw": [
+      {
+        "text": "X",
+        "special_chars": 0
+      }
+    ],
+    "raw-space": [
+      {
+        "text": " ",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -68,6 +82,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -133,6 +148,7 @@
         }
       ],
       "level": 1,
+      "id": "_cases",
       "blocks": [
         {
           "name": "paragraph",
@@ -929,11 +945,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "E11 Xhttps://example.org/e11",
+              "value": "E11 ",
               "location": [
                 {
                   "line": 40,
                   "col": 1
+                },
+                {
+                  "line": 40,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "X",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 5
+                },
+                {
+                  "line": 40,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org/e11",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 10
                 },
                 {
                   "line": 40,
@@ -1016,7 +1062,7 @@
               "location": [
                 {
                   "line": 42,
-                  "col": 13
+                  "col": 20
                 },
                 {
                   "line": 42,
@@ -1099,7 +1145,7 @@
               "location": [
                 {
                   "line": 44,
-                  "col": 11
+                  "col": 18
                 },
                 {
                   "line": 44,
@@ -1322,11 +1368,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "E16  ",
+              "value": "E16 ",
               "location": [
                 {
                   "line": 50,
                   "col": 1
+                },
+                {
+                  "line": 50,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 5
                 },
                 {
                   "line": 50,
@@ -1459,6 +1520,7 @@
         }
       ],
       "level": 1,
+      "id": "_end",
       "location": [
         {
           "line": 54,

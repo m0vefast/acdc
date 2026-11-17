@@ -193,7 +193,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("E")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("EscapedHidden")#_acdc_index_pages((<__indexterm-4>,), "term")]
+#par(hanging-indent: 1em)[#text("EscapedHidden)")#_acdc_index_pages((<__indexterm-4>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("F")]
 #v(0.25em)
@@ -210,7 +210,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("L")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Labeled AttributeTerm")#_acdc_index_pages((<__indexterm-8>,), "term")]
+#par(hanging-indent: 1em)[#text("Labeled ")#text("AttributeTerm")#_acdc_index_pages((<__indexterm-8>,), "term")]
 #par(hanging-indent: 1em)[#text("Late {name}")#_acdc_index_pages((<__indexterm-10>,), "term")]
 #par(hanging-indent: 1em)[#text("ListingTerm")#_acdc_index_pages((<__indexterm-1>,), "term")]
 #par(hanging-indent: 1em)[#text("LiteralHidden")#_acdc_index_pages((<__indexterm-7>,), "term")]

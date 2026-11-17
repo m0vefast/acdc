@@ -16,8 +16,21 @@ fn checklists_preserve_state_separately_from_item_content() -> Result<(), Error>
         )?;
         let before = serde_json::to_value(parsed.document())?;
         let value = asg::export_document_with_profile(parsed.document(), asg::Profile::Acdc)?;
-        let expected: Value =
+        let mut expected: Value =
             serde_json::from_str(&fs::read_to_string(source.with_extension("json"))?)?;
+        // `[X]` is a checkbox only in Draft; Asciidoctor reads it as text (the
+        // expectation file is the Asciidoctor reading).
+        let uppercase = value.pointer("/blocks/0/items/4").cloned();
+        if mode == CompatibilityMode::Draft {
+            assert_eq!(value.pointer("/blocks/0/items/4/checked"), Some(&json!(true)));
+            assert_eq!(value.pointer("/blocks/0/items/4/principal/0/value"), Some(&json!("Uppercase check")));
+            if let (Some(slot), Some(item)) = (expected.pointer_mut("/blocks/0/items/4"), uppercase) {
+                *slot = item;
+            }
+        } else {
+            assert!(value.pointer("/blocks/0/items/4/checked").is_none());
+            assert_eq!(value.pointer("/blocks/0/items/4/principal/0/value"), Some(&json!("[X] Uppercase check")));
+        }
         assert_eq!(value, expected, "{mode:?}");
         assert_eq!(serde_json::to_value(parsed.document())?, before);
         assert!(value.pointer("/blocks/0/items/0/checked").is_none());
@@ -26,7 +39,6 @@ fn checklists_preserve_state_separately_from_item_content() -> Result<(), Error>
             ("/blocks/0/items/1/checked", false),
             ("/blocks/0/items/2/checked", true),
             ("/blocks/0/items/3/checked", true),
-            ("/blocks/0/items/4/checked", true),
             ("/blocks/0/items/1/blocks/0/items/0/checked", true),
         ] {
             assert_eq!(value.pointer(path), Some(&json!(checked)));

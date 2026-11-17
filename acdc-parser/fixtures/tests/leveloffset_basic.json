@@ -68,6 +68,7 @@
         }
       ],
       "level": 2,
+      "id": "_this_should_be_level_2",
       "blocks": [
         {
           "name": "paragraph",
@@ -121,6 +122,7 @@
             }
           ],
           "level": 3,
+          "id": "_this_should_be_level_3",
           "blocks": [
             {
               "name": "paragraph",
@@ -213,6 +215,7 @@
         }
       ],
       "level": 1,
+      "id": "_this_should_be_level_1_again",
       "blocks": [
         {
           "name": "paragraph",

@@ -3715,10 +3715,10 @@ mod tests {
 
         let typst = converter.convert_to_typst_source(parsed.document(), &mut diagnostics)?;
         for expected in [
-            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" Ada\")]",
-            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Own \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" Ada \")#link(\"https://example.com\")[#text(\"link\")]]",
-            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Table 1\")#text(\", “\")#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" Ada\")#text(\"”\")]",
-            "#blocktitle[#text(\"Table 1. \")#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" Ada\")]",
+            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" \")#text(\"Ada\")]",
+            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Own \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" \")#text(\"Ada\")#text(\" \")#link(\"https://example.com\")[#text(\"link\")]]",
+            "#context link(query(<id-7461626c652d746172676574>).first().location())[#text(\"Table 1\")#text(\", “\")#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" \")#text(\"Ada\")#text(\"”\")]",
+            "#blocktitle[#text(\"Table 1. \")#text(\"Caption \")#strong[#text(\"bold\")]#text(\" \")#emph[#text(\"italic\")]#text(\" \")#raw(\"mono\")#text(\" \")#text(\"Ada\")]",
         ] {
             assert!(typst.contains(expected), "expected {expected:?} in {typst}");
         }

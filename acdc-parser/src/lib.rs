@@ -171,6 +171,7 @@ mod reference_repair;
 mod safe_mode;
 mod source_provider;
 mod warning;
+mod xref_target;
 use warning::WarningCollection;
 
 pub(crate) use grammar::{InlinePreprocessorParserState, ProcessedContent, inline_preprocessing};
@@ -192,7 +193,7 @@ pub use model::{
     InlineMacro, InlineMetadata, InlineNode, Italic, KeyboardShortcut, LineBreak, Link, ListItem,
     ListItemCheckedStatus, Location, MAX_SECTION_LEVELS, MAX_TOC_LEVELS, Mailto, MenuPath,
     Monospace, NORMAL, OrderedList, PageBreak, Paragraph, Passthrough, PassthroughKind, Plain,
-    Position, Raw, ReferenceTarget, ReservedAttribute, Role, Section, SectionKind,
+    Position, Raw, ReferenceTarget, ReservedAttribute, RevisionLocations, Role, Section, SectionKind,
     SingleQuotedSpan, Source, SourceUrl, StandaloneCurvedApostrophe, Stem, StemContent,
     StemNotation, Subscript, Substitution, SubstitutionOp, SubstitutionSpec, Subtitle, Superscript,
     Symbol, SymbolKind, Table, TableCell, TableFrame, TableGrid, TableOfContents,
@@ -201,8 +202,12 @@ pub use model::{
     Video, XrefCaptionLabel, XrefSignifier, XrefStyle, apply_attribute_substitutions,
     substitute_attributes,
 };
+pub use model::XrefForm;
+pub use xref_target::{ASCIIDOC_EXTENSIONS, XrefTarget, xref_target_kind};
 pub use options::{CompatibilityMode, Options, OptionsBuilder, SafeMode};
-pub use parsed::{ConditionalEvaluation, OwnedSource, ParseInlineResult, ParseResult};
+pub use parsed::{
+    ConditionalEvaluation, IncludeDirective, OwnedSource, ParseInlineResult, ParseResult,
+};
 pub use source_provider::{
     IncludeLoader, IncludeSource, IncludeSourceError, IncludeSourceErrorKind,
     IncludeSourceProvider, IncludeSourceTarget,
@@ -483,6 +488,30 @@ pub fn parse_file<P: AsRef<Path>>(
     parse_input(result, options, Some(path), warnings_handle)
 }
 
+/// Parse text the caller already read from `file_path`, as [`parse_file`] parses the file:
+/// the file sets `docfile`, `docdir`, `docname` and `docfilesuffix`, anchors relative
+/// includes, and names the document in an unresolved include's line.
+///
+/// # Errors
+/// As [`parse_file`], except reading: preprocessing fails or the document cannot be parsed.
+#[instrument(skip_all, fields(safe_mode = ?options.safe_mode))]
+pub fn parse_file_text<P: AsRef<Path>>(
+    input: &str,
+    file_path: P,
+    options: &Options<'_>,
+) -> Result<ParseResult, Error> {
+    let options = options
+        .clone()
+        .prepare_for_parse(document_attribute::InputKind::File(file_path.as_ref()));
+    let path = file_path.as_ref().to_path_buf();
+    let warnings_handle: Rc<RefCell<WarningCollection>> = Rc::default();
+    let result = {
+        let _span = tracing::info_span!("preprocess").entered();
+        Preprocessor::process_with_file(input, file_path.as_ref(), &options, Rc::clone(&warnings_handle))?
+    };
+    parse_input(result, options, Some(path), warnings_handle)
+}
+
 /// Helper to convert a PEG parse error to our `SourceLocation` type,
 /// resolving the correct file and line for included content.
 fn peg_error_to_source_location(
@@ -521,6 +550,7 @@ fn parse_input(
             .document_attributes
             .set_text("front-matter".into(), front_matter.into());
     }
+    let include_directives = result.include_directives;
     let input = result.text.into_owned().into_boxed_str();
     let _span = tracing::info_span!("grammar_parse", input_len = input.len()).entered();
     let source_ranges = result.source_ranges;
@@ -555,6 +585,8 @@ fn parse_input(
             state.current_file = file_path.map(std::sync::Arc::new);
             state.leveloffset_ranges = result.leveloffset_ranges;
             state.leveloffset_scopes = leveloffset_scopes;
+            let gaps = model::SourceRange::gaps(&source_ranges, owner.source.len());
+            state.text_gaps = (!gaps.is_empty()).then(|| gaps.into());
             state.source_ranges = source_ranges;
             state.included_files = result.included_files;
             state.warnings = warnings_for_state;
@@ -587,6 +619,7 @@ fn parse_input(
             result
         },
     )
+    .map(|parsed| parsed.with_include_directives(include_directives))
 }
 
 /// Parse inline `AsciiDoc` content from a string.

@@ -42,11 +42,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Before: kbd:[Ctrl+C], btn:[*Save*], menu:File[Open > Recent].",
+          "value": "Before: kbd:[",
           "location": [
             {
               "line": 5,
               "col": 1
+            },
+            {
+              "line": 5,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Ctrl",
+          "location": [
+            {
+              "line": 5,
+              "col": 14
+            },
+            {
+              "line": 5,
+              "col": 18
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "+C], btn:[",
+          "location": [
+            {
+              "line": 5,
+              "col": 19
+            },
+            {
+              "line": 5,
+              "col": 28
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Save*",
+          "location": [
+            {
+              "line": 5,
+              "col": 29
+            },
+            {
+              "line": 5,
+              "col": 36
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "], menu:File[Open > Recent].",
+          "location": [
+            {
+              "line": 5,
+              "col": 37
             },
             {
               "line": 5,

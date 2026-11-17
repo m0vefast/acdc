@@ -42,11 +42,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Title *Strong*",
+          "value": "Title ",
           "location": [
             {
               "line": 5,
               "col": 2
+            },
+            {
+              "line": 5,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 5,
+              "col": 8
             },
             {
               "line": 5,
@@ -59,11 +74,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Paragraph *Strong*.",
+          "value": "Paragraph ",
           "location": [
             {
               "line": 6,
               "col": 1
+            },
+            {
+              "line": 6,
+              "col": 10
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 6,
+              "col": 11
+            },
+            {
+              "line": 6,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 6,
+              "col": 18
             },
             {
               "line": 6,
@@ -97,11 +142,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Item *Strong*.",
+              "value": "Item ",
               "location": [
                 {
                   "line": 8,
                   "col": 3
+                },
+                {
+                  "line": 8,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*Strong*",
+              "location": [
+                {
+                  "line": 8,
+                  "col": 8
+                },
+                {
+                  "line": 8,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 8,
+                  "col": 15
                 },
                 {
                   "line": 8,
@@ -472,11 +547,41 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Cell *Strong*.",
+                        "value": "Cell ",
                         "location": [
                           {
                             "line": 22,
                             "col": 2
+                          },
+                          {
+                            "line": 22,
+                            "col": 6
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "*Strong*",
+                        "location": [
+                          {
+                            "line": 22,
+                            "col": 7
+                          },
+                          {
+                            "line": 22,
+                            "col": 13
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": ".",
+                        "location": [
+                          {
+                            "line": 22,
+                            "col": 14
                           },
                           {
                             "line": 22,
@@ -536,11 +641,53 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Included café *Strong*.",
+          "value": "Included café ",
           "location": [
             {
               "line": 3,
               "col": 5,
+              "file": [
+                "includes/compatibility_inline_attribute_contexts.adoc"
+              ]
+            },
+            {
+              "line": 3,
+              "col": 18,
+              "file": [
+                "includes/compatibility_inline_attribute_contexts.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 3,
+              "col": 19,
+              "file": [
+                "includes/compatibility_inline_attribute_contexts.adoc"
+              ]
+            },
+            {
+              "line": 3,
+              "col": 25,
+              "file": [
+                "includes/compatibility_inline_attribute_contexts.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 3,
+              "col": 26,
               "file": [
                 "includes/compatibility_inline_attribute_contexts.adoc"
               ]

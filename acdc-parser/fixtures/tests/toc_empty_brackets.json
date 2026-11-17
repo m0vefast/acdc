@@ -47,7 +47,7 @@
         },
         {
           "line": 5,
-          "col": 8
+          "col": 7
         }
       ]
     },
@@ -72,6 +72,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_1",
       "blocks": [
         {
           "name": "section",
@@ -94,6 +95,7 @@
             }
           ],
           "level": 2,
+          "id": "_subsection_1_1",
           "blocks": [
             {
               "name": "section",
@@ -116,6 +118,7 @@
                 }
               ],
               "level": 3,
+              "id": "_sub_subsection_1_1_1",
               "location": [
                 {
                   "line": 9,
@@ -172,6 +175,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_2",
       "location": [
         {
           "line": 10,

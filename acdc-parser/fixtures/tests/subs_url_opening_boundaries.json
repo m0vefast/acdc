@@ -67,6 +67,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -132,6 +133,7 @@
         }
       ],
       "level": 1,
+      "id": "_cases",
       "blocks": [
         {
           "name": "paragraph",
@@ -1565,11 +1567,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "U31 Label:https://example.org/u31",
+              "value": "U31 ",
               "location": [
                 {
                   "line": 79,
                   "col": 1
+                },
+                {
+                  "line": 79,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Label:",
+              "location": [
+                {
+                  "line": 79,
+                  "col": 5
+                },
+                {
+                  "line": 79,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org/u31",
+              "location": [
+                {
+                  "line": 79,
+                  "col": 13
                 },
                 {
                   "line": 79,
@@ -1596,11 +1628,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "U32 prefix ",
+              "value": "U32 prefix",
               "location": [
                 {
                   "line": 81,
                   "col": 1
+                },
+                {
+                  "line": 81,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 81,
+                  "col": 11
                 },
                 {
                   "line": 81,
@@ -1646,11 +1693,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "U33 \"https://example.org/u34\"",
+              "value": "U33 \"",
               "location": [
                 {
                   "line": 83,
                   "col": 1
+                },
+                {
+                  "line": 83,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org/u34",
+              "location": [
+                {
+                  "line": 83,
+                  "col": 6
+                },
+                {
+                  "line": 83,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\"",
+              "location": [
+                {
+                  "line": 83,
+                  "col": 12
                 },
                 {
                   "line": 83,
@@ -1744,11 +1821,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "U35  https://example.org/u35[Site]",
+              "value": "U35 ",
               "location": [
                 {
                   "line": 88,
                   "col": 1
+                },
+                {
+                  "line": 88,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 88,
+                  "col": 5
+                },
+                {
+                  "line": 88,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org/u35[Site]",
+              "location": [
+                {
+                  "line": 88,
+                  "col": 12
                 },
                 {
                   "line": 88,
@@ -1781,11 +1888,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "U36  ",
+              "value": "U36 ",
               "location": [
                 {
                   "line": 91,
                   "col": 1
+                },
+                {
+                  "line": 91,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 91,
+                  "col": 5
                 },
                 {
                   "line": 91,
@@ -2223,6 +2345,7 @@
         }
       ],
       "level": 1,
+      "id": "_end",
       "location": [
         {
           "line": 110,

@@ -146,6 +146,30 @@ fn quoted_empty_media_dimensions_clear_only_in_compatible_mode() -> Result<(), E
     Ok(())
 }
 
+/// asciidoctor 2.0.26 (measured 2026-11-16): `image:a.png[B,""]` draws `width=""`,
+/// `image:b.png[C,]` no width, `image:c.png[D,,""]` `height=""`.
+#[test]
+fn quoted_empty_inline_media_dimensions_are_values_in_compatible_mode() -> Result<(), Error> {
+    for (source, width, height) in [
+        ("image:a.png[B,\"\"]", Some(""), None),
+        ("image:b.png[C,]", None, None),
+        ("image:c.png[D,,\"\"]", None, Some("")),
+    ] {
+        let parsed = parse(source, &Options::default())?;
+        let Some(BlockKind::Paragraph(paragraph)) = parsed.document().blocks().next().map(BlockRef::kind) else {
+            return Err("missing paragraph".into());
+        };
+        let image = paragraph
+            .content()
+            .inlines()
+            .find_map(|inline| if let InlineKind::Image(image) = inline.kind() { Some(image) } else { None })
+            .ok_or("missing image")?;
+        assert_eq!(text_value(image.attributes(), "width"), width, "{source}");
+        assert_eq!(text_value(image.attributes(), "height"), height, "{source}");
+    }
+    Ok(())
+}
+
 #[test]
 fn delimiter_supplies_the_mapping_when_style_is_absent() -> Result<(), Error> {
     for mode in [CompatibilityMode::Asciidoctor, CompatibilityMode::Draft] {

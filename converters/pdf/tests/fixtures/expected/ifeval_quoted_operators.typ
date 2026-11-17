@@ -85,52 +85,22 @@
 
 #heading(level: 1)[#text("DESCRIPTION")] <id-5f6465736372697074696f6e>
 
-#text("Q01 Double-quoted markup matches.")
-
-#text("Q02 Single-quoted markup matches.")
-
 #text("Q03 Every embedded operator stays text.")
-
-#text("Q04 Unequal strings match.")
-
-#text("Q05 Less-than uses string order.")
 
 #text("Q06 Less-than-or-equal includes equality.")
 
-#text("Q07 Greater-than uses string order.")
-
 #text("Q08 Greater-than-or-equal includes equality.")
 
-#text("Q09 Brackets remain inside quoted operands.")
-
-#text("Q10 Attribute references compare with literal markup.")
-
-#text("Q11 Attribute references preserve operator text.")
-
-#text("Q12 Both quote styles represent the empty string.")
-
-#text("Q13 Inner whitespace remains significant.")
-
-#text("Q14 Outer whitespace does not enter the operand.")
-
-#text("Q15 Comparison spaces are optional.")
-
-#text("Q16 The other quote character is literal.")
-
-#text("Q17 Double quotes inside single quotes stay literal.")
-
-#text("Q18 Unicode strings compare across quote styles.")
-
-#text("Q19 Backslashes stay literal, including before a closing quote.")
-
 #text("Q20 Quoted numbers compare as strings.")
-
-#text("Q21 Quoted booleans compare as strings.")
-
-#text("Q22 Quoted arithmetic remains text.")
 
 #text("Q23 Unquoted numbers still compare as numbers.")
 
 #text("Q24 Unquoted booleans retain their meaning.")
+
+#text("F03 Equal strings must not satisfy inequality.")
+
+#text("F05 Reversed strings must not satisfy less-than-or-equal.")
+
+#text("F07 Reversed strings must not satisfy greater-than-or-equal.")
 
 #text("Q25 Content after all conditions remains visible.")

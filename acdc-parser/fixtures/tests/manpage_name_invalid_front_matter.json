@@ -61,6 +61,7 @@
         }
       ],
       "level": 2,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -126,6 +127,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -134,11 +136,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Uses manpage_name_invalid_front_matter.",
+              "value": "Uses ",
               "location": [
                 {
                   "line": 11,
                   "col": 1
+                },
+                {
+                  "line": 11,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "manpage_name_invalid_front_matter",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 6
+                },
+                {
+                  "line": 11,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 15
                 },
                 {
                   "line": 11,

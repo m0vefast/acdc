@@ -23,16 +23,23 @@ fn label<'doc>(nodes: impl IntoIterator<Item = InlineRef<'doc>>) -> Result<Strin
         .collect()
 }
 
-// Rendered text can hide a parenthesis moved outside the index term.
+// Rendered text can hide a parenthesis moved outside the index term. asciidoctor 2.0.26
+// (`InlineIndextermMacroRx`, then `encl_text`): the label runs to the last `))` no `)` follows,
+// and its closing `)` stands after the term.
 #[test]
 fn index_parentheses_keep_complete_catalog_labels_and_source_spans() -> Result<(), Error> {
     for depth in 1..=8 {
         for extra in 0..=4 {
             for prefix in ["", "α Before "] {
-                let content = format!("fn{}café{}", "(".repeat(depth), ")".repeat(depth));
-                let markup = format!("(({content}))");
-                let suffix = format!("{} after.", ")".repeat(extra));
-                let source = format!("{prefix}{markup}{suffix}");
+                let authored = format!(
+                    "(({}))",
+                    format_args!("fn{}café{}", "(".repeat(depth), ")".repeat(depth))
+                );
+                let content = format!("fn{}café{}", "(".repeat(depth), ")".repeat(depth + extra - 1));
+                let markup = format!("(({content})))");
+                let suffix = " after.";
+                let source = format!("{prefix}{authored}{}{suffix}", ")".repeat(extra));
+                assert!(source.ends_with(&format!("{markup}{suffix}")));
                 let parsed = parse(&source, &Options::default())?;
                 let [BlockKind::Paragraph(paragraph)] = &*parsed
                     .document()
@@ -56,16 +63,16 @@ fn index_parentheses_keep_complete_catalog_labels_and_source_spans() -> Result<(
                 assert!(term.is_visible(), "{source}");
                 assert_eq!(label(term.term().inlines())?, content, "{source}");
                 assert_eq!(label(term.catalog().term().inlines())?, content, "{source}");
+                // The term spans `((label`; the moved `)` and the closing `))` follow it.
                 let span = term.location();
-                assert_eq!(
-                    source.get(span.absolute_start()..=span.absolute_end()),
-                    Some(markup.as_str()),
-                    "{source}"
-                );
+                let last = content.chars().next_back().map_or(0, char::len_utf8);
+                assert_eq!(span.absolute_start(), prefix.len(), "{source}");
+                assert_eq!(span.absolute_end(), prefix.len() + 2 + content.len() - last, "{source}");
+                assert_eq!(&source[prefix.len() + 2 + content.len()..][..3], ")))", "{source}");
                 assert_eq!(span.start().column() as usize, prefix.chars().count() + 1);
                 assert_eq!(
                     span.end().column() as usize,
-                    prefix.chars().count() + markup.chars().count()
+                    prefix.chars().count() + 2 + content.chars().count()
                 );
                 let [InlineKind::Plain(text)] = &*term
                     .term()
@@ -75,16 +82,37 @@ fn index_parentheses_keep_complete_catalog_labels_and_source_spans() -> Result<(
                 else {
                     return Err("expected complete plain label".into());
                 };
+                // `absolute_end` is the start of the last character, which may be multibyte.
+                let label_start = prefix.len() + 2;
+                assert_eq!(text.location().absolute_start(), label_start, "{source}");
                 assert_eq!(
-                    source.get(text.location().absolute_start()..=text.location().absolute_end()),
-                    Some(content.as_str())
+                    text.location().absolute_end(),
+                    label_start + content.len() - content.chars().next_back().map_or(0, char::len_utf8),
+                    "{source}"
                 );
-                let tail = paragraph
+                let after = paragraph
                     .content()
                     .inlines()
-                    .last()
-                    .ok_or("missing suffix")?;
-                assert_eq!(label(std::iter::once(tail))?, suffix, "{source}");
+                    .skip_while(|node| !matches!(node.kind(), InlineKind::IndexTerm(_)))
+                    .skip(1)
+                    .map(|node| label(std::iter::once(node)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                assert_eq!(after, [")", suffix], "{source}");
+                let paren = paragraph
+                    .content()
+                    .inlines()
+                    .skip_while(|node| !matches!(node.kind(), InlineKind::IndexTerm(_)))
+                    .nth(1)
+                    .ok_or("missing moved parenthesis")?;
+                let InlineKind::Plain(paren) = paren.kind() else {
+                    return Err("expected plain parenthesis".into());
+                };
+                let at = prefix.len() + 2 + content.len();
+                assert_eq!(
+                    (paren.location().absolute_start(), paren.location().absolute_end()),
+                    (at, at),
+                    "{source}"
+                );
             }
         }
     }
@@ -96,7 +124,8 @@ fn index_parentheses_preserve_adjacent_terms_and_unbalanced_prose() -> Result<()
     for (source, expected) in [
         ("((first)) and ((second))", ["first", "second"]),
         ("((Open (literal)) and ((Next))", ["Open (literal", "Next"]),
-        ("((fn((x)) tail)) and ((Next))", ["fn((x)) tail", "Next"]),
+        // asciidoctor 2.0.26: the label ends at the first `))` no `)` follows.
+        ("((fn((x)) tail)) and ((Next))", ["fn((x", "Next"]),
     ] {
         let parsed = parse(source, &Options::default())?;
         let [BlockKind::Paragraph(paragraph)] = &*parsed
@@ -125,9 +154,11 @@ fn index_parentheses_preserve_adjacent_terms_and_unbalanced_prose() -> Result<()
 
 #[test]
 fn index_parentheses_keep_registration_time_attribute_values() -> Result<(), Error> {
-    for (subs, registered) in [
-        ("macros,attributes,replacements", "Late {symbol}"),
-        ("attributes,macros,replacements", "Late (R)"),
+    for (subs, registered, span) in [
+        ("macros,attributes,replacements", "Late {symbol}", "((Late {symbol}))"),
+        // asciidoctor 2.0.26 `encl_text`: the expanded label's closing `)` stands after the term,
+        // and the later replacements join it back into `®`.
+        ("attributes,macros,replacements", "Late (R", "((Late {symbol}"),
     ] {
         let source = format!(":symbol: (R)\n\n[subs=\"{subs}\"]\n((Late {{symbol}})) after.");
         let parsed = parse(&source, &Options::default())?;
@@ -155,7 +186,8 @@ fn index_parentheses_keep_registration_time_attribute_values() -> Result<(), Err
         );
         assert_eq!(
             source.get(term.location().absolute_start()..=term.location().absolute_end()),
-            Some("((Late {symbol}))")
+            Some(span),
+            "{source}"
         );
     }
     Ok(())

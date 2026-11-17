@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_alignment",
       "blocks": [
         {
           "name": "image",
@@ -159,6 +160,7 @@
         }
       ],
       "level": 1,
+      "id": "_float",
       "blocks": [
         {
           "name": "image",
@@ -241,6 +243,7 @@
         }
       ],
       "level": 1,
+      "id": "_role",
       "blocks": [
         {
           "name": "image",
@@ -299,6 +302,7 @@
         }
       ],
       "level": 1,
+      "id": "_combined",
       "blocks": [
         {
           "name": "image",
@@ -362,6 +366,7 @@
         }
       ],
       "level": 1,
+      "id": "_named_attributes",
       "blocks": [
         {
           "name": "image",

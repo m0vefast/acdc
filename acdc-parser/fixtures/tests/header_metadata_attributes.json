@@ -84,6 +84,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -149,6 +150,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -157,11 +159,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H01 author=Alice Smith; email=",
+              "value": "H01 author=",
               "location": [
                 {
                   "line": 31,
                   "col": 1
+                },
+                {
+                  "line": 31,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alice Smith",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 12
+                },
+                {
+                  "line": 31,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; email=",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 20
                 },
                 {
                   "line": 31,
@@ -191,11 +223,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "; revision=2.5.",
+              "value": "; revision=",
               "location": [
                 {
                   "line": 31,
                   "col": 35
+                },
+                {
+                  "line": 31,
+                  "col": 45
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "2.5",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 46
+                },
+                {
+                  "line": 31,
+                  "col": 56
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 57
                 },
                 {
                   "line": 31,
@@ -222,11 +284,101 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H02 writer=Later Writer; captured=Alice Smith; firstname=Alice.",
+              "value": "H02 writer=",
               "location": [
                 {
                   "line": 33,
                   "col": 1
+                },
+                {
+                  "line": 33,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Later Writer",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 12
+                },
+                {
+                  "line": 33,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; captured=",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 20
+                },
+                {
+                  "line": 33,
+                  "col": 30
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alice Smith",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 31
+                },
+                {
+                  "line": 33,
+                  "col": 47
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; firstname=",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 48
+                },
+                {
+                  "line": 33,
+                  "col": 59
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alice",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 60
+                },
+                {
+                  "line": 33,
+                  "col": 79
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 80
                 },
                 {
                   "line": 33,
@@ -253,11 +405,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "H03 captured-revision=2.5; remark=Reviewed by Alice Smith.",
+              "value": "H03 captured-revision=",
               "location": [
                 {
                   "line": 35,
                   "col": 1
+                },
+                {
+                  "line": 35,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "2.5",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 23
+                },
+                {
+                  "line": 35,
+                  "col": 41
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; remark=",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 42
+                },
+                {
+                  "line": 35,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Reviewed by Alice Smith",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 51
+                },
+                {
+                  "line": 35,
+                  "col": 61
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 62
                 },
                 {
                   "line": 35,

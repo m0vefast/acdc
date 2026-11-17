@@ -63,6 +63,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +129,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -3471,41 +3473,11 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": "Literal",
+                      "value": "Literal\\* after",
                       "location": [
                         {
                           "line": 52,
                           "col": 43
-                        },
-                        {
-                          "line": 52,
-                          "col": 49
-                        }
-                      ]
-                    },
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": "*",
-                      "location": [
-                        {
-                          "line": 52,
-                          "col": 50
-                        },
-                        {
-                          "line": 52,
-                          "col": 51
-                        }
-                      ]
-                    },
-                    {
-                      "name": "text",
-                      "type": "string",
-                      "value": " after",
-                      "location": [
-                        {
-                          "line": 52,
-                          "col": 52
                         },
                         {
                           "line": 52,
@@ -4704,6 +4676,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -4715,7 +4688,7 @@
               },
               {
                 "line": 69,
-                "col": 11
+                "col": 10
               }
             ]
           }
@@ -4786,6 +4759,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

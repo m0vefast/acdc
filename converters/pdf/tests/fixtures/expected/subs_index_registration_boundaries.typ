@@ -79,13 +79,13 @@
 ]
 #v(1em)
 
-#text(size: 1.25em)[#text("Before ")#metadata(none)<__indexterm-1>#text("Start )) End")#text(" and ")#metadata(none)<__indexterm-2>#text("Named ] End")#text(" after.")]
+#text(size: 1.25em)[#text("Before ")#metadata(none)<__indexterm-1>#text("Start ")#text("))")#text(" End")#text(" and ")#metadata(none)<__indexterm-2>#text("Named ")#text("]")#text(" End")#text(" after.")]
 
-#text("Before ((Joined)) and ")#metadata(none)<__indexterm-3>#text(" and ")#metadata(none)<__indexterm-4>#text(" after.")
+#text("Before (")#text("(Joined)) and ")#metadata(none)<__indexterm-3>#text(" and ")#metadata(none)<__indexterm-4>#text(" after.")
 
-#text("Before ")#metadata(none)<__indexterm-5>#text("Start ")#text(">")#text(">")#text(" Target End")#text(" and ")#metadata(none)<__indexterm-6>#text(" after.")
+#text("Before ")#metadata(none)<__indexterm-5>#text("Start ")#text(">")#text(">")#text(" Target")#text(" End")#text(" and ")#metadata(none)<__indexterm-6>#text(" after.")
 
-#text("Before ")#metadata(none)<__indexterm-7>#text("Outer ((Inner))")#text(" and ")#metadata(none)<__indexterm-8>#text("function(x)")#text(" and ")#metadata(none)<__indexterm-9>#text("Term")#text(") after.")
+#text("Before ")#metadata(none)<__indexterm-7>#text("Outer ((Inner)")#text(")")#text(" and ")#metadata(none)<__indexterm-8>#text("function(x")#text(")")#text(" and ")#metadata(none)<__indexterm-9>#text("Term")#text(")")#text(" after.")
 
 #{
   let index-anchors = (
@@ -144,7 +144,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("F")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("function(x)")#_acdc_index_pages((<__indexterm-8>,<__indexterm-17>,), "term")]
+#par(hanging-indent: 1em)[#text("function(x")#_acdc_index_pages((<__indexterm-8>,<__indexterm-17>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("N")]
 #v(0.25em)
@@ -152,7 +152,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("O")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("Outer ((Inner))")#_acdc_index_pages((<__indexterm-7>,<__indexterm-16>,), "term")]
+#par(hanging-indent: 1em)[#text("Outer ((Inner)")#_acdc_index_pages((<__indexterm-7>,<__indexterm-16>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("S")]
 #v(0.25em)

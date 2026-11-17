@@ -3,7 +3,7 @@ use std::{borrow::Cow, fmt, ops::Range, sync::Arc};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use serde::{
     Serialize,
-    ser::{SerializeMap, Serializer},
+    ser::{SerializeMap, SerializeSeq, Serializer},
 };
 
 use crate::{
@@ -318,6 +318,15 @@ impl<'a> DocumentAttributeValue<'a> {
         }
     }
 
+    /// The value's parts with their `specialchars` counts, when a passthrough left a part
+    /// escaped other than once (`pass:[<em>x</em>]`: none). `None` reads as plain text.
+    pub(super) fn serialized_parts(&self) -> Option<SerializedValueParts<'_>> {
+        self.text_fragments()
+            .iter()
+            .any(|fragment| fragment.special_chars != 1)
+            .then_some(SerializedValueParts(self))
+    }
+
     pub(crate) fn text_fragments(&self) -> &[AttributeTextFragment] {
         match &self.0 {
             ValueKind::Passthrough { ranges, .. } => ranges,
@@ -460,6 +469,37 @@ impl<'a> DocumentAttributeAssignment<'a> {
             Self::Set(value) => value.serialized_value(),
             Self::Unset => SerializedDocumentAttributeValue::Bool(false),
         }
+    }
+
+    pub(super) fn serialized_parts(&self) -> Option<SerializedValueParts<'_>> {
+        match self {
+            Self::Set(value) => value.serialized_parts(),
+            Self::Unset => None,
+        }
+    }
+}
+
+/// `[{"text": …, "special_chars": n}, …]`: what each part of a value takes when inserted.
+pub(super) struct SerializedValueParts<'a>(&'a DocumentAttributeValue<'a>);
+
+impl Serialize for SerializedValueParts<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct Part<'a> {
+            text: &'a str,
+            special_chars: usize,
+        }
+        let mut state = serializer.serialize_seq(None)?;
+        for part in self.0.parts() {
+            state.serialize_element(&Part {
+                text: part.text(),
+                special_chars: part.substitutions().count(),
+            })?;
+        }
+        state.end()
     }
 }
 
@@ -1269,6 +1309,45 @@ impl<'a> DocumentAttributes<'a> {
         };
         attributes.rebuild_entry_filter();
         attributes
+    }
+}
+
+/// `{name: parts}` for the set values whose parts are not all escaped once.
+pub(super) struct SerializedAttributeParts<'a>(Vec<(&'a str, SerializedValueParts<'a>)>);
+
+impl SerializedAttributeParts<'_> {
+    pub(super) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Serialize for SerializedAttributeParts<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(self.0.len()))?;
+        for (name, parts) in &self.0 {
+            state.serialize_entry(name, parts)?;
+        }
+        state.end()
+    }
+}
+
+impl DocumentAttributes<'_> {
+    pub(super) fn serialized_parts(&self) -> SerializedAttributeParts<'_> {
+        let mut parts: Vec<_> = self
+            .entries
+            .iter()
+            .filter_map(|(name, entry)| {
+                entry
+                    .assignment
+                    .serialized_parts()
+                    .map(|parts| (name.as_ref(), parts))
+            })
+            .collect();
+        parts.sort_by_key(|(name, _)| *name);
+        SerializedAttributeParts(parts)
     }
 }
 

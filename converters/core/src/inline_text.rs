@@ -253,7 +253,7 @@ impl<'t, 'd> InlineTextTransform<'t, 'd> {
                     crate::icon::alt_from_content(icon.target(), icon.alt())
                 )
             }
-            InlineKind::Footnote(footnote) => write!(w, "[{}]", footnote.number()),
+            InlineKind::Footnote(footnote) => write!(w, "[{}]", footnote.mark()),
             InlineKind::Stem(stem) => w.write_str(stem.text()),
             InlineKind::Anchor(_) | InlineKind::IndexTerm(_) | _ => Ok(()),
         }
@@ -420,13 +420,10 @@ mod tests {
         };
         let content = paragraph.content();
         let transform = super::InlineTextTransform::default();
-        assert_eq!(
-            transform.content_to_string(content),
-            "A bold [Bird]\u{2009}—\u{2009}end."
-        );
+        assert_eq!(transform.content_to_string(content), "A bold [Bird] -- end.");
         assert_eq!(
             transform.rendered().content_to_string(content),
-            "A bold [Bird]\u{2009}—\u{2009}end.",
+            "A bold [Bird] -- end.",
         );
         Ok(())
     }
@@ -460,11 +457,13 @@ mod tests {
     #[test]
     fn isolated_index_labels_retain_their_enclosing_text_boundaries()
     -> Result<(), Box<dyn std::error::Error>> {
+        // asciidoctor 2.0.26 (measured 2026-11-16): replacements run before macros, so a label's
+        // `--` stands between `[` and `]` and is never a dash; `(C)` needs no boundary.
         for (source, expected) in [
-            ("indexterm2:[--]", "\u{2009}—\u{2009}"),
+            ("indexterm2:[--]", "--"),
             ("indexterm2:[--]tail", "--tail"),
             ("prefixindexterm2:[--]", "prefix--"),
-            ("prefixindexterm2:[--]tail", "prefix—\u{200b}tail"),
+            ("prefixindexterm2:[--]tail", "prefix--tail"),
             ("prefixindexterm2:[(C)]tail", "prefix©tail"),
         ] {
             let parsed = parse(source, &Options::default())?;
@@ -517,8 +516,8 @@ mod tests {
                         let content: Vec<_> = paragraph.clone().take_content().collect();
                         let transform = super::InlineTextTransform::default();
                         let source = transform.to_string(&content);
-                        let expected =
-                            format!("{prefix}{label}{suffix}").replace("--", "—\u{200b}");
+                        // asciidoctor 2.0.26: the label's `--` is never joined to the words.
+                        let expected = format!("{prefix}{label}{suffix}");
                         assert_eq!(source, expected, "{input}");
                         assert_eq!(
                             transform.rendered().to_string(&content),
@@ -537,14 +536,15 @@ mod tests {
     fn index_dash_context_keeps_nonword_boundaries_and_escapes()
     -> Result<(), Box<dyn std::error::Error>> {
         for (input, expected) in [
-            ("indexterm2:[--]", "\u{2009}—\u{2009}"),
-            ("indexterm:[Hidden]indexterm2:[--]", "\u{2009}—\u{2009}"),
+            // asciidoctor 2.0.26 (measured 2026-11-16); an escape no replacement used stays.
+            ("indexterm2:[--]", "--"),
+            ("indexterm:[Hidden]indexterm2:[--]", "--"),
             ("wordindexterm2:[--]", "word--"),
             ("indexterm2:[--]word", "--word"),
-            ("word indexterm2:[--] word", "word\u{2009}—\u{2009}word"),
+            ("word indexterm2:[--] word", "word -- word"),
             ("word.indexterm2:[--]word", "word.--word"),
             ("wordindexterm2:[--].word", "word--.word"),
-            (r"wordindexterm2:[\--]word", "word--word"),
+            (r"wordindexterm2:[\--]word", r"word\--word"),
             ("wordindexterm2:[---]word", "word---word"),
             ("word-indexterm2:[--]word", "word---word"),
             ("wordindexterm2:[--]-word", "word---word"),
@@ -574,36 +574,26 @@ mod tests {
     #[test]
     fn index_replacement_context_consumes_only_enabled_source_text()
     -> Result<(), Box<dyn std::error::Error>> {
+        // asciidoctor 2.0.26 (measured 2026-11-16): replacements run before macros, so no
+        // replacement reaches across a label's brackets.
         for (input, expected) in [
-            ("prefix indexterm2:[--] tail", "prefix\u{2009}—\u{2009}tail"),
-            ("prefix-indexterm2:[-]tail", "prefix—\u{200b}tail"),
-            ("prefixindexterm2:[-]-tail", "prefix—\u{200b}tail"),
-            (
-                "prefixindexterm2:[-]indexterm2:[-]tail",
-                "prefix—\u{200b}tail",
-            ),
-            (
-                "prefix-indexterm:[Hidden]indexterm2:[-]tail",
-                "prefix—\u{200b}tail",
-            ),
-            (
-                "prefix-indexterm2:[-]anchor:end[]tail",
-                "prefix—\u{200b}tail",
-            ),
-            ("Saindexterm2:[m]'s", "Sam’s"),
-            ("indexterm2:[Sam']s", "Sam’s"),
-            ("Samindexterm2:[']s", "Sam’s"),
-            ("préindexterm2:[']été", "pré’été"),
+            ("prefix indexterm2:[--] tail", "prefix -- tail"),
+            ("prefix-indexterm2:[-]tail", "prefix--tail"),
+            ("prefixindexterm2:[-]-tail", "prefix--tail"),
+            ("prefixindexterm2:[-]indexterm2:[-]tail", "prefix--tail"),
+            ("prefix-indexterm:[Hidden]indexterm2:[-]tail", "prefix--tail"),
+            ("prefix-indexterm2:[-]anchor:end[]tail", "prefix--tail"),
+            ("Saindexterm2:[m]'s", "Sam's"),
+            ("indexterm2:[Sam']s", "Sam's"),
+            ("Samindexterm2:[']s", "Sam's"),
+            ("préindexterm2:[']été", "pré'été"),
             ("3indexterm2:[']4", "3'4"),
             ("_indexterm2:[']s", "_'s"),
-            (r"Samindexterm2:[\']s", "Sam's"),
+            (r"Samindexterm2:[\']s", r"Sam\'s"),
             (r"Sam\indexterm2:[']s", "Samindexterm2:[']s"),
             (r"prefix\indexterm2:[-]-tail", "prefixindexterm2:[-]-tail"),
             (r"prefix-\indexterm2:[-]tail", "prefix-indexterm2:[-]tail"),
-            (
-                "prefix  indexterm2:[--]  tail",
-                "prefix \u{2009}—\u{2009} tail",
-            ),
+            ("prefix  indexterm2:[--]  tail", "prefix  --  tail"),
             ("prefix-indexterm2:[--]tail", "prefix---tail"),
             ("prefix indexterm2:[pass:[--]] tail", "prefix -- tail"),
             ("prefixpass:[ ]indexterm2:[--] tail", "prefix -- tail"),
@@ -705,10 +695,11 @@ mod tests {
     #[test]
     fn index_replacement_context_cannot_disable_resolved_symbols()
     -> Result<(), Box<dyn std::error::Error>> {
+        // asciidoctor 2.0.26 (measured 2026-11-16).
         for (input, expected) in [
-            ("prefix indexterm2:[--] tail", "prefix\u{2009}—\u{2009}tail"),
-            ("prefix-indexterm2:[-]tail", "prefix—\u{200b}tail"),
-            ("Saindexterm2:[m]'s", "Sam’s"),
+            ("prefix indexterm2:[--] tail", "prefix -- tail"),
+            ("prefix-indexterm2:[-]tail", "prefix--tail"),
+            ("Saindexterm2:[m]'s", "Sam's"),
             (
                 "prefixindexterm2:[pass:r[--]]tail",
                 "prefix\u{2009}—\u{2009}tail",

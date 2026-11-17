@@ -73,7 +73,7 @@ A07 Before \fB\fR and \fBexpanded\fR after.
 A08 Keep \fB{word}\fR and link:https://example.org[Literal].
 .EE
 .EX
-A09 Keep *expanded* and *introduced*.
+A09 Keep *expanded* and *introduced*\&.
 .EE
 .EX
 A10 Keep *{word}* and {markup}.

@@ -31,6 +31,6 @@
 header\-metadata\-no\-author \- keep attribute\-only metadata independent
 .SH "SYNOPSIS"
 .sp
-H11 chain=root\-next; authorcount=0.
+H11 chain=root\-next; authorcount=0\&.
 .sp
 H12 author={author}; revision={revnumber}.

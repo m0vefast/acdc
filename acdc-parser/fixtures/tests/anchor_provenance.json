@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "authored",
       "metadata": {
         "anchors": [
           {
@@ -64,7 +65,7 @@
               },
               {
                 "line": 3,
-                "col": 12
+                "col": 11
               }
             ]
           }
@@ -135,6 +136,7 @@
         }
       ],
       "level": 1,
+      "id": "_generated_title",
       "blocks": [
         {
           "name": "paragraph",
@@ -215,7 +217,7 @@
                   },
                   {
                     "line": 12,
-                    "col": 13
+                    "col": 12
                   }
                 ]
               }
@@ -395,6 +397,7 @@
         }
       ],
       "level": 1,
+      "id": "included-é",
       "metadata": {
         "anchors": [
           {
@@ -409,7 +412,7 @@
               },
               {
                 "line": 3,
-                "col": 14,
+                "col": 13,
                 "file": [
                   "includes/anchor_provenance.adoc"
                 ]

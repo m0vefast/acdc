@@ -146,6 +146,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_with_space_in_shorthand",
       "metadata": {
         "style": "#another space id"
       },
@@ -214,6 +215,7 @@
         }
       ],
       "level": 1,
+      "id": "valid-id",
       "metadata": {
         "anchors": [
           {
@@ -225,7 +227,7 @@
               },
               {
                 "line": 16,
-                "col": 13
+                "col": 12
               }
             ]
           }

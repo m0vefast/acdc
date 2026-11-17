@@ -2,44 +2,54 @@ use acdc_parser::{CompatibilityMode, Options, SymbolKind, ast::InlineKind, parse
 
 type Error = Box<dyn std::error::Error>;
 
+// Asciidoctor column: asciidoctor 2.0.26, measured 2026-11-16, the same in all four contexts. A
+// passthrough is substituted alone, so its edge meets no word outside it.
+const NONE: Vec<SymbolKind> = Vec::new();
+
 #[rstest::rstest]
-#[case("pass:r,a[{word}']s", vec![])]
-#[case("pass:a,r[{word}']s", vec![SymbolKind::CurvedApostrophe])]
-#[case("Sampass:r,a['{tail}]", vec![])]
-#[case("Sampass:a,r['{tail}]", vec![SymbolKind::CurvedApostrophe])]
-#[case("pass:r,a[{mark}]", vec![])]
-#[case("pass:a,r[{mark}]", vec![SymbolKind::Copyright])]
-#[case("pass:r,a[left{dash}]right", vec![])]
-#[case("pass:a,r[left{dash}]right", vec![SymbolKind::WordBoundedEmDash])]
-#[case("pass:r,a[Sam']s", vec![SymbolKind::CurvedApostrophe])]
-#[case("Sampass:r,a['s]", vec![SymbolKind::CurvedApostrophe])]
-#[case("pass:r,a[--]", vec![SymbolKind::SpacedEmDash])]
-#[case("pass:r,a[(C) {word}]", vec![SymbolKind::Copyright])]
-#[case("pass:r,a[(C){word}']s", vec![SymbolKind::Copyright])]
-#[case("pass:r,a['{word} Sam']s", vec![SymbolKind::CurvedApostrophe])]
-#[case("pass:r,a[{word}'s and Sam']s", vec![SymbolKind::CurvedApostrophe])]
-#[case(r"Sampass:r,a[\'s]", vec![])]
-#[case(r"pass:r,a[Sam\']s", vec![])]
-#[case(r"pass:r,a[{word}\']s", vec![])]
-#[case("pass:r,a[pré']été", vec![SymbolKind::CurvedApostrophe])]
-#[case("pass:r,a[word_--]tail", vec![SymbolKind::WordBoundedEmDash])]
-#[case("pass:r,a[---]tail", vec![])]
-#[case("pass:r,a[Sam'{empty}]s", vec![])]
-#[case("pass:a,r[Sam'{empty}]s", vec![SymbolKind::CurvedApostrophe])]
-#[case("pass:c,r,a[-> {word}]", vec![SymbolKind::RightArrow])]
-#[case("pass:r,a,c[-> {word}]", vec![])]
-#[case("pass:r,a[-&gt; {word}]", vec![SymbolKind::RightArrow])]
-#[case("pass:r,a[{arrow}]", vec![])]
-#[case("pass:a,c,r[{arrow}]", vec![])]
-#[case("pass:a,r[{arrow}]", vec![SymbolKind::RightArrow])]
-#[case(r"pass:r,a[\-&gt; {word}]", vec![])]
-#[case(r"pass:r,a[-> {word}\]]", vec![])]
+#[case("pass:r,a[{word}']s", NONE, vec![])]
+#[case("pass:a,r[{word}']s", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("Sampass:r,a['{tail}]", NONE, vec![])]
+#[case("Sampass:a,r['{tail}]", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("pass:r,a[{mark}]", NONE, vec![])]
+#[case("pass:a,r[{mark}]", vec![SymbolKind::Copyright], vec![SymbolKind::Copyright])]
+#[case("pass:r,a[left{dash}]right", NONE, vec![])]
+#[case("pass:a,r[left{dash}]right", NONE, vec![SymbolKind::WordBoundedEmDash])]
+#[case("pass:r,a[Sam']s", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("Sampass:r,a['s]", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("pass:r,a[--]", vec![SymbolKind::SpacedEmDash], vec![SymbolKind::SpacedEmDash])]
+#[case("pass:r,a[(C) {word}]", vec![SymbolKind::Copyright], vec![SymbolKind::Copyright])]
+#[case("pass:r,a[(C){word}']s", vec![SymbolKind::Copyright], vec![SymbolKind::Copyright])]
+#[case("pass:r,a['{word} Sam']s", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("pass:r,a[{word}'s and Sam']s", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case(r"Sampass:r,a[\'s]", NONE, vec![])]
+#[case(r"pass:r,a[Sam\']s", NONE, vec![])]
+#[case(r"pass:r,a[{word}\']s", NONE, vec![])]
+#[case("pass:r,a[pré']été", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("pass:r,a[word_--]tail", NONE, vec![SymbolKind::WordBoundedEmDash])]
+#[case("pass:r,a[---]tail", NONE, vec![])]
+#[case("pass:r,a[Sam'{empty}]s", NONE, vec![])]
+#[case("pass:a,r[Sam'{empty}]s", NONE, vec![SymbolKind::CurvedApostrophe])]
+#[case("pass:c,r,a[-> {word}]", vec![SymbolKind::RightArrow], vec![SymbolKind::RightArrow])]
+#[case("pass:r,a,c[-> {word}]", NONE, vec![])]
+#[case("pass:r,a[-&gt; {word}]", vec![SymbolKind::RightArrow], vec![SymbolKind::RightArrow])]
+#[case("pass:r,a[{arrow}]", NONE, vec![])]
+#[case("pass:a,c,r[{arrow}]", NONE, vec![])]
+#[case("pass:a,r[{arrow}]", vec![SymbolKind::RightArrow], vec![SymbolKind::RightArrow])]
+#[case(r"pass:r,a[\-&gt; {word}]", NONE, vec![])]
+#[case(r"pass:r,a[-> {word}\]]", NONE, vec![])]
 fn profiles_do_not_run_replacements_after_later_attributes(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[values("{}", "**{}**", "footnote:n[{}]", "link:outer.html[{}]")] context: &str,
     #[case] body: &str,
-    #[case] expected: Vec<SymbolKind>,
+    #[case] asciidoctor: Vec<SymbolKind>,
+    #[case] draft: Vec<SymbolKind>,
 ) -> Result<(), Error> {
+    let expected = if mode == CompatibilityMode::Asciidoctor {
+        asciidoctor
+    } else {
+        draft
+    };
     let source = format!(
         ":word: Sam\n:tail: s\n:mark: (C)\n:dash: --\n:arrow: ->\n\nEarlier.\n\nα🚀 {}",
         context.replace("{}", body)

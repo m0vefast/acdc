@@ -84,6 +84,7 @@
         }
       ],
       "level": 1,
+      "id": "_nested_section",
       "blocks": [
         {
           "name": "paragraph",

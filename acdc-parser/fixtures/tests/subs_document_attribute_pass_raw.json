@@ -38,6 +38,46 @@
     "quotes": "*Strong*",
     "raw": "<em>café</em> & {name}"
   },
+  "attribute_parts": {
+    "alias": [
+      {
+        "text": "<em>café</em> & {name}",
+        "special_chars": 0
+      }
+    ],
+    "link": [
+      {
+        "text": "https://example.org[Site]",
+        "special_chars": 0
+      }
+    ],
+    "mixed": [
+      {
+        "text": "<safe> ",
+        "special_chars": 1
+      },
+      {
+        "text": "<em>café</em> & {name}",
+        "special_chars": 0
+      },
+      {
+        "text": " & end",
+        "special_chars": 1
+      }
+    ],
+    "quotes": [
+      {
+        "text": "*Strong*",
+        "special_chars": 0
+      }
+    ],
+    "raw": [
+      {
+        "text": "<em>café</em> & {name}",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "name",
@@ -902,11 +942,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": " {name}\nR07 ",
+          "value": " {name}",
           "location": [
             {
               "line": 23,
               "col": 5
+            },
+            {
+              "line": 23,
+              "col": 9
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\nR07 ",
+          "location": [
+            {
+              "line": 23,
+              "col": 10
             },
             {
               "line": 24,
@@ -1091,11 +1146,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": " end\nR08 *Strong* | https://example.org[Site]",
+          "value": " end",
           "location": [
             {
               "line": 24,
               "col": 5
+            },
+            {
+              "line": 24,
+              "col": 11
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\nR08 ",
+          "location": [
+            {
+              "line": 24,
+              "col": 12
+            },
+            {
+              "line": 25,
+              "col": 4
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*Strong*",
+          "location": [
+            {
+              "line": 25,
+              "col": 5
+            },
+            {
+              "line": 25,
+              "col": 12
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " | ",
+          "location": [
+            {
+              "line": 25,
+              "col": 13
+            },
+            {
+              "line": 25,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "https://example.org[Site]",
+          "location": [
+            {
+              "line": 25,
+              "col": 16
             },
             {
               "line": 25,

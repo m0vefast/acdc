@@ -43,6 +43,14 @@
     "raw": "<del>*literal*</del>",
     "revdate": "2026-10-03"
   },
+  "attribute_parts": {
+    "raw": [
+      {
+        "text": "<del>*literal*</del>",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -65,6 +73,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +139,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -2766,6 +2776,7 @@
             }
           ],
           "level": 2,
+          "id": "_p16_bold_italic_code",
           "blocks": [
             {
               "name": "paragraph",

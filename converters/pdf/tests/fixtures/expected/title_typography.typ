@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#blocktitle[#text("N01 Listing ")#strong[#text("title")]#text(" expanded ")#text("©")]
+#blocktitle[#text("N01 Listing ")#strong[#text("title")]#text(" ")#text("expanded")#text(" ")#text("©")]
 #raw(block: true, "N01 body (C) *bold* {value}.")
 
 #blocktitle[#text("N02 Literal ")#emph[#text("title")]#text(" ")#text("®")]

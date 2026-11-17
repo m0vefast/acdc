@@ -12,7 +12,7 @@ type Error = Box<dyn std::error::Error>;
 #[case("[%interactive]\n* [x] Parent\n+\n[%interactive]\n** [x] Child\n** [ ] Child empty\n", (3, 2, 0, 0))]
 #[case("[.interactive]\n* [x] Checked\n* [ ] Unchecked\n", (0, 0, 2, 1))]
 #[case("= List\n:interactive:\n\n* [x] Checked\n* [ ] Unchecked\n", (0, 0, 2, 1))]
-#[case("[%interactive]\n* [X] Uppercase\n* [*] Star\n", (2, 2, 0, 0))]
+#[case("[%interactive]\n* [x] Lowercase\n* [*] Star\n", (2, 2, 0, 0))]
 #[case("[options=interactive]\n* [x] Checked\n* [ ] Unchecked\n", (2, 1, 0, 0))]
 #[case("[opts=interactive]\n* [x] Checked\n* [ ] Unchecked\n", (2, 1, 0, 0))]
 #[case("[.choices%interactive]\n* [x] Checked\n* [ ] Unchecked\n* Ordinary\n", (2, 1, 0, 0))]
@@ -72,5 +72,39 @@ fn interactive_checkboxes_are_local_and_preserve_document_data(
     if source.contains(".choices") {
         assert!(output.contains(" choices\""));
     }
+    Ok(())
+}
+
+/// Asciidoctor marks only `[ ]`, `[x]` and `[*]`; `[X]` stays literal text.
+/// Draft also accepts the uppercase marker.
+#[rstest::rstest]
+#[case(CompatibilityMode::Asciidoctor, 1, "[X] Uppercase")]
+#[case(CompatibilityMode::Draft, 2, "Uppercase")]
+fn uppercase_checklist_marker_follows_the_compatibility_mode(
+    #[case] mode: CompatibilityMode,
+    #[case] boxes: usize,
+    #[case] text: &str,
+) -> Result<(), Error> {
+    let source = "[%interactive]\n* [X] Uppercase\n* [*] Star\n";
+    let parsed = parse(
+        source,
+        &ParserOptions::builder()
+            .with_compatibility_mode(mode)
+            .build()?,
+    )?;
+    let converter = Converter::new_with_variant(
+        Options::default(),
+        ParserOptions::builder().with_compatibility_mode(mode),
+        HtmlVariant::Standard,
+    )?;
+    let output = converter.convert_to_string(
+        parsed.document(),
+        &RenderOptions {
+            embedded: true,
+            ..RenderOptions::default()
+        },
+    )?;
+    assert_eq!(output.matches("data-item-complete=\"1\"").count(), boxes);
+    assert!(output.contains(text), "{output}");
     Ok(())
 }

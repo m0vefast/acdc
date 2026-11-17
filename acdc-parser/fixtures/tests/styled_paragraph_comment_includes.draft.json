@@ -63,6 +63,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +129,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -136,11 +138,29 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I01 parent before include\n// I02 included first comment\nI03 included body",
+              "value": "I01 parent before include\n",
               "location": [
                 {
                   "line": 13,
                   "col": 1
+                },
+                {
+                  "line": 13,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I02 included first comment\nI03 included body",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
                 },
                 {
                   "line": 2,
@@ -179,11 +199,29 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I06 before selected include\nI03 included body",
+              "value": "I06 before selected include\n",
               "location": [
                 {
                   "line": 18,
                   "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I03 included body",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_part.adoc"
+                  ]
                 },
                 {
                   "line": 2,
@@ -219,11 +257,29 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I08 before boundary include\n// I09 included code comment",
+              "value": "I08 before boundary include\n",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I09 included code comment",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
                 },
                 {
                   "line": 1,
@@ -259,7 +315,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I10 ordinary included paragraph\nI11 ordinary included tail\nI12 ordinary after include",
+              "value": "I10 ordinary included paragraph\n",
               "location": [
                 {
                   "line": 3,
@@ -267,6 +323,45 @@
                   "file": [
                     "includes/styled_comment_boundary.adoc"
                   ]
+                },
+                {
+                  "line": 3,
+                  "col": 32,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I11 ordinary included tail\n",
+              "location": [
+                {
+                  "line": 5,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                },
+                {
+                  "line": 5,
+                  "col": 27,
+                  "file": [
+                    "includes/styled_comment_boundary.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "I12 ordinary after include",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 1
                 },
                 {
                   "line": 26,
@@ -366,11 +461,29 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I15 before included metadata\n:included-kind: source",
+              "value": "I15 before included metadata\n",
               "location": [
                 {
                   "line": 32,
                   "col": 1
+                },
+                {
+                  "line": 32,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ":included-kind: source",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_open.adoc"
+                  ]
                 },
                 {
                   "line": 1,
@@ -458,11 +571,30 @@
             {
               "name": "text",
               "type": "string",
-              "value": "I17 before nested include\n// I02 included first comment\nI03 included body",
+              "value": "I17 before nested include\n",
               "location": [
                 {
                   "line": 37,
                   "col": 1
+                },
+                {
+                  "line": 37,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// I02 included first comment\nI03 included body",
+              "location": [
+                {
+                  "line": 1,
+                  "col": 1,
+                  "file": [
+                    "includes/styled_comment_nested.adoc",
+                    "styled_comment_part.adoc"
+                  ]
                 },
                 {
                   "line": 2,

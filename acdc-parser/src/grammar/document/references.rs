@@ -8,7 +8,7 @@ use crate::{
         ParserState,
         document::sections::warn_for_nested_special_section,
         helpers::{BlockParsingMetadata, is_valid_bibliography_id},
-        location_walk::try_walk_document_inline_nodes_mut,
+        location_walk::{try_walk_document_inline_nodes_mut, walk_inline_nodes_mut},
         reference_walk::{
             self, ReferenceVisitor, header_title as header_reference_title, metadata_xreflabel,
         },
@@ -75,19 +75,22 @@ impl<'a> ReferenceCatalog<'a> {
         true
     }
 
-    fn section_id(&mut self, state: &ParserState<'a>, section: &Section<'a>) -> &'a str {
-        if let Some(id) = Section::explicit_id(&section.metadata) {
+    /// A heading's explicit ID, or one generated from its title and made unique.
+    fn heading_id(
+        &mut self,
+        state: &ParserState<'a>,
+        metadata: &BlockMetadata<'a>,
+        title: &Title<'a>,
+        id_settings: section::SectionIdSettings<'a>,
+    ) -> &'a str {
+        if let Some(id) = Section::explicit_id(metadata) {
             return id;
         }
-        let base = section.id_settings.generate(
-            state.arena,
-            &section.metadata,
-            section.title.as_inlines(),
-        );
+        let base = id_settings.generate(state.arena, metadata, title.as_inlines(), Some(&self.entries));
         if !self.entries.contains_key(base) {
             return base;
         }
-        let separator = section.id_settings.separator;
+        let separator = id_settings.separator;
         let next = self.next_suffix.entry((base, separator)).or_insert(2);
         loop {
             let candidate = if let Some(separator) = separator {
@@ -229,6 +232,8 @@ pub(super) struct ParsedSectionHeader<'a> {
     pub(super) numbering: section::SectionNumbering,
     pub(super) reference_text: &'a str,
     pub(super) id_settings: section::SectionIdSettings<'a>,
+    /// A trailing ` [[id]]` split from the title: the heading's own anchor.
+    pub(super) trailing_anchor: Option<Anchor<'a>>,
 }
 
 pub(super) fn register_section_header<'a>(
@@ -264,6 +269,7 @@ pub(super) fn register_section_header<'a>(
         numbering,
         reference_text,
         id_settings,
+        trailing_anchor: None,
     }
 }
 
@@ -419,12 +425,32 @@ pub(super) fn resolve_xref_target<'a>(
     }
 }
 
+/// Marks each automatic reference in a heading title whose target is not registered yet:
+/// Asciidoctor converts the title while parsing, to generate its ID, so the reference
+/// reads as `[id]` (a reference to the heading itself, or to a later target).
+fn mark_references_preceding_targets<'a>(title: &mut Title<'a>, refs: &ReferenceCatalog<'a>) {
+    for node in title.inlines_mut() {
+        walk_inline_nodes_mut(node, &mut |node| {
+            if let InlineNode::Macro(InlineMacro::CrossReference(xref)) = node
+                && xref.text.is_empty()
+                && xref.target_is_local
+                && !xref.target.is_empty()
+                && !refs.entries.contains_key(xref.target)
+                && !refs.natural_targets.contains_key(xref.target)
+            {
+                xref.precedes_target = true;
+            }
+        });
+    }
+}
+
 fn register_section_reference<'a>(
     state: &mut ParserState<'a>,
     section: &mut Section<'a>,
     refs: &mut ReferenceCatalog<'a>,
 ) {
-    let id = refs.section_id(state, section);
+    mark_references_preceding_targets(&mut section.title, refs);
+    let id = refs.heading_id(state, &section.metadata, &section.title, section.id_settings);
     section.id = Some(id);
     section.id_generated = Section::explicit_id(&section.metadata).is_none();
     let reference_text = section.reference_text.take();
@@ -470,6 +496,39 @@ impl<'a> ReferenceVisitor<'a> for ParsingReferences<'_, 'a> {
         Ok(())
     }
 
+    fn discrete_heading(
+        &mut self,
+        heading: &mut crate::DiscreteHeading<'a>,
+    ) -> Result<(), Self::Error> {
+        mark_references_preceding_targets(&mut heading.title, self.references);
+        let id = self.references.heading_id(
+            self.state,
+            &heading.metadata,
+            &heading.title,
+            heading.id_settings,
+        );
+        heading.id = Some(id);
+        heading.id_generated = Section::explicit_id(&heading.metadata).is_none();
+        if heading.id_generated && !self.references.duplicate(self.state, id, &heading.location) {
+            self.references.entries.insert(
+                id,
+                ReferenceTarget {
+                    occurrence: None,
+                    document_label: None,
+                    target: id,
+                    xreflabel: None,
+                    title: Some(ContentAttribute::new(heading.title.clone().into_inlines())),
+                    location: heading.location.clone(),
+                    caption: None,
+                    section: None,
+                    bibliography: false,
+                    automatic_citation: false,
+                },
+            );
+        }
+        Ok(())
+    }
+
     fn anchor(
         &mut self,
         anchor: &Anchor<'a>,
@@ -497,7 +556,6 @@ impl<'a> ReferenceVisitor<'a> for ParsingReferences<'_, 'a> {
         insert_untitled_reference(self.state, self.references, id, location);
         Ok(())
     }
-
     fn cross_reference(
         &mut self,
         reference: &crate::CrossReference<'a>,

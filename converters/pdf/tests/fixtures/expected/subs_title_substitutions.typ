@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#blocktitle[#text("S01 Quote ")#strong[#text("title")]#text(" expanded ")#text("©")]
+#blocktitle[#text("S01 Quote ")#strong[#text("title")]#text(" ")#text("expanded")#text(" ")#text("©")]
 #blockquote[
 #text("S01 body *bold* {value} (C).")
 #text(style: "normal")[
@@ -94,7 +94,7 @@
 ]
 ]
 
-#blocktitle[#text("S02 Verse ")#emph[#text("title")]#text(" expanded ")#text("®")]
+#blocktitle[#text("S02 Verse ")#emph[#text("title")]#text(" ")#text("expanded")#text(" ")#text("®")]
 #verse[#text("S02 first _italic_ {value} (R).\nS02 second.")]
 
 #attribution[#text("Poet")#text(", ")#text("Work")]
@@ -112,7 +112,7 @@
 #raw(block: true, "S06 body (TM).")
 
 #blocktitle[#text("S07 Title ")#text("©")#text(" with literal ")#text("(R)")#text(" and ")#text("(TM)")]
-#text("S07 body expanded (C) *bold*.")
+#text("S07 body ")#text("expanded")#text(" (C) *bold*.")
 
 #blocktitle[#text("S08 Title ")#text("®")]
 #text("S08 body ")#text("©")#text(" *bold*.")

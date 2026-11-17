@@ -100,6 +100,32 @@ pub(crate) struct SourceRange {
     /// preprocessed↔origin mapping is byte-for-byte (1:1); a non-zero shift marks the
     /// range as **not 1:1**, so its `source_offset` no longer recovers origin offsets.
     pub(crate) column_shift: isize,
+    /// For text the preprocessor drew in place of a construct (an include not read,
+    /// drawn as a link): the construct's line in the origin file and the drawn
+    /// text. Every position in the drawn text stays within that line; what follows
+    /// the drawn text follows the line.
+    pub(crate) stands_for: Option<StandsFor>,
+}
+
+/// The source line a drawn text stands for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StandsFor {
+    bytes: usize,
+    last_column: u32,
+    drawn_bytes: usize,
+    drawn_last_column: u32,
+}
+
+impl StandsFor {
+    pub(crate) fn new(line: &str, drawn: &str) -> Self {
+        let columns = |text: &str| u32::try_from(text.chars().count()).unwrap_or(u32::MAX);
+        Self {
+            bytes: line.len(),
+            last_column: columns(line),
+            drawn_bytes: drawn.len(),
+            drawn_last_column: columns(drawn),
+        }
+    }
 }
 
 impl SourceRange {
@@ -117,10 +143,81 @@ impl SourceRange {
         ranges.iter().rev().find(|r| r.contains(offset))
     }
 
+    /// Preprocessed offsets where the byte before and the byte at the offset do
+    /// not follow each other in the origin: a line the preprocessor dropped, an
+    /// include's edge, text drawn in place of a construct. Sorted.
+    #[must_use]
+    pub(crate) fn gaps(ranges: &[SourceRange], len: usize) -> Vec<usize> {
+        let origin = |offset: usize| {
+            let range = Self::find_containing(ranges, offset);
+            let drawn = range.filter(|range| range.stands_for.is_some()).map(std::ptr::from_ref);
+            range.map_or((&[][..], offset, drawn), |range| {
+                (range.file_chain.as_slice(), range.source_offset(offset), drawn)
+            })
+        };
+        let mut gaps: Vec<usize> = ranges
+            .iter()
+            .flat_map(|range| [range.start_offset, range.end_offset])
+            .filter(|&at| at > 0 && at < len)
+            .filter(|&at| {
+                let (before_file, before, before_drawn) = origin(at - 1);
+                let (file, at, drawn) = origin(at);
+                before_file != file || at != before + 1 || before_drawn != drawn
+            })
+            .chain(ranges.iter().filter_map(|range| {
+                range
+                    .stands_for
+                    .map(|line| range.start_offset + line.drawn_bytes)
+                    .filter(|&at| at < len)
+            }))
+            .collect();
+        gaps.sort_unstable();
+        gaps.dedup();
+        gaps
+    }
+
+    /// For a span lying wholly inside text drawn in place of a construct, the
+    /// construct's line: its first and last byte offsets and columns.
+    #[must_use]
+    pub(crate) fn drawn_construct(&self, start: usize, end: usize) -> Option<((usize, u32), (usize, u32))> {
+        let line = self.stands_for?;
+        let drawn_end = self.start_offset + line.drawn_bytes;
+        (start >= self.start_offset && end < drawn_end).then(|| {
+            (
+                (self.source_start_offset, 1),
+                (self.source_start_offset + line.bytes.saturating_sub(1), line.last_column.max(1)),
+            )
+        })
+    }
+
     /// Original-file byte offset for a preprocessed `offset` inside this range.
     #[must_use]
     pub(crate) fn source_offset(&self, offset: usize) -> usize {
-        self.source_start_offset + offset.saturating_sub(self.start_offset)
+        let within = offset.saturating_sub(self.start_offset);
+        let within = self.stands_for.map_or(within, |line| {
+            if within >= line.drawn_bytes {
+                line.bytes + (within - line.drawn_bytes)
+            } else if within + 1 == line.drawn_bytes {
+                line.bytes.saturating_sub(1)
+            } else {
+                within.min(line.bytes.saturating_sub(1))
+            }
+        });
+        self.source_start_offset + within
+    }
+
+    /// The origin column for a preprocessed `column` inside this range.
+    #[must_use]
+    pub(crate) fn source_column(&self, column: u32) -> u32 {
+        self.stands_for.map_or(column, |line| {
+            if column > line.drawn_last_column {
+                line.last_column + (column - line.drawn_last_column)
+            } else if column == line.drawn_last_column {
+                line.last_column.max(1)
+            } else {
+                column.min(line.last_column.max(1))
+            }
+        })
     }
 }
 

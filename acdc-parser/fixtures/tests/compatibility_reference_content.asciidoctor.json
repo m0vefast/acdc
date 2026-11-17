@@ -55,6 +55,7 @@
         }
       ],
       "level": 1,
+      "id": "single",
       "metadata": {
         "reftext": [
           {
@@ -185,6 +186,7 @@
         }
       ],
       "level": 1,
+      "id": "double",
       "metadata": {
         "reftext": [
           {
@@ -282,6 +284,7 @@
         }
       ],
       "level": 1,
+      "id": "unquoted",
       "metadata": {
         "reftext": [
           {
@@ -364,6 +367,7 @@
         }
       ],
       "level": 1,
+      "id": "expanded",
       "metadata": {
         "reftext": [
           {
@@ -446,6 +450,7 @@
         }
       ],
       "level": 1,
+      "id": "empty",
       "metadata": {
         "reftext": [],
         "id": {
@@ -494,6 +499,7 @@
         }
       ],
       "level": 1,
+      "id": "anchor",
       "metadata": {
         "anchors": [
           {
@@ -555,7 +561,7 @@
               },
               {
                 "line": 19,
-                "col": 26
+                "col": 25
               }
             ]
           }

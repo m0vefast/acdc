@@ -59,11 +59,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "α {name} café",
+          "value": "α ",
           "location": [
             {
               "line": 8,
               "col": 21
+            },
+            {
+              "line": 8,
+              "col": 22
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "{name}",
+          "location": [
+            {
+              "line": 8,
+              "col": 23
+            },
+            {
+              "line": 8,
+              "col": 29
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " café",
+          "location": [
+            {
+              "line": 8,
+              "col": 30
             },
             {
               "line": 8,
@@ -116,11 +146,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "β {name}",
+          "value": "β ",
           "location": [
             {
               "line": 5,
               "col": 26,
+              "file": [
+                "includes/document_attribute_media_contexts.adoc"
+              ]
+            },
+            {
+              "line": 5,
+              "col": 27,
+              "file": [
+                "includes/document_attribute_media_contexts.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "{name}",
+          "location": [
+            {
+              "line": 5,
+              "col": 28,
               "file": [
                 "includes/document_attribute_media_contexts.adoc"
               ]

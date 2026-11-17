@@ -79,10 +79,25 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Ordinary paragraph before a delimiter\n----\nSeparate listing body\n// Preserved inside listing\n----",
+          "value": "Ordinary paragraph before a delimiter\n",
           "location": [
             {
               "line": 11,
+              "col": 1
+            },
+            {
+              "line": 11,
+              "col": 38
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "----\nSeparate listing body\n// Preserved inside listing\n----",
+          "location": [
+            {
+              "line": 13,
               "col": 1
             },
             {
@@ -334,10 +349,46 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Parent paragraph ending inside an include\nIncluded final café line\n// Preserved only in Asciidoctor mode",
+          "value": "Parent paragraph ending inside an include\n",
           "location": [
             {
               "line": 36,
+              "col": 1
+            },
+            {
+              "line": 36,
+              "col": 42
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Included final café line\n",
+          "location": [
+            {
+              "line": 11,
+              "col": 1,
+              "file": [
+                "includes/compatibility_styled_block_contexts.adoc"
+              ]
+            },
+            {
+              "line": 11,
+              "col": 25,
+              "file": [
+                "includes/compatibility_styled_block_contexts.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "// Preserved only in Asciidoctor mode",
+          "location": [
+            {
+              "line": 38,
               "col": 1
             },
             {

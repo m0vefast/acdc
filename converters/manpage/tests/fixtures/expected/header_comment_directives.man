@@ -35,6 +35,6 @@ D01 kept=original; hidden={hidden}.
 .sp
 D03 Correct conditional branch.
 .sp
-D04 After different\-length delimiters: original.
+D04 After different\-length delimiters: original\&.
 .sp
-D05 After an apparent attribute continuation: original.
+D05 After an apparent attribute continuation: original\&.

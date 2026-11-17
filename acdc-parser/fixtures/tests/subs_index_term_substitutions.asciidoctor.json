@@ -50,11 +50,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "plain Ada",
+              "value": "plain ",
               "location": [
                 {
                   "line": 9,
                   "col": 3
+                },
+                {
+                  "line": 9,
+                  "col": 8
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Ada",
+              "location": [
+                {
+                  "line": 9,
+                  "col": 9
                 },
                 {
                   "line": 9,
@@ -98,11 +113,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "formatted *Ada*",
+              "value": "formatted ",
               "location": [
                 {
                   "line": 11,
                   "col": 3
+                },
+                {
+                  "line": 11,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*Ada*",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 13
                 },
                 {
                   "line": 11,
@@ -470,11 +500,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "late Ada and ",
+              "value": "late ",
               "location": [
                 {
                   "line": 21,
                   "col": 3
+                },
+                {
+                  "line": 21,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Ada",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 8
+                },
+                {
+                  "line": 21,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " and ",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 16
                 },
                 {
                   "line": 21,
@@ -592,11 +652,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "macro before attributes https://example.com[Ada]",
+              "value": "macro before attributes ",
               "location": [
                 {
                   "line": 24,
                   "col": 3
+                },
+                {
+                  "line": 24,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.com[Ada]",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 27
                 },
                 {
                   "line": 24,
@@ -681,11 +756,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "closing marker x *Ada* y",
+              "value": "closing marker x *Ada",
               "location": [
                 {
                   "line": 26,
                   "col": 3
+                },
+                {
+                  "line": 26,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 24
+                },
+                {
+                  "line": 26,
+                  "col": 30
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " y",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 31
                 },
                 {
                   "line": 26,

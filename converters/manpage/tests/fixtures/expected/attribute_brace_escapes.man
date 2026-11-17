@@ -31,11 +31,11 @@
 brace\-escapes \- preserve escaped attribute references
 .SH "DESCRIPTION"
 .sp
-E01 {value} / {value} / {value} / Expanded.
+E01 {value} / {value} / {value} / Expanded\&.
 .sp
 E02 {missing} / {missing} / {missing}\&.
 .sp
-E03 {empty} / {empty} / {empty} / .
+E03 {empty} / {empty} / {empty} / \&.
 .sp
 E04 {markup} / {markup} / {markup}\&.
 .sp
@@ -75,7 +75,7 @@ E21 \e{bad name} / {bad name\e} / \e{bad name\e} / \e{}\&.
 .sp
 E22 {_value_} / {_value_} / {_value_}\&.
 .sp
-E20 {value} / {value} / Later.
+E20 {value} / {value} / Later\&.
 .SH "NOTES"
 .IP [1] 4
 {value} / {value} / {value}

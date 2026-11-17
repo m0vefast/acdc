@@ -406,11 +406,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " expanded ",
+          "value": " ",
           "location": [
             {
               "line": 37,
               "col": 7
+            },
+            {
+              "line": 37,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 37,
+              "col": 8
+            },
+            {
+              "line": 37,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 37,
+              "col": 14
             },
             {
               "line": 37,
@@ -532,11 +562,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " expanded ",
+          "value": " ",
           "location": [
             {
               "line": 43,
               "col": 7
+            },
+            {
+              "line": 43,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 43,
+              "col": 8
+            },
+            {
+              "line": 43,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 43,
+              "col": 14
             },
             {
               "line": 43,

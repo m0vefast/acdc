@@ -255,7 +255,7 @@
         {
           "name": "text",
           "type": "string",
-          "value": "\"File ",
+          "value": "\"",
           "location": [
             {
               "line": 10,
@@ -263,6 +263,21 @@
             },
             {
               "line": 10,
+              "col": 1
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "File ",
+          "location": [
+            {
+              "line": 10,
+              "col": 2
+            },
+            {
+              "line": 10,
               "col": 7
             }
           ]
@@ -289,11 +304,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " Open\" and \"File ",
+          "value": " Open",
           "location": [
             {
               "line": 10,
               "col": 2
+            },
+            {
+              "line": 10,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\" and ",
+          "location": [
+            {
+              "line": 10,
+              "col": 8
+            },
+            {
+              "line": 10,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\"File ",
+          "location": [
+            {
+              "line": 10,
+              "col": 14
             },
             {
               "line": 10,
@@ -323,11 +368,56 @@
         {
           "name": "text",
           "type": "string",
-          "value": " Open\" and \"File > Open\".",
+          "value": " Open\"",
           "location": [
             {
               "line": 10,
               "col": 14
+            },
+            {
+              "line": 10,
+              "col": 21
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " and \"File",
+          "location": [
+            {
+              "line": 10,
+              "col": 22
+            },
+            {
+              "line": 10,
+              "col": 31
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 10,
+              "col": 32
+            },
+            {
+              "line": 10,
+              "col": 36
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "> Open\".",
+          "location": [
+            {
+              "line": 10,
+              "col": 37
             },
             {
               "line": 10,

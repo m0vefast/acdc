@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
     CompatibilityMode, IndexTerm, IndexTermKind, IndexTermRelationship, InlineMacro, InlineNode,
-    Substitution,
+    Plain, Substitution,
     grammar::{
         ParserState,
         attributes::{AttributeQuote, ScannedAttribute, scan_attribute_list},
@@ -251,7 +251,7 @@ pub(super) fn expand_escaped_index_terms<'a>(
     state: &mut ParserState<'a>,
 ) -> Result<Vec<InlineNode<'a>>, &'static str> {
     if !state.inline_ctx.rules.contains(InlineRules::INDEX_TERMS) || !state.input.contains('\\') {
-        return Ok(nodes);
+        return Ok(place_enclosing_parentheses(nodes, state));
     }
     let mut expanded = Vec::with_capacity(nodes.len());
     for node in nodes {
@@ -285,7 +285,75 @@ pub(super) fn expand_escaped_index_terms<'a>(
             expanded.extend(parsed);
         }
     }
-    Ok(expanded)
+    Ok(place_enclosing_parentheses(expanded, state))
+}
+
+/// Asciidoctor `encl_text`: the `)` at `position` ends a visible label and stands after the term,
+/// provided it was there when macros ran: a later attribute value did not supply it, and an
+/// earlier replacement did not consume it (`(C)` into `©`, or `\(C)` into a literal `(C)`, whose
+/// escape the label keeps whole).
+pub(super) fn closes_enclosed_label(state: &ParserState<'_>, position: usize) -> bool {
+    let head = &state.input[..position];
+    let replaced = state
+        .inline_ctx
+        .substitutions
+        .precedes(&Substitution::Replacements, &Substitution::Macros)
+        && ["(C", "(R", "(TM"]
+            .iter()
+            .any(|token| head.ends_with(token));
+    state.options.compatibility_mode == CompatibilityMode::Asciidoctor
+        && state.input.as_bytes().get(position) == Some(&b')')
+        && super::recognition::macro_token_allowed(state, position, 1)
+        && !replaced
+}
+
+/// Asciidoctor `encl_text`: a visible `((label)))` keeps its label's closing `)` as text after the
+/// term (the grammar left it out of the label).
+pub(super) fn place_enclosing_parentheses<'a>(
+    nodes: Vec<InlineNode<'a>>,
+    state: &ParserState<'a>,
+) -> Vec<InlineNode<'a>> {
+    if state.options.compatibility_mode != CompatibilityMode::Asciidoctor
+        || !state.input.contains(")))")
+    {
+        return nodes;
+    }
+    let mut placed = Vec::with_capacity(nodes.len());
+    for mut node in nodes {
+        let paren = match &node {
+            InlineNode::Macro(InlineMacro::IndexTerm(term))
+                if matches!(term.kind, IndexTermKind::Flow(_)) =>
+            {
+                let (start, end) = (term.location.absolute_start, term.location.absolute_end);
+                state
+                    .input
+                    .get(start..=end)
+                    .filter(|source| source.starts_with("((") && source.ends_with(")))"))
+                    .filter(|_| !state.input[..start].ends_with("\\("))
+                    .map(|_| end - 2)
+                    .filter(|position| closes_enclosed_label(state, *position))
+            }
+            _ => None,
+        };
+        // In source order the `)` precedes the closing `))`: the term spans `((label`, the `)` its
+        // own byte, and the closing delimiter belongs to neither.
+        if let (Some(position), InlineNode::Macro(InlineMacro::IndexTerm(term))) = (paren, &mut node)
+        {
+            term.location = state.create_location(
+                term.location.absolute_start,
+                crate::grammar::utf8_utils::safe_decrement_offset(state.input, position),
+            );
+        }
+        placed.push(node);
+        if let Some(position) = paren {
+            placed.push(InlineNode::PlainText(Plain {
+                content: &state.input[position..=position],
+                location: state.create_location(position, position),
+                escaped: false,
+            }));
+        }
+    }
+    placed
 }
 
 // Recognize a macro once, then use its registration-time parts for both catalog

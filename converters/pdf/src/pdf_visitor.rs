@@ -1081,6 +1081,10 @@ impl<'a, 'd, 'm> PdfVisitor<'a, 'd, 'm> {
         footnote: FootnoteRef<'_>,
         code: &mut CodeText,
     ) -> Result<(), Error> {
+        if !footnote.is_resolved() {
+            code.source.push_str(&format!("[{}]", footnote.mark()));
+            return Ok(());
+        }
         let output = replace(&mut self.writer, Writer::new());
         let result = self.write_footnote(traversal, footnote);
         let markup = replace(&mut self.writer, output).into_string();
@@ -4150,6 +4154,11 @@ impl<'a, 'd, 'm> PdfVisitor<'a, 'd, 'm> {
         traversal: &mut TraversalContext<'a>,
         footnote: FootnoteRef<'_>,
     ) -> Result<(), Error> {
+        // A reference to no note has no label to point at: its bracketed key, as text.
+        if !footnote.is_resolved() {
+            self.write_text_expr(&format!("[{}]", footnote.mark()));
+            return Ok(());
+        }
         let label = footnote.id().map(|id| {
             encode_footnote_label(traversal.footnote_label(footnote.number()).unwrap_or(id))
         });

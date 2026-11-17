@@ -23,6 +23,7 @@
         }
       ],
       "level": 1,
+      "id": "_discrete_heading_at_eof",
       "metadata": {
         "style": "discrete"
       },

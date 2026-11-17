@@ -65,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -213,6 +215,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -221,11 +224,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A01 Single [\\].",
+              "value": "A01 Single [",
               "location": [
                 {
                   "line": 25,
                   "col": 1
+                },
+                {
+                  "line": 25,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 13
+                },
+                {
+                  "line": 25,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 20
                 },
                 {
                   "line": 25,
@@ -252,11 +285,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A02 Spaces [\\] and tab [\\].",
+              "value": "A02 Spaces [",
               "location": [
                 {
                   "line": 27,
                   "col": 1
+                },
+                {
+                  "line": 27,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 27,
+                  "col": 13
+                },
+                {
+                  "line": 27,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] and tab [",
+              "location": [
+                {
+                  "line": 27,
+                  "col": 21
+                },
+                {
+                  "line": 27,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 27,
+                  "col": 32
+                },
+                {
+                  "line": 27,
+                  "col": 39
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 27,
+                  "col": 40
                 },
                 {
                   "line": 27,
@@ -283,11 +376,71 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A03 Path [C:\\tmp\\] and repeated [\\\\].",
+              "value": "A03 Path [",
               "location": [
                 {
                   "line": 29,
                   "col": 1
+                },
+                {
+                  "line": 29,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C:\\tmp\\",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 11
+                },
+                {
+                  "line": 29,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] and repeated [",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 17
+                },
+                {
+                  "line": 29,
+                  "col": 32
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\\\",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 33
+                },
+                {
+                  "line": 29,
+                  "col": 41
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 42
                 },
                 {
                   "line": 29,
@@ -314,11 +467,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A04 Soft [Alpha Beta].",
+              "value": "A04 Soft [",
               "location": [
                 {
                   "line": 31,
                   "col": 1
+                },
+                {
+                  "line": 31,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alpha Beta",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 11
+                },
+                {
+                  "line": 31,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 31,
+                  "col": 17
                 },
                 {
                   "line": 31,
@@ -345,11 +528,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A05 Hard [Alpha",
+              "value": "A05 Hard [",
               "location": [
                 {
                   "line": 33,
                   "col": 1
+                },
+                {
+                  "line": 33,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alpha",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 11
                 },
                 {
                   "line": 33,
@@ -374,11 +572,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\nBeta].",
+              "value": "\nBeta",
               "location": [
                 {
                   "line": 33,
                   "col": 11
+                },
+                {
+                  "line": 33,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 17
                 },
                 {
                   "line": 33,
@@ -405,11 +618,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A06 Empty [] and ordinary control.",
+              "value": "A06 Empty [",
               "location": [
                 {
                   "line": 35,
                   "col": 1
+                },
+                {
+                  "line": 35,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "] and ordinary control.",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 19
                 },
                 {
                   "line": 35,
@@ -482,11 +710,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A08 Body value [\\].",
+              "value": "A08 Body value [",
               "location": [
                 {
                   "line": 40,
                   "col": 1
+                },
+                {
+                  "line": 40,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 17
+                },
+                {
+                  "line": 40,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 23
                 },
                 {
                   "line": 40,
@@ -528,11 +786,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A09 Body continuation [body continuation].",
+              "value": "A09 Body continuation [",
               "location": [
                 {
                   "line": 45,
                   "col": 1
+                },
+                {
+                  "line": 45,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "body continuation",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 24
+                },
+                {
+                  "line": 45,
+                  "col": 34
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 35
                 },
                 {
                   "line": 45,
@@ -620,11 +908,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "A11 Colon-prefixed continuation [First :literal: Still value text].",
+              "value": "A11 Colon-prefixed continuation [",
               "location": [
                 {
                   "line": 54,
                   "col": 1
+                },
+                {
+                  "line": 54,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "First :literal: Still value text",
+              "location": [
+                {
+                  "line": 54,
+                  "col": 34
+                },
+                {
+                  "line": 54,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 54,
+                  "col": 51
                 },
                 {
                   "line": 54,

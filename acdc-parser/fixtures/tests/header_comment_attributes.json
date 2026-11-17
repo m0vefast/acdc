@@ -26,6 +26,28 @@
         "initials": "CA"
       }
     ],
+    "revision": {
+      "number": [
+        {
+          "line": 19,
+          "col": 2
+        },
+        {
+          "line": 19,
+          "col": 4
+        }
+      ],
+      "date": [
+        {
+          "line": 19,
+          "col": 7
+        },
+        {
+          "line": 19,
+          "col": 16
+        }
+      ]
+    },
     "location": [
       {
         "line": 9,
@@ -94,23 +116,7 @@
       "type": "block",
       "form": "delimited",
       "delimiter": "////",
-      "blocks": [
-        {
-          "name": "text",
-          "type": "string",
-          "value": "",
-          "location": [
-            {
-              "line": 7,
-              "col": 1
-            },
-            {
-              "line": 7,
-              "col": 1
-            }
-          ]
-        }
-      ],
+      "blocks": [],
       "location": [
         {
           "line": 6,
@@ -143,6 +149,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -208,6 +215,7 @@
         }
       ],
       "level": 1,
+      "id": "_checks",
       "blocks": [
         {
           "name": "paragraph",
@@ -216,11 +224,131 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C01 kept=original; header=active; author=Correct Author; revision=1.0.",
+              "value": "C01 kept=",
               "location": [
                 {
                   "line": 39,
                   "col": 1
+                },
+                {
+                  "line": 39,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "original",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 10
+                },
+                {
+                  "line": 39,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; header=",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 16
+                },
+                {
+                  "line": 39,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "active",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 25
+                },
+                {
+                  "line": 39,
+                  "col": 39
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; author=",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 40
+                },
+                {
+                  "line": 39,
+                  "col": 48
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Correct Author",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 49
+                },
+                {
+                  "line": 39,
+                  "col": 56
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; revision=",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 57
+                },
+                {
+                  "line": 39,
+                  "col": 67
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "1.0",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 68
+                },
+                {
+                  "line": 39,
+                  "col": 78
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 79
                 },
                 {
                   "line": 39,
@@ -311,11 +439,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C03 kept=original; body={hidden-body}.",
+              "value": "C03 kept=",
               "location": [
                 {
                   "line": 49,
                   "col": 1
+                },
+                {
+                  "line": 49,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "original",
+              "location": [
+                {
+                  "line": 49,
+                  "col": 10
+                },
+                {
+                  "line": 49,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; body={hidden-body}.",
+              "location": [
+                {
+                  "line": 49,
+                  "col": 16
                 },
                 {
                   "line": 49,

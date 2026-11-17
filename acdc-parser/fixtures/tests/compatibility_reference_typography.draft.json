@@ -55,6 +55,7 @@
         }
       ],
       "level": 1,
+      "id": "single",
       "metadata": {
         "reftext": [
           {
@@ -265,6 +266,7 @@
         }
       ],
       "level": 1,
+      "id": "double",
       "metadata": {
         "reftext": [
           {
@@ -332,6 +334,7 @@
         }
       ],
       "level": 1,
+      "id": "unquoted",
       "metadata": {
         "reftext": [
           {
@@ -399,6 +402,7 @@
         }
       ],
       "level": 1,
+      "id": "expanded",
       "metadata": {
         "reftext": [
           {
@@ -495,6 +499,7 @@
         }
       ],
       "level": 1,
+      "id": "block",
       "metadata": {
         "anchors": [
           {
@@ -568,7 +573,7 @@
               },
               {
                 "line": 18,
-                "col": 25
+                "col": 24
               }
             ]
           }

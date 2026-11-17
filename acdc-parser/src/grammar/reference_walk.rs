@@ -1,6 +1,6 @@
 use crate::{
     Anchor, Block, BlockMetadata, Caption, ColumnStyle, ContentAttribute, CrossReference,
-    DelimitedBlockType, Header, InlineMacro, InlineMetadata, InlineNode, Location, Plain, Section,
+    DelimitedBlockType, DiscreteHeading, Header, InlineMacro, InlineMetadata, InlineNode, Location, Plain, Section,
     Title,
 };
 
@@ -29,6 +29,10 @@ pub(crate) trait ReferenceVisitor<'a> {
         _title: Option<Title<'a>>,
         _caption: Option<Caption<'a>>,
     ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn discrete_heading(&mut self, _heading: &mut DiscreteHeading<'a>) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -112,6 +116,9 @@ pub(crate) fn blocks<'a, V: ReferenceVisitor<'a>>(
                 block.title().cloned(),
                 metadata.and_then(|metadata| metadata.caption.clone()),
             )?;
+        }
+        if let Block::DiscreteHeading(heading) = block {
+            visitor.discrete_heading(heading)?;
         }
         if let Some(title) = block.title() {
             inlines(visitor, title.as_inlines())?;

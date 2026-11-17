@@ -275,7 +275,6 @@
         },
         {
           "blocks": [],
-          "checked": true,
           "location": [
             {
               "col": 1,
@@ -292,7 +291,7 @@
             {
               "location": [
                 {
-                  "col": 7,
+                  "col": 3,
                   "line": 11
                 },
                 {
@@ -302,7 +301,7 @@
               ],
               "name": "text",
               "type": "string",
-              "value": "Uppercase check"
+              "value": "[X] Uppercase check"
             }
           ],
           "type": "block"

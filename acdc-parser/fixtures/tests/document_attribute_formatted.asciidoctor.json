@@ -44,7 +44,9 @@
     "link": "https://example.org[Site]",
     "m-c": "pass:m,c[https://example.org[Escaped site]]",
     "manname": "prepared-attributes",
+    "manname-id": "_name",
     "manname-title": "NAME",
+    "mannames": "prepared-attributes",
     "manpurpose": "formatted document attributes",
     "mantitle": "prepared-attributes",
     "manvolnum": "1",
@@ -80,6 +82,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -145,6 +148,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -228,6 +232,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "name",
@@ -1272,11 +1277,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": ". Partial: prefix pass:q[*Literal*].",
+              "value": ". Partial: ",
               "location": [
                 {
                   "line": 46,
                   "col": 21
+                },
+                {
+                  "line": 46,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "prefix pass:q[*Literal*]",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 32
+                },
+                {
+                  "line": 46,
+                  "col": 40
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 46,
+                  "col": 41
                 },
                 {
                   "line": 46,
@@ -1550,11 +1585,41 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "Other: Late / ",
+                            "value": "Other: ",
                             "location": [
                               {
                                 "line": 53,
                                 "col": 2
+                              },
+                              {
+                                "line": 53,
+                                "col": 8
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "Late",
+                            "location": [
+                              {
+                                "line": 53,
+                                "col": 9
+                              },
+                              {
+                                "line": 53,
+                                "col": 14
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": " / ",
+                            "location": [
+                              {
+                                "line": 53,
+                                "col": 15
                               },
                               {
                                 "line": 53,
@@ -1880,6 +1945,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

@@ -4,8 +4,10 @@ use peg::conditional_parser;
 
 use std::path::Path;
 
+use std::collections::HashMap;
+
 use crate::{
-    DocumentAttributes, Location,
+    CompatibilityMode, DocumentAttributeValue, DocumentAttributes, Location, Substitution,
     error::{Error, SourceLocation},
     model::{HEADER, Position, apply_attribute_substitutions},
 };
@@ -21,7 +23,28 @@ enum Condition<'input> {
     Ifdef(AttributeCondition<'input>),
     Ifndef(AttributeCondition<'input>),
     Ifeval(EvalCondition),
+    AsciidoctorIfeval(AsciidoctorEval<'input>),
     Unevaluable(Option<AttributeCondition<'input>>),
+}
+
+/// An `ifeval` expression read as asciidoctor reads it (`reader.rb`
+/// `preprocess_conditional_directive`): `EvalExpressionRx`,
+/// `/^(.+?) *([=!><]=|[><]) *(.+)$/` over the stripped bracket text.
+#[derive(Debug)]
+struct AsciidoctorEval<'input> {
+    lhs: &'input str,
+    operator: Operator,
+    rhs: &'input str,
+}
+
+/// An operand as asciidoctor's `resolve_expr_val` returns it.
+#[derive(Debug, PartialEq)]
+enum RubyValue {
+    String(String),
+    Nil,
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -143,6 +166,7 @@ impl<'input> Conditional<'input> {
             Condition::Ifeval(ifeval) => {
                 ifeval.evaluate(attributes, line_number, current_offset, file_parent)?
             }
+            Condition::AsciidoctorIfeval(ifeval) => ifeval.evaluate(attributes),
             Condition::Unevaluable(_) => false,
         };
         if is_true && let Some(if_content) = &self.content {
@@ -158,7 +182,7 @@ impl<'input> Conditional<'input> {
     fn attribute_condition(&self) -> Option<&AttributeCondition<'_>> {
         match &self.condition {
             Condition::Ifdef(condition) | Condition::Ifndef(condition) => Some(condition),
-            Condition::Ifeval(_) => None,
+            Condition::Ifeval(_) | Condition::AsciidoctorIfeval(_) => None,
             Condition::Unevaluable(condition) => condition.as_ref(),
         }
     }
@@ -250,6 +274,227 @@ impl EvalValue {
             .and_then(|value| value.strip_suffix('\''))
             .or_else(|| s.strip_prefix('"')?.strip_suffix('"'))
     }
+}
+
+impl<'input> AsciidoctorEval<'input> {
+    /// `ifeval::[text]` whose stripped text matches `EvalExpressionRx`: the shortest left
+    /// operand followed by spaces and an operator (`[=!><]=` tried before `[><]`), then
+    /// spaces and a right operand of at least one character.
+    fn parse(line: &'input str) -> Option<Self> {
+        const OPERATORS: [(&str, Operator); 6] = [
+            ("==", Operator::Equal),
+            ("!=", Operator::NotEqual),
+            ("<=", Operator::LessThanOrEqual),
+            (">=", Operator::GreaterThanOrEqual),
+            ("<", Operator::LessThan),
+            (">", Operator::GreaterThan),
+        ];
+        let text = line.strip_prefix("ifeval::[")?.strip_suffix(']')?;
+        let text = text.trim_matches(is_ruby_space);
+        for (index, _) in text.char_indices().skip(1) {
+            let rest = text[index..].trim_start_matches(' ');
+            for (token, operator) in OPERATORS {
+                let Some(after) = rest.strip_prefix(token) else {
+                    continue;
+                };
+                // ` *(.+)$`: the spaces give one back when nothing else follows.
+                let rhs = match after.trim_start_matches(' ') {
+                    "" => &after[after.len().saturating_sub(1)..],
+                    rhs => rhs,
+                };
+                if !rhs.is_empty() {
+                    return Some(Self { lhs: &text[..index], operator, rhs });
+                }
+            }
+        }
+        None
+    }
+
+    /// `lhs.send(op, rhs)`; an exception (an ordering between types Ruby cannot
+    /// compare) skips the body, as asciidoctor's `rescue true`.
+    fn evaluate(&self, attributes: &DocumentAttributes) -> bool {
+        let left = RubyValue::resolve(self.lhs, attributes);
+        let right = RubyValue::resolve(self.rhs, attributes);
+        match self.operator {
+            Operator::Equal => left.ruby_eq(&right),
+            Operator::NotEqual => !left.ruby_eq(&right),
+            Operator::LessThan => left.ruby_cmp(&right).is_some_and(std::cmp::Ordering::is_lt),
+            Operator::GreaterThan => left.ruby_cmp(&right).is_some_and(std::cmp::Ordering::is_gt),
+            Operator::LessThanOrEqual => left.ruby_cmp(&right).is_some_and(std::cmp::Ordering::is_le),
+            Operator::GreaterThanOrEqual => {
+                left.ruby_cmp(&right).is_some_and(std::cmp::Ordering::is_ge)
+            }
+        }
+    }
+}
+
+/// Ruby's `String#strip` / `#rstrip` set: ASCII whitespace and NUL.
+fn is_ruby_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r' | '\0')
+}
+
+impl RubyValue {
+    /// `resolve_expr_val`: a quoted operand drops its first character only
+    /// (`val.slice 1, (val.length - 1)`), references read the stored value with missing
+    /// ones dropped, and an unquoted operand coerces as Ruby does.
+    fn resolve(value: &str, attributes: &DocumentAttributes) -> Self {
+        let quoted = (value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\''));
+        let value = if quoted { &value[1..] } else { value };
+        let value = if value.contains('{') {
+            substitute_stored_values(value, attributes)
+        } else {
+            value.to_owned()
+        };
+        if quoted {
+            Self::String(value)
+        } else if value.is_empty() {
+            Self::Nil
+        } else if value == "true" {
+            Self::Boolean(true)
+        } else if value == "false" {
+            Self::Boolean(false)
+        } else if value.trim_end_matches(is_ruby_space).is_empty() {
+            Self::String(" ".to_owned())
+        } else if value.contains('.') {
+            Self::Float(ruby_to_f(&value))
+        } else {
+            Self::Integer(ruby_to_i(&value))
+        }
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn ruby_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Integer(a), Self::Float(b)) | (Self::Float(b), Self::Integer(a)) => {
+                (*a as f64) == *b
+            }
+            _ => self == other,
+        }
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn ruby_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::String(a), Self::String(b)) => Some(a.as_bytes().cmp(b.as_bytes())),
+            (Self::Integer(a), Self::Integer(b)) => Some(a.cmp(b)),
+            (Self::Float(a), Self::Float(b)) => a.partial_cmp(b),
+            (Self::Integer(a), Self::Float(b)) => (*a as f64).partial_cmp(b),
+            (Self::Float(a), Self::Integer(b)) => a.partial_cmp(&(*b as f64)),
+            _ => None,
+        }
+    }
+}
+
+/// `sub_attributes(text, attribute_missing: 'drop')` over the values as asciidoctor
+/// stores them: an entry's value already carries its special characters escaped.
+fn substitute_stored_values(text: &str, attributes: &DocumentAttributes) -> String {
+    let mut stored: HashMap<String, DocumentAttributeValue<'static>> = HashMap::new();
+    let _ = crate::substitute_attributes(text, |name| {
+        stored
+            .entry(name.to_owned())
+            .or_insert_with(|| DocumentAttributeValue::from(attributes.get(name).map(stored_text).unwrap_or_default()));
+        None
+    });
+    crate::substitute_attributes(text, |name| stored.get(name)).into_owned()
+}
+
+fn stored_text(value: &DocumentAttributeValue) -> String {
+    if value.text().is_none() {
+        let mut text = String::new();
+        let _ = value.write_text(&mut text);
+        return text;
+    }
+    value
+        .parts()
+        .map(|part| {
+            part.substitutions()
+                .filter(|substitution| *substitution == Substitution::SpecialChars)
+                .fold(part.text().to_owned(), |text, _| {
+                    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+                })
+        })
+        .collect()
+}
+
+/// The longest prefix of `pattern`-matching characters, after leading whitespace.
+fn ruby_numeric_prefix(s: &str, float: bool) -> String {
+    let s = s.trim_start_matches(is_ruby_space);
+    let bytes = s.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    if matches!(bytes.first(), Some(b'+' | b'-')) {
+        out.push(char::from(bytes[0]));
+        i = 1;
+    }
+    // Digits, an underscore allowed only between two digits.
+    let digits = |out: &mut String, i: &mut usize| {
+        let start = *i;
+        while *i < bytes.len() {
+            if bytes[*i].is_ascii_digit() {
+                out.push(char::from(bytes[*i]));
+                *i += 1;
+            } else if bytes[*i] == b'_'
+                && *i > start
+                && bytes.get(*i + 1).is_some_and(u8::is_ascii_digit)
+            {
+                *i += 1;
+            } else {
+                break;
+            }
+        }
+        *i > start
+    };
+    let whole = digits(&mut out, &mut i);
+    if float {
+        if bytes.get(i) == Some(&b'.') && bytes.get(i + 1).is_some_and(u8::is_ascii_digit) {
+            out.push('.');
+            i += 1;
+            digits(&mut out, &mut i);
+        } else if !whole {
+            return String::new();
+        }
+        if matches!(bytes.get(i), Some(b'e' | b'E')) {
+            let mut exponent = String::from("e");
+            let mut j = i + 1;
+            if matches!(bytes.get(j), Some(b'+' | b'-')) {
+                exponent.push(char::from(bytes[j]));
+                j += 1;
+            }
+            if digits(&mut exponent, &mut j) {
+                out.push_str(&exponent);
+            }
+        }
+    }
+    out
+}
+
+/// Ruby `String#to_i`: the leading integer, `0` when there is none.
+fn ruby_to_i(s: &str) -> i64 {
+    let digits = ruby_numeric_prefix(s, false);
+    digits.parse::<i64>().unwrap_or_else(|_| {
+        if digits.chars().any(|c| c.is_ascii_digit()) {
+            if digits.starts_with('-') { i64::MIN } else { i64::MAX }
+        } else {
+            0
+        }
+    })
+}
+
+/// Ruby `String#to_f`: the leading float, `0.0` when there is none.
+fn ruby_to_f(s: &str) -> f64 {
+    ruby_numeric_prefix(s, true).parse::<f64>().unwrap_or(0.0)
+}
+
+/// An `ifeval` the selected mode reads as asciidoctor does, when it is one.
+pub(super) fn asciidoctor_ifeval(line: &str, mode: CompatibilityMode) -> Option<Conditional<'_>> {
+    (mode == CompatibilityMode::Asciidoctor)
+        .then(|| AsciidoctorEval::parse(line))
+        .flatten()
+        .map(|eval| Conditional {
+            condition: Condition::AsciidoctorIfeval(eval),
+            content: None,
+        })
 }
 
 #[tracing::instrument(level = "trace", skip_all, fields(line_number = line_number, current_offset = current_offset))]

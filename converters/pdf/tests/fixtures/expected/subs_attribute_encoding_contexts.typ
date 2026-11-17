@@ -87,11 +87,11 @@
 
 ]
 
-#text("Ordinary: Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(".")
+#text("Ordinary: ")#text("Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(".")
 
 #text("Literal: {label} (C) &#169;.")
 
-#text("Attributes only: Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(" (C) &#169;.")
+#text("Attributes only: ")#text("Research ")#text("&")#text(" ")#text("<")#text("Development")#text(">")#text(" (C) &#169;.")
 
 #heading(outlined: false, bookmarked: false)[#text("Body &amp; and &#169;")]
 #let _acdc_toc_entry(target, depth, body) = context {
@@ -112,6 +112,6 @@
 #_acdc_toc_entry(<id-5f73656374696f6e>, 0, [#text("Section")])
 #pagebreak()
 
-#text("Body inline: Body ")#text("&")#text(" and ")#text("©")#text(".")
+#text("Body inline: ")#text("Body ")#text("&")#text(" and ")#text("©")#text(".")
 
 #text("Symbols: ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(" ")#text("→")#text(" ")#text("…")#text(" and ")#text("(C)")#text(".")

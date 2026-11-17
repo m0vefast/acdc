@@ -56,6 +56,7 @@
         }
       ],
       "level": 1,
+      "id": "_preface",
       "metadata": {
         "style": "preface"
       },
@@ -2026,6 +2027,7 @@
         }
       ],
       "level": 1,
+      "id": "chapter",
       "metadata": {
         "anchors": [
           {
@@ -2037,7 +2039,7 @@
               },
               {
                 "line": 53,
-                "col": 12
+                "col": 11
               }
             ]
           }
@@ -2065,6 +2067,7 @@
             }
           ],
           "level": 2,
+          "id": "section",
           "metadata": {
             "anchors": [
               {
@@ -2076,7 +2079,7 @@
                   },
                   {
                     "line": 56,
-                    "col": 12
+                    "col": 11
                   }
                 ]
               }
@@ -2143,6 +2146,7 @@
         }
       ],
       "level": 1,
+      "id": "plain",
       "metadata": {
         "anchors": [
           {
@@ -2154,7 +2158,7 @@
               },
               {
                 "line": 61,
-                "col": 10
+                "col": 9
               }
             ]
           }
@@ -2209,6 +2213,7 @@
         }
       ],
       "level": 1,
+      "id": "labelled",
       "metadata": {
         "anchors": [
           {
@@ -2270,7 +2275,7 @@
               },
               {
                 "line": 66,
-                "col": 31
+                "col": 30
               }
             ]
           }
@@ -2308,6 +2313,7 @@
         }
       ],
       "level": 1,
+      "id": "appendix",
       "metadata": {
         "style": "appendix",
         "anchors": [
@@ -2320,7 +2326,7 @@
               },
               {
                 "line": 70,
-                "col": 13
+                "col": 12
               }
             ]
           }

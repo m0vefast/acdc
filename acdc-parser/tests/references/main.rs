@@ -7,6 +7,7 @@ mod bibliography;
 mod bibliography_empty_labels;
 mod block_captions;
 mod caption_content;
+mod converted_title_ids;
 mod cross_reference_model_contract;
 mod document_reftext;
 mod document_reftext_context;

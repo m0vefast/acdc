@@ -45,7 +45,7 @@
         },
         {
           "line": 4,
-          "col": 61
+          "col": 60
         }
       ]
     },
@@ -91,11 +91,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "The body sees After.",
+          "value": "The body sees ",
           "location": [
             {
               "line": 7,
               "col": 1
+            },
+            {
+              "line": 7,
+              "col": 14
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "After",
+          "location": [
+            {
+              "line": 7,
+              "col": 15
+            },
+            {
+              "line": 7,
+              "col": 21
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 7,
+              "col": 22
             },
             {
               "line": 7,
@@ -126,7 +156,7 @@
         },
         {
           "line": 9,
-          "col": 72
+          "col": 71
         }
       ]
     },
@@ -263,7 +293,7 @@
         },
         {
           "line": 16,
-          "col": 77
+          "col": 76
         }
       ]
     },
@@ -384,7 +414,7 @@
         },
         {
           "line": 19,
-          "col": 54
+          "col": 53
         }
       ]
     },
@@ -478,7 +508,7 @@
         },
         {
           "line": 24,
-          "col": 63
+          "col": 62
         }
       ]
     },

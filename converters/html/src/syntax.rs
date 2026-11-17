@@ -825,7 +825,14 @@ mod tests {
                 &content.iter().map(InlineRef::from),
                 None,
             );
-            assert_eq!(text, " —\u{200b}tail", "{mode:?}");
+            // asciidoctor 2.0.26 (measured 2026-11-16): replacements run before macros, so the
+            // label's neighbors are `[` `]` and its `--` stays.
+            let expected = if mode == CompatibilityMode::Asciidoctor {
+                " --tail"
+            } else {
+                " —\u{200b}tail"
+            };
+            assert_eq!(text, expected, "{mode:?}");
             assert_eq!(callouts, []);
         }
         Ok(())

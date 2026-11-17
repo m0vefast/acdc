@@ -601,3 +601,47 @@ fn duplicated_cells_keep_mixed_style_footnote_owners(
     assert_eq!(outer_numbers, [1, 2, 4, 5, 6]);
     Ok(())
 }
+
+#[rstest::rstest]
+fn literal_cells_keep_leading_whitespace_like_asciidoctor(
+    #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
+) -> Result<(), Error> {
+    // asciidoctor 2.0.26 (measured 2026-11-16): `rstrip`, leading line feeds dropped, leading
+    // spaces kept; `[separator=!]` bounds the cell by its own separator.
+    let source = "[cols=\"1l,1l\"]\n|===\n| x | y   \n| a \\| b |c\n|===\n\n[cols=\"1l,1l\",separator=!]\n|===\n!p|q !r\n|===\n\n[cols=1l]\n|===\n|\n  indented\n|===\n";
+    let parsed = parse(source, &Options::builder().with_compatibility_mode(mode).build()?)?;
+    let mut texts = Vec::new();
+    for block in parsed.document().blocks() {
+        let BlockKind::Table(table) = block.kind() else {
+            continue;
+        };
+        for row in table.rows() {
+            for cell in row.cells() {
+                let paragraph = cell.blocks().next().ok_or("literal paragraph")?;
+                let BlockKind::Paragraph(paragraph) = paragraph.kind() else {
+                    return Err("expected a literal paragraph".into());
+                };
+                let inline = paragraph.content().inlines().next().ok_or("literal text")?;
+                let InlineKind::Verbatim(text) = inline.kind() else {
+                    return Err("expected verbatim cell text".into());
+                };
+                texts.push(text.text().to_owned());
+                // The text starts at its own first source character (line and column).
+                let start = text.location().start();
+                let line = source
+                    .lines()
+                    .nth(usize::try_from(start.line())? - 1)
+                    .ok_or("source line")?;
+                let rest: String = line.chars().skip(usize::try_from(start.column())? - 1).collect();
+                assert!(rest.starts_with(text.text().split(" | ").next().unwrap_or_default()), "{:?} at {start:?}", text.text());
+            }
+        }
+    }
+    let expected: &[&str] = if mode == CompatibilityMode::Asciidoctor {
+        &[" x", " y", " a | b", "c", "p|q", "r", "  indented"]
+    } else {
+        &["x", "y", "a | b", "c", "p|q", "r", "indented"]
+    };
+    assert_eq!(texts, expected);
+    Ok(())
+}

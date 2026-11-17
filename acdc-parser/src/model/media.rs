@@ -7,11 +7,11 @@ use serde::{
     ser::{SerializeMap, Serializer},
 };
 
-use crate::{ContentAttribute, Error, SourceLocation};
+use crate::{ContentAttribute, Error};
 
 use super::{
     attributes::{AttributeName, AttributeValue, ElementAttributes},
-    location::{Location, Position},
+    location::Location,
     metadata::{
         BlockMetadata, InlineMetadata, InlineMetadataView, MacroAttributes, ReservedAttribute,
     },
@@ -67,44 +67,40 @@ pub enum Source<'a> {
 /// are displayed exactly as written.
 ///
 /// See [issue #335](https://github.com/nlopes/acdc/issues/335).
+///
+/// A link is its spelling: Asciidoctor's link patterns do not validate the
+/// URL (`https://e.com:a` is a link), so a spelling the `url` crate rejects is
+/// still a `SourceUrl`, without a parsed form.
 #[derive(Clone, Debug)]
 pub struct SourceUrl<'a> {
-    url: url::Url,
+    url: Option<url::Url>,
     original: &'a str,
 }
 
 impl<'a> SourceUrl<'a> {
-    /// Create a new `SourceUrl` from a string, preserving the original for display.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the input is not a valid URL.
-    pub fn new(original: &'a str) -> Result<Self, url::ParseError> {
-        let url = url::Url::parse(original)?;
-        Ok(Self { url, original })
+    /// Create a `SourceUrl` from its spelling, parsed when the `url` crate can.
+    #[must_use]
+    pub fn new(original: &'a str) -> Self {
+        Self { url: url::Url::parse(original).ok(), original }
     }
 
     pub(crate) fn original(&self) -> &str {
         self.original
     }
 
-    /// Get the underlying `url::Url`.
+    /// The parsed URL, when the spelling is one the `url` crate accepts.
     #[must_use]
-    pub fn url(&self) -> &url::Url {
-        &self.url
-    }
-}
-
-impl std::ops::Deref for SourceUrl<'_> {
-    type Target = url::Url;
-    fn deref(&self) -> &Self::Target {
-        &self.url
+    pub fn url(&self) -> Option<&url::Url> {
+        self.url.as_ref()
     }
 }
 
 impl PartialEq for SourceUrl<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.url == other.url
+        match (&self.url, &other.url) {
+            (Some(a), Some(b)) => a == b,
+            _ => self.original == other.original,
+        }
     }
 }
 
@@ -124,7 +120,8 @@ impl Source<'_> {
         match self {
             Source::Path(path) => path.file_name().and_then(|os_str| os_str.to_str()),
             Source::Url(url) => url
-                .path_segments()
+                .url()
+                .and_then(url::Url::path_segments)
                 .and_then(std::iter::Iterator::last)
                 .filter(|s| !s.is_empty()),
             Source::Name(name) => Some(name),
@@ -153,15 +150,7 @@ impl<'a> Source<'a> {
             || value.starts_with("irc://")
             || value.starts_with("mailto:")
         {
-            SourceUrl::new(value).map(Source::Url).map_err(|e| {
-                Error::Parse(
-                    Box::new(SourceLocation {
-                        file: None,
-                        location: crate::Location::point(Position::default()),
-                    }),
-                    format!("invalid URL: {e}"),
-                )
-            })
+            Ok(Source::Url(SourceUrl::new(value)))
         } else if value.contains('/') || value.contains('\\') || value.contains('.') {
             // Contains path separators or dot (filename with extension)
             Ok(Source::Path(std::path::PathBuf::from(value)))

@@ -119,11 +119,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " expanded ",
+          "value": " ",
           "location": [
             {
               "line": 7,
               "col": 15
+            },
+            {
+              "line": 7,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 7,
+              "col": 16
+            },
+            {
+              "line": 7,
+              "col": 21
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 7,
+              "col": 22
             },
             {
               "line": 7,

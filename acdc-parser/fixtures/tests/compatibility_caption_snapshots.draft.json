@@ -60,11 +60,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": "{other}: ",
+            "value": "{other}",
             "location": [
               {
                 "line": 6,
                 "col": 11
+              },
+              {
+                "line": 6,
+                "col": 16
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": ": ",
+            "location": [
+              {
+                "line": 6,
+                "col": 17
               },
               {
                 "line": 6,

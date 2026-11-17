@@ -91,13 +91,13 @@
 
 #text("S03 Before ")#strong[#text("{blank}")]#text(" after.")
 
-#text("S04 Before ** after.")
+#text("S04 Before *")#text("* after.")
 
 #text("S05 Before ")#strong[#emph[]]#text(" and ")#strong[]#text(" after.")
 
 #text("S06 Before ")#strong[#text("introduced")]#text(" after.")
 
-#text("S07 Before *introduced* after.")
+#text("S07 Before ")#text("*introduced*")#text(" after.")
 
 #raw(block: true, "S08 Before  and  after.")
 

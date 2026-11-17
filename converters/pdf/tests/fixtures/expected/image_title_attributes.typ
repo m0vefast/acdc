@@ -82,7 +82,7 @@
 #metadata(none) <id-6d6163726f2d7469746c65>
 #block(width: 100%, breakable: false)[
 #docimage("/images/de454d7e4e1cfda7.svg", alt: "Alt", width: 54pt)
-#imagecaption[#text("Figure 1. ")#text("Macro ")#strong[#text("bold")]#text(" expanded")]
+#imagecaption[#text("Figure 1. ")#text("Macro ")#strong[#text("bold")]#text(" ")#text("expanded")]
 ]
 
 #block(width: 100%, breakable: false)[
@@ -124,4 +124,4 @@
 
 #text("Inline ")#box(image("/images/de454d7e4e1cfda7.svg", alt: "Alternative text", width: 18pt))#text(".")
 
-#text("See ")#context link(query(<id-6d6163726f2d7469746c65>).first().location())[#text("Macro ")#strong[#text("bold")]#text(" expanded")]#text(".")
+#text("See ")#context link(query(<id-6d6163726f2d7469746c65>).first().location())[#text("Macro ")#strong[#text("bold")]#text(" ")#text("expanded")]#text(".")

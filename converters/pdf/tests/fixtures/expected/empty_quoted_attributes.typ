@@ -107,7 +107,7 @@
 
 #text("Q11 Before ")#strong[#emph[]]#text(" after.")
 
-#text("Q12 Before ")#emph[#text("**")]#text(" after.")
+#text("Q12 Before ")#emph[#text("*")#text("*")]#text(" after.")
 
 #text("Q13 Before ")#strong[]#text(" after.")
 
@@ -123,13 +123,13 @@
 
 #text("Q19 Before ")#text("*")#text("* and ")#strong[#text("{missing}")]#text(" after.")
 
-#text("Q20 Before *introduced* after.")
+#text("Q20 Before ")#text("*introduced*")#text(" after.")
 
 #text("Q21 Before ")#link("https://example.com")[#strong[]]#text(" after.")
 
-#text("Q22 Before x")#strong[]#text("y and x**y after.")
+#text("Q22 Before x")#strong[]#text("y and x*")#text("*y after.")
 
-#text("Q23 Before é** and **é after.")
+#text("Q23 Before é*")#text("* and *")#text("*é after.")
 
 #text("Q24 Before ")#strong[#emph[]]#text(" after.")
 

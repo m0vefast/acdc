@@ -89,29 +89,29 @@
 
 #heading(level: 1)[#text("DESCRIPTION")] <id-5f6465736372697074696f6e>
 
-#text("P01 prefix")#metadata(none)<__indexterm-1>#text("—​")#text("tail")
+#text("P01 prefix")#metadata(none)<__indexterm-1>#text("--")#text("tail")
 
-#text("P02 prefix")#metadata(none)<__indexterm-2>#text("—​")#text("tail")
+#text("P02 prefix")#metadata(none)<__indexterm-2>#text("--tail")
 
-#text("P03 ")#metadata(none)<__indexterm-3>#text("prefix")#text("—​")#text("tail")
+#text("P03 ")#metadata(none)<__indexterm-3>#text("prefix--")#text("tail")
 
-#text("P04 prefix")#metadata(none)<__indexterm-4>#text("—​")#text("tail")
+#text("P04 prefix")#metadata(none)<__indexterm-4>#text("--")#text("tail")
 
-#text("P05 prefix")#metadata(none)<__indexterm-5>#metadata(none)<__indexterm-6>#text("—​")#text("tail")
+#text("P05 prefix")#metadata(none)<__indexterm-5>#metadata(none)<__indexterm-6>#text("--")#text("tail")
 
-#text("P06 prefix")#metadata(none)<__indexterm-7>#text("—​")#metadata(none)<__indexterm-8>#text("tail")
+#text("P06 prefix")#metadata(none)<__indexterm-7>#text("--")#metadata(none)<__indexterm-8>#text("tail")
 
-#text("P07 prefix")#metadata(none)<id-6265666f7265>#metadata(none)<__indexterm-9>#text("—​")#metadata(none)<id-6166746572>#text("tail")
+#text("P07 prefix")#metadata(none)<id-6265666f7265>#metadata(none)<__indexterm-9>#text("--")#metadata(none)<id-6166746572>#text("tail")
 
-#text("P08 prefix")#metadata(none)<__indexterm-10>#text("begin")#text("—​")#metadata(none)<__indexterm-11>#text("end")#text("tail")
+#text("P08 prefix")#metadata(none)<__indexterm-10>#text("begin--")#metadata(none)<__indexterm-11>#text("end")#text("tail")
 
-#text("P09 prefix")#metadata(none)<__indexterm-12>#text("begin")#metadata(none)<__indexterm-13>#text("—​")#text("end")#text("tail")
+#text("P09 prefix")#metadata(none)<__indexterm-12>#text("begin")#metadata(none)<__indexterm-13>#text("--end")#text("tail")
 
-#text("P10 pré")#metadata(none)<__indexterm-14>#text("—​")#text("été")
+#text("P10 pré")#metadata(none)<__indexterm-14>#text("--")#text("été")
 
-#text("P11 word_")#metadata(none)<__indexterm-15>#text("—​")#text("_tail")
+#text("P11 word_")#metadata(none)<__indexterm-15>#text("--")#text("_tail")
 
-#text("P12 prefix")#metadata(none)<__indexterm-16>#text("--")#text("tail")
+#text("P12 prefix")#metadata(none)<__indexterm-16>#text("\\--")#text("tail")
 
 #text("P13 prefix")#metadata(none)<__indexterm-17>#text("---")#text("tail")
 
@@ -127,7 +127,7 @@
 
 #text("P19 prefix")#metadata(none)<__indexterm-23>#text("--")#text(".tail")
 
-#text("P20 prefix")#metadata(none)<__indexterm-24>#text(" — ")#text("tail")
+#text("P20 prefix ")#metadata(none)<__indexterm-24>#text("--")#text(" tail")
 
 #text("P21 prefix")#metadata(none)<__indexterm-25>#text("--")#strong[#text("bold")]
 
@@ -140,40 +140,40 @@
 #text("P25 prefix")#metadata(none)<__indexterm-29>#text("--")#text(" ")#link("https://next.example/prose")[#text("Next")]
 
 #blocktitle[#text("Standalone control")]
-#metadata(none)<__indexterm-30>#text(" — ")
+#metadata(none)<__indexterm-30>#text("--")
 
 #blocktitle[#text("Hidden standalone control")]
-#metadata(none)<__indexterm-31>#metadata(none)<__indexterm-32>#text(" — ")
+#metadata(none)<__indexterm-31>#metadata(none)<__indexterm-32>#text("--")
 
-#text("P26 prefix")#text("—​")#metadata(none)<__indexterm-33>#text("tail")
+#text("P26 prefix-")#metadata(none)<__indexterm-33>#text("-")#text("tail")
 
-#text("P27 prefix")#metadata(none)<__indexterm-34>#text("—​")#text("tail")
+#text("P27 prefix")#metadata(none)<__indexterm-34>#text("-")#text("-tail")
 
-#text("P28 prefix")#metadata(none)<__indexterm-35>#text("—​")#metadata(none)<__indexterm-36>#text("tail")
+#text("P28 prefix")#metadata(none)<__indexterm-35>#text("-")#metadata(none)<__indexterm-36>#text("-")#text("tail")
 
-#text("P29 prefix")#metadata(none)<__indexterm-37>#metadata(none)<__indexterm-38>#text(" — ")#text("tail")
+#text("P29 prefix ")#metadata(none)<__indexterm-37>#metadata(none)<__indexterm-38>#text("--")#text(" tail")
 
-#text("P30 prefix")#metadata(none)<id-73706163652d6265666f7265>#metadata(none)<__indexterm-39>#text(" — ")#metadata(none)<id-73706163652d6166746572>#text("tail")
+#text("P30 prefix ")#metadata(none)<id-73706163652d6265666f7265>#metadata(none)<__indexterm-39>#text("--")#metadata(none)<id-73706163652d6166746572>#text(" tail")
 
-#text("P31 prefix ")#metadata(none)<__indexterm-40>#text(" — ")#text(" tail")
+#text("P31 prefix ")#metadata(none)<__indexterm-40>#text("--")#text(" tail")
 
-#text("P32 Sa")#metadata(none)<__indexterm-41>#text("m")#text("’")#text("s")
+#text("P32 Sa")#metadata(none)<__indexterm-41>#text("m")#text("'s")
 
-#text("P33 ")#metadata(none)<__indexterm-42>#text("Sam")#text("’")#text("s")
+#text("P33 ")#metadata(none)<__indexterm-42>#text("Sam'")#text("s")
 
-#text("P34 Sam")#metadata(none)<__indexterm-43>#text("’")#text("s")
+#text("P34 Sam")#metadata(none)<__indexterm-43>#text("'")#text("s")
 
-#text("P35 pré")#metadata(none)<__indexterm-44>#text("’")#text("été")
+#text("P35 pré")#metadata(none)<__indexterm-44>#text("'")#text("été")
 
 #text("P36 3")#metadata(none)<__indexterm-45>#text("'")#text("4")
 
 #text("P37 _")#metadata(none)<__indexterm-46>#text("'")#text("s")
 
-#text("P38 Sam")#metadata(none)<__indexterm-47>#text("'")#text("s")
+#text("P38 Sam")#metadata(none)<__indexterm-47>#text("\\'")#text("s")
 
-#text("P39 Sa")#metadata(none)<__indexterm-48>#metadata(none)<__indexterm-49>#text("m")#text("’")#text("s")
+#text("P39 Sa")#metadata(none)<__indexterm-48>#metadata(none)<__indexterm-49>#text("m")#text("'s")
 
-#text("P40 Sa")#metadata(none)<id-61706f7374726f706865>#metadata(none)<__indexterm-50>#text("m")#text("’")#text("s")
+#text("P40 Sa")#metadata(none)<id-61706f7374726f706865>#metadata(none)<__indexterm-50>#text("m")#text("'s")
 
 #text("P41 prefix")#text("-")#metadata(none)<__indexterm-51>#text("-")#text("tail")
 
@@ -183,17 +183,17 @@
 
 #text("P44 prefix ")#metadata(none)<__indexterm-54>#text(" — ")#text(" tail")
 
-#text("P45 prefix")#metadata(none)<__indexterm-55>#text(" — ")#strong[#text("Bold")]
+#text("P45 prefix ")#metadata(none)<__indexterm-55>#text("--")#text(" ")#strong[#text("Bold")]
 
 #text("P46 prefix-")#strong[#text("-")]#text("tail")
 
 #text("P47 prefix ")#metadata(none)<__indexterm-56>#text("--")#text(" — ")#metadata(none)<__indexterm-57>#text("--")#text(" tail")
 
-#text("P48 prefix")#metadata(none)<__indexterm-58>#text(" — ")#metadata(none)<__indexterm-59>#text(" — ")#text("tail")
+#text("P48 prefix ")#metadata(none)<__indexterm-58>#text("--")#text(" ")#metadata(none)<__indexterm-59>#text("--")#text(" tail")
 
-#text("P49 prefix")#metadata(none)<__indexterm-60>#text(" — ")#link("https://next.example/spaced")[#text("Spaced")]
+#text("P49 prefix ")#metadata(none)<__indexterm-60>#text("--")#text(" ")#link("https://next.example/spaced")[#text("Spaced")]
 
-#text("P50 ")#metadata(none)<__indexterm-61>#text("Sam")#text("’")#text("s ")#link("https://next.example/apostrophe")[#text("Apostrophe")]
+#text("P50 ")#metadata(none)<__indexterm-61>#text("Sam'")#text("s ")#link("https://next.example/apostrophe")[#text("Apostrophe")]
 
 #heading(level: 1)[#text("Index")] <id-5f696e646578>
 
@@ -238,12 +238,13 @@
 #v(0.25em)
 #par(hanging-indent: 1em)[#text("'")#_acdc_index_pages((<__indexterm-43>,<__indexterm-44>,<__indexterm-45>,<__indexterm-46>,), "term")]
 #par(hanging-indent: 1em)[#text("-")#_acdc_index_pages((<__indexterm-33>,<__indexterm-34>,<__indexterm-35>,<__indexterm-36>,<__indexterm-51>,), "term")]
-#par(hanging-indent: 1em)[#text("--")#_acdc_index_pages((<__indexterm-16>,<__indexterm-26>,<__indexterm-28>,), "term")]
+#par(hanging-indent: 1em)[#text("--")#_acdc_index_pages((<__indexterm-1>,<__indexterm-4>,<__indexterm-6>,<__indexterm-7>,<__indexterm-9>,<__indexterm-14>,<__indexterm-15>,<__indexterm-18>,<__indexterm-19>,<__indexterm-20>,<__indexterm-21>,<__indexterm-22>,<__indexterm-23>,<__indexterm-24>,<__indexterm-25>,<__indexterm-26>,<__indexterm-28>,<__indexterm-29>,<__indexterm-30>,<__indexterm-32>,<__indexterm-38>,<__indexterm-39>,<__indexterm-40>,<__indexterm-52>,<__indexterm-53>,<__indexterm-55>,<__indexterm-56>,<__indexterm-57>,<__indexterm-58>,<__indexterm-59>,<__indexterm-60>,), "term")]
 #par(hanging-indent: 1em)[#text("---")#_acdc_index_pages((<__indexterm-17>,), "term")]
 #par(hanging-indent: 1em)[#text("--end")#_acdc_index_pages((<__indexterm-13>,), "term")]
 #par(hanging-indent: 1em)[#text("--tail")#_acdc_index_pages((<__indexterm-2>,), "term")]
 #par(hanging-indent: 1em)[#text("\\'")#_acdc_index_pages((<__indexterm-47>,), "term")]
-#par(hanging-indent: 1em)[#text(" — ")#_acdc_index_pages((<__indexterm-1>,<__indexterm-4>,<__indexterm-6>,<__indexterm-7>,<__indexterm-9>,<__indexterm-14>,<__indexterm-15>,<__indexterm-18>,<__indexterm-19>,<__indexterm-20>,<__indexterm-21>,<__indexterm-22>,<__indexterm-23>,<__indexterm-24>,<__indexterm-25>,<__indexterm-27>,<__indexterm-29>,<__indexterm-30>,<__indexterm-32>,<__indexterm-38>,<__indexterm-39>,<__indexterm-40>,<__indexterm-52>,<__indexterm-53>,<__indexterm-54>,<__indexterm-55>,<__indexterm-56>,<__indexterm-57>,<__indexterm-58>,<__indexterm-59>,<__indexterm-60>,), "term")]
+#par(hanging-indent: 1em)[#text("\\--")#_acdc_index_pages((<__indexterm-16>,), "term")]
+#par(hanging-indent: 1em)[#text(" — ")#_acdc_index_pages((<__indexterm-27>,<__indexterm-54>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("B")]
 #v(0.25em)

@@ -144,6 +144,8 @@ P14 attached \fB(1)\fP
 .fam
 .fi
 .if n .RE
+.sp
++
 .RS 4
 .IP \fB(1)\fP 4
 Attached source paragraph.
@@ -190,6 +192,8 @@ P18 attached to description \fB(1)\fP
 .fam
 .fi
 .if n .RE
+.sp
++
 .RS 4
 .IP \fB(1)\fP 4
 Description\-list continuation.

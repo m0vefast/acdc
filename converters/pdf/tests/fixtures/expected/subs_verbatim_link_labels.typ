@@ -218,7 +218,7 @@
 }
 #context link(query(<id-656d7074792d636f6465>).first().location())[#text("[empty-code]")]#text(" and ")#context link(query(<id-656d7074792d626c6f636b>).first().location())[#text("[empty-block]")]#text(".")
 
-#heading(level: 1)[#text("Outer ")#context link(query(<id-64657374696e6174696f6e>).first().location())[#text("Destination")]] <id-6f75746572>
+#heading(level: 1)[#text("Outer ")#context link(query(<id-64657374696e6174696f6e>).first().location())[#text("[destination]")]] <id-6f75746572>
 
 #heading(level: 1)[#text("Destination")] <id-64657374696e6174696f6e>
 

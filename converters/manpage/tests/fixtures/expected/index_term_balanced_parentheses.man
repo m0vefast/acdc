@@ -40,9 +40,9 @@ P02 function(argument) after.
 .sp
 P03 Before function(argument) after.
 .sp
-P04 fn((x)) tail after.
+P04 fn((x tail)) after.
 .sp
-P05 Before fn((x)) tail after.
+P05 Before fn((x tail)) after.
 .sp
 P06 word) after.
 .sp
@@ -72,9 +72,9 @@ P18  after.
 .sp
 P19 function(argument) after.
 .sp
-P20 Term after.
+P20 Term) after.
 .sp
-P21 Term after.
+P21 Term tail &> Other)) after.
 .sp
 P22 café (déjà vu) after.
 .sp
@@ -108,7 +108,7 @@ Before ((literal)) after
 .RE
 .SS "C"
 .RS 4
-café (déjà vu)
+café (déjà vu
 .br
 .RE
 .SS "E"
@@ -120,13 +120,17 @@ Escaped \e) literal
 .RE
 .SS "F"
 .RS 4
-First (one) and (two)
+First (one) and (two
 .br
 first
 .br
-fn((x)) tail
+fn((x
+.br
+function(argument
 .br
 function(argument)
+.br
+function(argument))
 .br
 .RE
 .SS "L"
@@ -153,7 +157,7 @@ second
 .RE
 .SS "T"
 .RS 4
-Term (see function(argument))
+Term (see function(argument)
 .br
 Term \(rg
 .br
@@ -161,5 +165,7 @@ Term \(rg
 .SS "W"
 .RS 4
 word
+.br
+word)
 .br
 .RE

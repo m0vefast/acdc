@@ -6,11 +6,41 @@
       {
         "name": "text",
         "type": "string",
-        "value": "My Project Documentation v2.0",
+        "value": "My Project",
         "location": [
           {
             "line": 3,
             "col": 3
+          },
+          {
+            "line": 3,
+            "col": 11
+          }
+        ]
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "value": " Documentation v",
+        "location": [
+          {
+            "line": 3,
+            "col": 12
+          },
+          {
+            "line": 3,
+            "col": 27
+          }
+        ]
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "value": "2.0",
+        "location": [
+          {
+            "line": 3,
+            "col": 28
           },
           {
             "line": 3,

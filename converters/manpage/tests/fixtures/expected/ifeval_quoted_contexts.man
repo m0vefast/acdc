@@ -31,27 +31,10 @@
 quoted\-contexts \- retain conditional source order
 .SH "DESCRIPTION"
 .sp
-C01 Header assignment: accepted.
+C01 Header assignment: {header\-result}.
 .sp
-C02 The initial value matches.
-.sp
-C03 The body assignment takes effect.
-.sp
-C04 Body assignment: accepted.
+C04 Body assignment: {body\-result}.
 .sp
 C05 A quoted comparison nests inside ifdef.
-.sp
-C06 Active nested comparisons include their content.
-.sp
-C07 Closing the inner comparison restores its parent.
-.RS 0
-.IP \(bu 2
-C08 A conditional list item remains a list.
-.RE
-.EX
-C09 A conditional listing remains a listing.
-.EE
-.sp
-C10 \fBFormatting\fR remains available in included content.
 .sp
 C11 Final content keeps its original source location.

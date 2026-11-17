@@ -60,11 +60,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Title body",
+          "value": "Title ",
           "location": [
             {
               "line": 8,
               "col": 2
+            },
+            {
+              "line": 8,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "body",
+          "location": [
+            {
+              "line": 8,
+              "col": 8
             },
             {
               "line": 8,
@@ -77,11 +92,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Metadata paragraph: body.",
+          "value": "Metadata paragraph: ",
           "location": [
             {
               "line": 12,
               "col": 1
+            },
+            {
+              "line": 12,
+              "col": 20
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "body",
+          "location": [
+            {
+              "line": 12,
+              "col": 21
+            },
+            {
+              "line": 12,
+              "col": 36
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 12,
+              "col": 37
             },
             {
               "line": 12,
@@ -120,7 +165,7 @@
               },
               {
                 "line": 10,
-                "col": 26
+                "col": 25
               }
             ]
           }
@@ -144,11 +189,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "After metadata: body.",
+          "value": "After metadata: ",
           "location": [
             {
               "line": 14,
               "col": 1
+            },
+            {
+              "line": 14,
+              "col": 16
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "body",
+          "location": [
+            {
+              "line": 14,
+              "col": 17
+            },
+            {
+              "line": 14,
+              "col": 32
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 14,
+              "col": 33
             },
             {
               "line": 14,
@@ -235,11 +310,101 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Conditionals: {state-value}; active; {inactive-result}; matched; active.",
+          "value": "Conditionals: {state-value}; ",
           "location": [
             {
               "line": 31,
               "col": 1
+            },
+            {
+              "line": 31,
+              "col": 29
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "active",
+          "location": [
+            {
+              "line": 31,
+              "col": 30
+            },
+            {
+              "line": 31,
+              "col": 49
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; {inactive-result}; ",
+          "location": [
+            {
+              "line": 31,
+              "col": 50
+            },
+            {
+              "line": 31,
+              "col": 70
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "matched",
+          "location": [
+            {
+              "line": 31,
+              "col": 71
+            },
+            {
+              "line": 31,
+              "col": 85
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; ",
+          "location": [
+            {
+              "line": 31,
+              "col": 86
+            },
+            {
+              "line": 31,
+              "col": 87
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "active",
+          "location": [
+            {
+              "line": 31,
+              "col": 88
+            },
+            {
+              "line": 31,
+              "col": 112
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 31,
+              "col": 113
             },
             {
               "line": 31,
@@ -339,11 +504,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "List before-list",
+              "value": "List ",
               "location": [
                 {
                   "line": 37,
                   "col": 3
+                },
+                {
+                  "line": 37,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "before-list",
+              "location": [
+                {
+                  "line": 37,
+                  "col": 8
                 },
                 {
                   "line": 37,
@@ -416,11 +596,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Block before-block",
+          "value": "Block ",
           "location": [
             {
               "line": 40,
               "col": 2
+            },
+            {
+              "line": 40,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "before-block",
+          "location": [
+            {
+              "line": 40,
+              "col": 8
             },
             {
               "line": 40,
@@ -475,11 +670,26 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Cell before-table",
+                        "value": "Cell ",
                         "location": [
                           {
                             "line": 47,
                             "col": 2
+                          },
+                          {
+                            "line": 47,
+                            "col": 6
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "before-table",
+                        "location": [
+                          {
+                            "line": 47,
+                            "col": 7
                           },
                           {
                             "line": 47,
@@ -607,6 +817,7 @@
         }
       ],
       "level": 2,
+      "id": "id-generated-id",
       "blocks": [
         {
           "name": "paragraph",
@@ -615,11 +826,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Section: before-section.",
+              "value": "Section: ",
               "location": [
                 {
                   "line": 56,
                   "col": 1
+                },
+                {
+                  "line": 56,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "before-section",
+              "location": [
+                {
+                  "line": 56,
+                  "col": 10
+                },
+                {
+                  "line": 56,
+                  "col": 25
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 56,
+                  "col": 26
                 },
                 {
                   "line": 56,

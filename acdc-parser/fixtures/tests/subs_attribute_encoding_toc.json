@@ -57,6 +57,7 @@
         }
       ],
       "level": 1,
+      "id": "_section",
       "blocks": [
         {
           "name": "paragraph",
@@ -65,11 +66,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Inline control: Research ",
+              "value": "Inline control: ",
               "location": [
                 {
                   "line": 8,
                   "col": 1
+                },
+                {
+                  "line": 8,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Research ",
+              "location": [
+                {
+                  "line": 8,
+                  "col": 17
                 },
                 {
                   "line": 8,
@@ -210,11 +226,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Body control: Body ",
+              "value": "Body control: ",
               "location": [
                 {
                   "line": 12,
                   "col": 1
+                },
+                {
+                  "line": 12,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Body ",
+              "location": [
+                {
+                  "line": 12,
+                  "col": 15
                 },
                 {
                   "line": 12,

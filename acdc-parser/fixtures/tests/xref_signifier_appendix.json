@@ -57,6 +57,7 @@
         }
       ],
       "level": 1,
+      "id": "_preface",
       "metadata": {
         "style": "preface"
       },
@@ -578,6 +579,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "style": "appendix",
         "anchors": [
@@ -590,7 +592,7 @@
               },
               {
                 "line": 32,
-                "col": 11
+                "col": 10
               }
             ]
           }

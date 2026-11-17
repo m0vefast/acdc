@@ -89,7 +89,7 @@
 
 #text("S02 A")#raw(" ")#text("B.")
 
-#text("S03 A ` ` B.")
+#text("S03 A `")#text(" ")#text("` B.")
 
 #text("S04 A ")#raw(" ")#text(" B.")
 
@@ -99,7 +99,7 @@
 
 #text("S07 A")#raw("{sp}")#text("B.")
 
-#text("S08 A`` ``B.")
+#text("S08 A``")#text(" ")#text("``B.")
 
 #text("S09 A``{sp}``B.")
 

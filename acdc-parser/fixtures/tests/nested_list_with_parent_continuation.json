@@ -84,6 +84,7 @@
         }
       ],
       "level": 1,
+      "id": "_pattern_from_breakingchanges_adoc",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,10 +131,25 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Parent item with text that spans multiple lines. The content\n  continues here:",
+                  "value": "Parent item with text that spans multiple lines. The content\n",
                   "location": [
                     {
                       "line": 9,
+                      "col": 3
+                    },
+                    {
+                      "line": 9,
+                      "col": 63
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "continues here:",
+                  "location": [
+                    {
+                      "line": 10,
                       "col": 3
                     },
                     {
@@ -206,7 +222,7 @@
                       "location": [
                         {
                           "line": 13,
-                          "col": 1
+                          "col": 3
                         },
                         {
                           "line": 13,
@@ -434,7 +450,7 @@
                       "location": [
                         {
                           "line": 14,
-                          "col": 1
+                          "col": 3
                         },
                         {
                           "line": 24,

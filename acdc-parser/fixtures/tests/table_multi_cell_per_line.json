@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_the_table",
       "blocks": [
         {
           "name": "table",

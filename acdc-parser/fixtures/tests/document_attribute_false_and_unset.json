@@ -41,11 +41,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "The value is false.",
+          "value": "The value is ",
           "location": [
             {
               "line": 5,
               "col": 1
+            },
+            {
+              "line": 5,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "false",
+          "location": [
+            {
+              "line": 5,
+              "col": 14
+            },
+            {
+              "line": 5,
+              "col": 28
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 5,
+              "col": 29
             },
             {
               "line": 5,

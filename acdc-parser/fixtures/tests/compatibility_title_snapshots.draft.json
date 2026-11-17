@@ -94,11 +94,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "After / {word}",
+          "value": "After",
           "location": [
             {
               "line": 8,
               "col": 9
+            },
+            {
+              "line": 8,
+              "col": 14
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " / ",
+          "location": [
+            {
+              "line": 8,
+              "col": 15
+            },
+            {
+              "line": 8,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "{word}",
+          "location": [
+            {
+              "line": 8,
+              "col": 18
             },
             {
               "line": 8,
@@ -315,11 +345,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "{inner} / Before",
+          "value": "{inner}",
           "location": [
             {
               "line": 20,
               "col": 9
+            },
+            {
+              "line": 20,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " / ",
+          "location": [
+            {
+              "line": 20,
+              "col": 16
+            },
+            {
+              "line": 20,
+              "col": 18
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Before",
+          "location": [
+            {
+              "line": 20,
+              "col": 19
             },
             {
               "line": 20,
@@ -729,6 +789,7 @@
         }
       ],
       "level": 1,
+      "id": "_heading",
       "blocks": [
         {
           "name": "paragraph",

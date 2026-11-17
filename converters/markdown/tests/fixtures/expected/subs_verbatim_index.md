@@ -63,7 +63,7 @@ Indented IndentedTerm.
 
 ### E
 
-- EscapedHidden — [top](#_indexterm_3)
+- EscapedHidden) — [top](#_indexterm_3)
 
 ### F
 

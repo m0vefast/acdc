@@ -86,6 +86,7 @@ title_reads!(
     VideoRef,
     DiscreteHeadingRef,
     PageBreakRef,
+    TableOfContentsRef,
     ThematicBreakRef
 );
 
@@ -120,12 +121,13 @@ impl<'doc> From<VideoRef<'doc>> for crate::Video<'doc> {
 }
 
 impl<'doc> DiscreteHeadingRef<'doc> {
-    /// Resolve the heading ID from the explicit ID, last anchor, or title.
+    /// Resolve the heading ID from the explicit or assigned ID, or the title.
     ///
-    /// Title-derived fallbacks are not assigned or checked for collisions.
+    /// Title-derived fallbacks for caller-built headings are not checked for
+    /// collisions.
     #[must_use]
     pub fn resolve_id(self) -> Cow<'doc, str> {
-        crate::Section::explicit_id(&self.node.metadata).map_or_else(
+        crate::Section::explicit_id(&self.node.metadata).or(self.node.id).map_or_else(
             || {
                 Cow::Owned(crate::Section::generate_id_string(
                     &self.node.metadata,

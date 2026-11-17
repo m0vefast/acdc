@@ -91,7 +91,7 @@
 
 #text("S01 ")#text("indexterm2:[Early]")#text(" and ")#text("xref:target[Early]")#text(".")
 
-#text("S02 \\")#metadata(none)<__indexterm-1>#text("Late")#text(" and \\")#context link(query(<id-746172676574>).first().location())[#text("Late")]#text(".")
+#text("S02 ")#text("\\")#metadata(none)<__indexterm-1>#text("Late")#text(" and ")#text("\\")#context link(query(<id-746172676574>).first().location())[#text("Late")]#text(".")
 
 #text("S03 {slash}indexterm2:[Disabled] and {blank} text.")
 
@@ -138,7 +138,7 @@
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
   raw(block: true, "S05 \\Late code and \\Late code.")
 }
-#text("S06 ")#metadata(none)<__indexterm-3>#text("First")#context link(query(<id-746172676574>).first().location())[#text("Second")]#text(" and [].")
+#text("S06 ")#metadata(none)<__indexterm-3>#text("First")#context link(query(<id-746172676574>).first().location())[#text("Second")]#text(" and [")#text("].")
 
 #text("S07 Before ")#strong[]#text(" after.")
 

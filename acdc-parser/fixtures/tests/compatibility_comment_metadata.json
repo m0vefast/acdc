@@ -231,7 +231,7 @@
               },
               {
                 "line": 9,
-                "col": 23
+                "col": 22
               }
             ]
           }
@@ -461,6 +461,7 @@
         }
       ],
       "level": 1,
+      "id": "_first_section",
       "location": [
         {
           "line": 34,
@@ -526,6 +527,7 @@
         }
       ],
       "level": 1,
+      "id": "_second_section",
       "metadata": {
         "roles": [
           "section"
@@ -586,6 +588,7 @@
             }
           ],
           "level": 2,
+          "id": "_floating",
           "metadata": {
             "style": "discrete"
           },

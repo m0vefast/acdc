@@ -204,7 +204,7 @@ fn hyperlink_metadata_options_and_scalar_transfers_outlive_the_previous_owner() 
 #[test]
 fn hyperlink_target_and_location_edits_preserve_other_prepared_values() -> Result<(), Error> {
     let source = String::from("HTTPS://example.invalid/path?key=Value#part");
-    let target = Source::Url(acdc_parser::SourceUrl::new(&source)?);
+    let target = Source::Url(acdc_parser::SourceUrl::new(&source));
     let original = Location::point(Position::new(2, 3));
     let replacement = Location::point(Position::new(8, 9));
     let id_location = Location::point(Position::new(1, 4));

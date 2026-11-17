@@ -102,7 +102,7 @@
     }
   }
   let links = (
-    ((6, 9, body => [#counter(footnote).update(0)#footnote[#text("Early Early *literal* (C).")]]), (10, 13, body => [#counter(footnote).update(1)#footnote[#text("Attribute *body* Early.")]<id-666f6f746e6f74653a617474726962757465>]), ),
+    ((6, 9, body => [#counter(footnote).update(0)#footnote[#text("Early ")#text("Early")#text(" *literal* (C).")]]), (10, 13, body => [#counter(footnote).update(1)#footnote[#text("Attribute *body* Early.")]<id-666f6f746e6f74653a617474726962757465>]), ),
   )
   let code-links(line) = {
     let start = 0

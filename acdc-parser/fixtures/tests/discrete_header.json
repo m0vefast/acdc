@@ -60,6 +60,7 @@
             }
           ],
           "level": 1,
+          "id": "_discrete_heading",
           "metadata": {
             "style": "discrete"
           },

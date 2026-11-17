@@ -35,7 +35,9 @@
     "doctype": "manpage",
     "manmanual": "Empty formatting",
     "manname": "empty-quotes",
+    "manname-id": "_name",
     "manname-title": "NAME",
+    "mannames": "empty-quotes",
     "manpurpose": "formatting around empty attribute references",
     "mansource": "acdc",
     "mantitle": "empty-quotes",
@@ -65,6 +67,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +133,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -870,11 +874,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "**",
+                  "value": "*",
                   "location": [
                     {
                       "line": 37,
                       "col": 13
+                    },
+                    {
+                      "line": 37,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "*",
+                  "location": [
+                    {
+                      "line": 37,
+                      "col": 21
                     },
                     {
                       "line": 37,
@@ -1271,7 +1290,7 @@
                   "location": [
                     {
                       "line": 47,
-                      "col": 13
+                      "col": 20
                     },
                     {
                       "line": 47,
@@ -1438,7 +1457,7 @@
               "location": [
                 {
                   "line": 51,
-                  "col": 14
+                  "col": 21
                 },
                 {
                   "line": 51,
@@ -1513,11 +1532,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q20 Before *introduced* after.",
+              "value": "Q20 Before ",
               "location": [
                 {
                   "line": 53,
                   "col": 1
+                },
+                {
+                  "line": 53,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*introduced*",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 12
+                },
+                {
+                  "line": 53,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 20
                 },
                 {
                   "line": 53,
@@ -1660,11 +1709,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "y and x**y after.",
+              "value": "y and x*",
               "location": [
                 {
                   "line": 57,
                   "col": 24
+                },
+                {
+                  "line": 57,
+                  "col": 31
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*y after.",
+              "location": [
+                {
+                  "line": 57,
+                  "col": 39
                 },
                 {
                   "line": 57,
@@ -1691,11 +1755,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q23 Before é** and **é after.",
+              "value": "Q23 Before é*",
               "location": [
                 {
                   "line": 59,
                   "col": 1
+                },
+                {
+                  "line": 59,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "* and *",
+              "location": [
+                {
+                  "line": 59,
+                  "col": 21
+                },
+                {
+                  "line": 59,
+                  "col": 27
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*é after.",
+              "location": [
+                {
+                  "line": 59,
+                  "col": 35
                 },
                 {
                   "line": 59,

@@ -63,6 +63,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -128,6 +129,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -256,7 +258,7 @@
                   },
                   {
                     "line": 16,
-                    "col": 16
+                    "col": 15
                   }
                 ]
               }
@@ -447,7 +449,7 @@
                   },
                   {
                     "line": 19,
-                    "col": 20
+                    "col": 19
                   }
                 ]
               }
@@ -924,7 +926,7 @@
                   },
                   {
                     "line": 37,
-                    "col": 20
+                    "col": 19
                   }
                 ]
               }
@@ -1098,6 +1100,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

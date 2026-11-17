@@ -97,11 +97,11 @@
 
 #text("Empty: ")#text("**")#text(" / ")#strong[]#text(". Escaped: ")#strong[#text("{name}")]#text(".")
 
-#text("Order: ")#text("pass:q,c[*Escaped*]")#text(" / ")#text("pass:m,c[https://example.org[Escaped site]]")#text(". Partial: prefix pass:q[*Literal*].")
+#text("Order: ")#text("pass:q,c[*Escaped*]")#text(" / ")#text("pass:m,c[https://example.org[Escaped site]]")#text(". Partial: ")#text("prefix pass:q[*Literal*]")#text(".")
 
 #table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Cell: ")#strong[#text("Early")]#text(" / ")#strong[#text("Bold")]#text(" / ")#strong[#text("Early")]#text(" / ")#counter(footnote).update(4)#footnote[#text("Anonymous body.")]#text(".")
 
-], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Other: Late / ")#strong[#text("Body")]#text(".")
+], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Other: ")#text("Late")#text(" / ")#strong[#text("Body")]#text(".")
 
 ])
 

@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_outer_section",
       "blocks": [
         {
           "name": "sidebar",
@@ -269,6 +270,7 @@
         }
       ],
       "level": 1,
+      "id": "_next_section",
       "blocks": [
         {
           "name": "paragraph",

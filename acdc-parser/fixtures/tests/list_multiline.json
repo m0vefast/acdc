@@ -80,10 +80,40 @@
             {
               "name": "text",
               "type": "string",
-              "value": "The document header must be separated from\n  the remainder of the document by one or more\n  empty lines and it cannot contain empty lines.",
+              "value": "The document header must be separated from\n",
               "location": [
                 {
                   "line": 7,
+                  "col": 3
+                },
+                {
+                  "line": 7,
+                  "col": 45
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "the remainder of the document by one or more\n",
+              "location": [
+                {
+                  "line": 8,
+                  "col": 3
+                },
+                {
+                  "line": 8,
+                  "col": 47
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "empty lines and it cannot contain empty lines.",
+              "location": [
+                {
+                  "line": 9,
                   "col": 3
                 },
                 {

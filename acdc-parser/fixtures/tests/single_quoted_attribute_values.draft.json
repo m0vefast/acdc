@@ -84,6 +84,7 @@
         }
       ],
       "level": 1,
+      "id": "_block_macros",
       "blocks": [
         {
           "name": "image",
@@ -248,6 +249,7 @@
         }
       ],
       "level": 1,
+      "id": "_inline_macros",
       "blocks": [
         {
           "name": "paragraph",
@@ -540,6 +542,7 @@
         }
       ],
       "level": 1,
+      "id": "_quote_block",
       "blocks": [
         {
           "name": "quote",
@@ -690,6 +693,7 @@
         }
       ],
       "level": 1,
+      "id": "_verse_block",
       "blocks": [
         {
           "name": "verse",
@@ -794,6 +798,7 @@
         }
       ],
       "level": 1,
+      "id": "_named_attributes",
       "blocks": [
         {
           "name": "listing",
@@ -940,6 +945,7 @@
         }
       ],
       "level": 1,
+      "id": "_link_title",
       "blocks": [
         {
           "name": "paragraph",
@@ -1061,6 +1067,7 @@
         }
       ],
       "level": 1,
+      "id": "_table_attributes",
       "blocks": [
         {
           "name": "table",
@@ -1291,6 +1298,7 @@
         }
       ],
       "level": 1,
+      "id": "_mixed_quote_styles",
       "blocks": [
         {
           "name": "listing",

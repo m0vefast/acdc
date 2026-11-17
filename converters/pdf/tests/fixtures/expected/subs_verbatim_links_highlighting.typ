@@ -267,8 +267,7 @@
     }
   }
   let links = (
-    ((12, 17, body => [#metadata(none)<id-6d756c74696c696e652d6c696e6b>] + link("https://example.org/multiline", body)), ),
-    ((0, 6, body => link("https://example.org/multiline", body)), ),
+    ((12, 24, body => [#metadata(none)<id-6d756c74696c696e652d6c696e6b>] + link("https://example.org/multiline", body)), ),
     ((13, 18, body => context link(query(<id-64657374696e6174696f6e>).first().location(), body)), ),
     ((0, 6, body => context link(query(<id-64657374696e6174696f6e>).first().location(), body)), ),
   )
@@ -282,8 +281,8 @@
     }
     body + code-slice(line.body, start, line.text.len()).first()
   }
-  let numbers = (1, 2, 3, 4, )
-  let highlighted = (false, false, false, false, )
+  let numbers = (1, 2, 3, )
+  let highlighted = (false, false, false, )
   let gutter = 0.6em
   show raw.line: line => {
     let index = line.number - 1
@@ -297,7 +296,7 @@
       box(width: gutter, align(right + top, if number == none { [] } else { text(fill: rgb("#9ca3af"), str(number)) })) + h(0.8em) + code
     }
   }
-  raw(block: true, lang: "rust", "let first = First\nsecond;\nlet second = First\nsecond;")
+  raw(block: true, lang: "rust", "let first = First second;\nlet second = First\nsecond;")
 }
 
 #context link(query(<id-6d756c74696c696e652d6c696e6b>).first().location())[#text("[multiline-link]")]

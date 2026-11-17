@@ -36,14 +36,14 @@ profiles
 .sp
 Earlier paragraph.
 .sp
-α🚀 Sam\(cqs; Sam\(cqs; Sam\(cqs; Sam\(cqs\&.
+α🚀 Sam\(aqs; Sam\(aqs; Sam\(aqs; Sam\(aqs\&.
 .sp
-α🚀 left\(emright; left\(emright; left\(emright; left\(emright\&.
+α🚀 left\-\-right; left\-\-right; left\-\-right; left\-\-right\&.
 .sp
 Protected: left\-\-right; Sam\(aqs; Sam\(aq123; Sam\(aq_s; Sam\(aq*s*; left\-\-!\&.
 .sp
-Escaped: Sam\(aqs; Sam\(aqs.
+Escaped: Sam\e\(aqs; Sam\e\(aqs.
 .sp
-α🚀 Sam\(cqs; Sam\(cqs; left\(emright; left\(emright; Sam\(aqs; left\-\-right\&.
+α🚀 Sam\(aqs; Sam\(aqs; left\-\-right; left\-\-right; Sam\(aqs; left\-\-right\&.
 .sp
 Sam\(aqs\&.

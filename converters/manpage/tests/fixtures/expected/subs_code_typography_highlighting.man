@@ -57,10 +57,10 @@ C10 \(rg (C) \(tm
 .EE
 .EX
 C11 \fB\(co\fR \fI\(rg\fR \f(CR\(tm\fR
-C12 *literal* \(co
+C12 *literal\e* \(co
 .EE
 .EX
-C13 \fB(C)\fR *literal*
+C13 \fB(C)\fR *literal\e*
 .EE
 .EX
 C14 (C) \e*literal\e* pass:r[(R)]

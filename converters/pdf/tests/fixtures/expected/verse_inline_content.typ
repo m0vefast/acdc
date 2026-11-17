@@ -86,12 +86,12 @@
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
 #blocktitle[#text("P01 Title ")#text("©")]
-#verse[#text("P01 ")#strong[#text("Bold")]#text(" ")#emph[#text("italic")]#text(" expanded ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(".\n  P02 ")#strong[#text("indented\n    formatting")]#text(" and ")#raw("code")#text(".\nP03 ")#link("https://example.org/paragraph")[#text("Link ")#text("©")]#text(" ")#counter(footnote).update(0)#footnote[#text("Paragraph note ")#text("®")#text(".")]<id-666f6f746e6f74653a706172616772617068>#text("\nP04 ")#text("(C)")#text(" ")#text("(R)")#text(" ")#metadata(none)<id-7061726167726170682d746172676574>#metadata(none)<__indexterm-1>#text("Paragraph term")#text(".")]
+#verse[#text("P01 ")#strong[#text("Bold")]#text(" ")#emph[#text("italic")]#text(" ")#text("expanded")#text(" ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(".\n  P02 ")#strong[#text("indented\n    formatting")]#text(" and ")#raw("code")#text(".\nP03 ")#link("https://example.org/paragraph")[#text("Link ")#text("©")]#text(" ")#counter(footnote).update(0)#footnote[#text("Paragraph note ")#text("®")#text(".")]<id-666f6f746e6f74653a706172616772617068>#text("\nP04 ")#text("(C)")#text(" ")#text("(R)")#text(" ")#metadata(none)<id-7061726167726170682d746172676574>#metadata(none)<__indexterm-1>#text("Paragraph term")#text(".")]
 
 #attribution[#text("Writer")#text(", ")#text("Work")]
 
 #blocktitle[#text("D01 Title ")#text("©")]
-#verse[#text("D01 ")#strong[#text("Bold")]#text(" ")#emph[#text("italic")]#text(" expanded ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(".\n  D02 ")#strong[#text("indented\n    formatting")]#text(" and ")#raw("code")#text(".\n\nD03 ")#link("https://example.org/delimited")[#text("Link ")#text("©")]#text(" ")#counter(footnote).update(1)#footnote[#text("Delimited note ")#text("®")#text(".")]<id-666f6f746e6f74653a64656c696d69746564>#text("\nD04 ")#text("(C)")#text(" ")#text("(R)")#text(" ")#metadata(none)<id-64656c696d697465642d746172676574>#metadata(none)<__indexterm-2>#text("Delimited term")#text(".\n  D05 repeated  spaces.\n.D06 leading period.\n'D07 leading apostrophe.")]
+#verse[#text("D01 ")#strong[#text("Bold")]#text(" ")#emph[#text("italic")]#text(" ")#text("expanded")#text(" ")#text("©")#text(" ")#text("®")#text(" ")#text("™")#text(".\n  D02 ")#strong[#text("indented\n    formatting")]#text(" and ")#raw("code")#text(".\n\nD03 ")#link("https://example.org/delimited")[#text("Link ")#text("©")]#text(" ")#counter(footnote).update(1)#footnote[#text("Delimited note ")#text("®")#text(".")]<id-666f6f746e6f74653a64656c696d69746564>#text("\nD04 ")#text("(C)")#text(" ")#text("(R)")#text(" ")#metadata(none)<id-64656c696d697465642d746172676574>#metadata(none)<__indexterm-2>#text("Delimited term")#text(".\n  D05 repeated  spaces.\n.D06 leading period.\n'D07 leading apostrophe.")]
 
 #attribution[#text("Writer")#text(", ")#text("Work")]
 

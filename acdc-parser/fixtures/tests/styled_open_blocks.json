@@ -70,11 +70,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " expanded ",
+              "value": " ",
               "location": [
                 {
                   "line": 6,
                   "col": 10
+                },
+                {
+                  "line": 6,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "expanded",
+              "location": [
+                {
+                  "line": 6,
+                  "col": 11
+                },
+                {
+                  "line": 6,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 6,
+                  "col": 17
                 },
                 {
                   "line": 6,
@@ -389,11 +419,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " expanded.",
+              "value": " ",
               "location": [
                 {
                   "line": 16,
                   "col": 8
+                },
+                {
+                  "line": 16,
+                  "col": 8
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "expanded",
+              "location": [
+                {
+                  "line": 16,
+                  "col": 9
+                },
+                {
+                  "line": 16,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 16,
+                  "col": 15
                 },
                 {
                   "line": 16,
@@ -510,11 +570,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " expanded.\n// Verse slash line\n////\nStill verse.\n////",
+          "value": " ",
           "location": [
             {
               "line": 21,
               "col": 8
+            },
+            {
+              "line": 21,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 21,
+              "col": 9
+            },
+            {
+              "line": 21,
+              "col": 14
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".\n// Verse slash line\n////\nStill verse.\n////",
+          "location": [
+            {
+              "line": 21,
+              "col": 15
             },
             {
               "line": 25,
@@ -583,11 +673,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " expanded.",
+              "value": " ",
               "location": [
                 {
                   "line": 30,
                   "col": 10
+                },
+                {
+                  "line": 30,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "expanded",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 11
+                },
+                {
+                  "line": 30,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 17
                 },
                 {
                   "line": 30,

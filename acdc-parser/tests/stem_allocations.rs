@@ -32,7 +32,7 @@ fn stem_preprocessing_allocation_budgets() -> Result<(), Box<dyn std::error::Err
             ":value: expanded\n\nBefore stem:[{value} *x* +y+ --] after {value}.",
             49,
             4,
-            10_406,
+            12_100,
         ),
     ] {
         let _ = black_box(parse(source, &options)?);

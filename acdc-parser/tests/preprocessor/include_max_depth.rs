@@ -71,7 +71,7 @@ fn options(max_depth: &str) -> Result<Options<'_>, acdc_parser::Error> {
         .build()
 }
 
-fn paragraph_texts(result: &ParseResult) -> Result<Vec<&str>, Box<dyn Error>> {
+fn paragraph_texts(result: &ParseResult) -> Result<Vec<String>, Box<dyn Error>> {
     result
         .document()
         .blocks()
@@ -79,15 +79,8 @@ fn paragraph_texts(result: &ParseResult) -> Result<Vec<&str>, Box<dyn Error>> {
             let BlockKind::Paragraph(paragraph) = block.kind() else {
                 return Err(format!("expected paragraph, got {block:?}").into());
             };
-            let [InlineKind::Plain(text)] = &*paragraph
-                .content()
-                .inlines()
-                .map(InlineRef::kind)
-                .collect::<Vec<_>>()
-            else {
-                return Err(format!("expected plain paragraph text, got {paragraph:?}").into());
-            };
-            Ok(text.text())
+            crate::plain_text::plain_text(paragraph.content().inlines())
+                .ok_or_else(|| format!("expected plain paragraph text, got {paragraph:?}").into())
         })
         .collect()
 }
@@ -422,15 +415,10 @@ fn ignored_body_depth_declarations_are_absent_from_the_ast() -> TestResult {
         )
         .into());
     };
-    let [InlineKind::Plain(after)] = &*after
-        .content()
-        .inlines()
-        .map(InlineRef::kind)
-        .collect::<Vec<_>>()
-    else {
+    let Some(after) = crate::plain_text::plain_text(after.content().inlines()) else {
         return Err(format!("unexpected paragraph content: {after:?}").into());
     };
-    assert_eq!(after.text(), "AFTER 1");
+    assert_eq!(after, "AFTER 1");
     assert_eq!(result.warnings(), []);
     Ok(())
 }

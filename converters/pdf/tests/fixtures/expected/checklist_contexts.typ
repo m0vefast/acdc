@@ -84,7 +84,7 @@
   - #block(width: 100%)[#checkbox(false) #text("Unchecked parent")
 
       - #checkbox(true) #text("Lowercase checked child")
-      - #checkbox(true) #text("Uppercase checked child")
+      - #text("[X] Uppercase checked child")
       - #checkbox(true) #text("Star checked child")
 
   ]
@@ -131,7 +131,7 @@
 
 #heading(level: 1)[#text("Ordinary bullet nested under a checklist item")] <id-5f6f7264696e6172795f62756c6c65745f6e65737465645f756e6465725f615f636865636b6c6973745f6974656d>
 
-  - #block(width: 100%)[#checkbox(true) #text("Checklist parent")
+  - #block(width: 100%)[#text("[X] Checklist parent")
 
       - #block(width: 100%)[#text("Ordinary bullet")
 

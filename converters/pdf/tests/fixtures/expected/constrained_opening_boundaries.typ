@@ -93,11 +93,11 @@
 
 #text("P04 @")#strong[#text("Bold")]#text(" @")#emph[#text("Italic")]#text(" @")#raw("Code")#text(" @")#highlight[#text("Mark")]#text(".")
 
-#text("P05 <")#strong[#text("Bold")]#text(" <")#emph[#text("Italic")]#text(" <")#raw("Code")#text(" <")#highlight[#text("Mark")]#text(".")
+#text("P05 <*Bold* <_Italic_ <`Code` <#Mark#.")
 
-#text("P06 >")#strong[#text("Bold")]#text(" >")#emph[#text("Italic")]#text(" >")#raw("Code")#text(" >")#highlight[#text("Mark")]#text(".")
+#text("P06 >*Bold* >_Italic_ >`Code` >#Mark#.")
 
-#text("P07 &")#strong[#text("Bold")]#text(" &")#emph[#text("Italic")]#text(" &")#raw("Code")#text(" &#Mark#.")
+#text("P07 &*Bold* &_Italic_ &`Code` &#Mark#.")
 
 #text("P08 :*Bold* :_Italic_ :`Code` :#Mark#.")
 
@@ -125,9 +125,9 @@
 
 #text("P20 [")#strong[#text("Bold")]#text("] (")#strong[#text("Bold")]#text(") {")#strong[#text("Bold")]#text("} /")#strong[#text("Bold")]#text("/ |")#strong[#text("Bold")]#text("|.")
 
-#text("P21 <del>")#strong[#text("Bold")]#text("</del> <del>")#emph[#text("Italic")]#text("</del> <del>")#raw("Code")#text("</del> <del>")#highlight[#text("Mark")]#text("</del>.")
+#text("P21 <del>*Bold*</del> <del>_Italic_</del> <del>`Code`</del> <del>#Mark#</del>.")
 
-#text("P22 ")#text("⇒")#strong[#text("Bold")]#text(".")
+#text("P22 ")#text("⇒")#text("*Bold*.")
 
 #text("P23 =")#strong[#text("Bold")]#text(" =")#metadata(none)<id-636f6465>#raw("Code")#text(".")
 

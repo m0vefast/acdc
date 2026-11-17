@@ -34,29 +34,29 @@ index\-dash\-context \- neighboring index text
 \fBindex\-dash\-context\fR
 .SH "DESCRIPTION"
 .sp
-P01 prefix\(emtail
+P01 prefix\-\-tail
 .sp
-P02 prefix\(emtail
+P02 prefix\-\-tail
 .sp
-P03 prefix\(emtail
+P03 prefix\-\-tail
 .sp
-P04 prefix\(emtail
+P04 prefix\-\-tail
 .sp
-P05 prefix\(emtail
+P05 prefix\-\-tail
 .sp
-P06 prefix\(emtail
+P06 prefix\-\-tail
 .sp
-P07 prefix\(emtail
+P07 prefix\-\-tail
 .sp
-P08 prefixbegin\(emendtail
+P08 prefixbegin\-\-endtail
 .sp
-P09 prefixbegin\(emendtail
+P09 prefixbegin\-\-endtail
 .sp
-P10 pré\(emété
+P10 pré\-\-été
 .sp
-P11 word_\(em_tail
+P11 word_\-\-_tail
 .sp
-P12 prefix\-\-tail
+P12 prefix\e\-\-tail
 .sp
 P13 prefix\-\-\-tail
 .sp
@@ -72,7 +72,7 @@ P18 prefix.\-\-tail
 .sp
 P19 prefix\-\-\&.tail
 .sp
-P20 prefix \(em tail
+P20 prefix \-\- tail
 .sp
 P21 prefix\-\-\fBbold\fR
 .sp
@@ -88,41 +88,41 @@ P25 prefix\-\- \c
 .sp
 \fBStandalone control\fR
 .br
- \(em \&
+\-\-
 .sp
 \fBHidden standalone control\fR
 .br
- \(em \&
+\-\-
 .sp
-P26 prefix\(emtail
+P26 prefix\-\-tail
 .sp
-P27 prefix\(emtail
+P27 prefix\-\-tail
 .sp
-P28 prefix\(emtail
+P28 prefix\-\-tail
 .sp
-P29 prefix \(em tail
+P29 prefix \-\- tail
 .sp
-P30 prefix \(em tail
+P30 prefix \-\- tail
 .sp
-P31 prefix  \(em  tail
+P31 prefix  \-\-  tail
 .sp
-P32 Sam\(cqs
+P32 Sam\(aqs
 .sp
-P33 Sam\(cqs
+P33 Sam\(aqs
 .sp
-P34 Sam\(cqs
+P34 Sam\(aqs
 .sp
-P35 pré\(cqété
+P35 pré\(aqété
 .sp
 P36 3\(aq4
 .sp
 P37 _\(aqs
 .sp
-P38 Sam\(aqs
+P38 Sam\e\(aqs
 .sp
-P39 Sam\(cqs
+P39 Sam\(aqs
 .sp
-P40 Sam\(cqs
+P40 Sam\(aqs
 .sp
 P41 prefix\-\-tail
 .sp
@@ -132,19 +132,19 @@ P43 prefix \-\- tail
 .sp
 P44 prefix  \(em  tail
 .sp
-P45 prefix \(em \fBBold\fR
+P45 prefix \-\- \fBBold\fR
 .sp
 P46 prefix\-\fB\-\fRtail
 .sp
 P47 prefix \-\- \(em \-\- tail
 .sp
-P48 prefix \(em  \(em tail
+P48 prefix \-\-  \-\- tail
 .sp
-P49 prefix \(em \c
+P49 prefix \-\- \c
 .URL "https://next.example/spaced" "Spaced" "\fR\c"
 
 .sp
-P50 Sam\(cqs \c
+P50 Sam\(aqs \c
 .URL "https://next.example/apostrophe" "Apostrophe" "\fR\c"
 
 .SH "INDEX"
@@ -163,6 +163,8 @@ P50 Sam\(cqs \c
 \-\-tail
 .br
 \e\(aq
+.br
+\e\-\-
 .br
  \(em \&
 .br

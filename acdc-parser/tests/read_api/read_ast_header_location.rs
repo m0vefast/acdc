@@ -259,3 +259,38 @@ fn header_span_uses_original_conditional_coordinates(
     assert!(parsed.document().attributes().contains("a"));
     Ok(())
 }
+
+type Span = Option<(u32, u32, u32, u32)>;
+
+fn revision_spans(source: &str, mode: CompatibilityMode) -> Result<(Span, Span, Span), Error> {
+    let parsed = parse(source, &options(mode)?)?;
+    let header = parsed.document().header().ok_or("header")?;
+    Ok((
+        header.revnumber_location().map(lines),
+        header.revdate_location().map(lines),
+        header.revremark_location().map(lines),
+    ))
+}
+
+#[rstest::rstest]
+#[case::all_fields(
+    "= T\nJane Doe\nv2.9, 01-09-2024: Fall incarnation\n",
+    (Some((3, 2, 3, 4)), Some((3, 7, 3, 16)), Some((3, 19, 3, 34)))
+)]
+#[case::number_only("= T\nJane Doe\n1.0\n", (Some((3, 1, 3, 3)), None, None))]
+#[case::set_by_an_entry(
+    "= T\nJane Doe\n:revdate: today\nv1.0, 2024-01-01\n",
+    (Some((4, 2, 4, 4)), None, None)
+)]
+#[case::written_with_a_reference(
+    "= T\n:d: 2024-01-01\nJane Doe\nv1.0, {d}\n",
+    (None, None, None)
+)]
+fn revision_fields_carry_where_they_are_written(
+    #[case] source: &str,
+    #[case] expected: (Span, Span, Span),
+    #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
+) -> Result<(), Error> {
+    assert_eq!(revision_spans(source, mode)?, expected);
+    Ok(())
+}

@@ -35,10 +35,20 @@
     "doctype": "manpage",
     "encoded": "&amp;#169;",
     "manname": "char-refs",
+    "manname-id": "_name",
     "manname-title": "NAME",
+    "mannames": "char-refs",
     "manpurpose": "passthrough character references",
     "mantitle": "char-refs",
     "manvolnum": "1"
+  },
+  "attribute_parts": {
+    "encoded": [
+      {
+        "text": "&amp;#169;",
+        "special_chars": 0
+      }
+    ]
   },
   "blocks": [
     {
@@ -62,6 +72,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -127,6 +138,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -192,6 +204,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",

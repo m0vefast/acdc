@@ -51,31 +51,31 @@ P09 >\fBBold\fR <\fIItalic\fR &\f(CRCode\fR\&.
 .sp
 P10 >\fBBold\fR <\fIItalic\fR &\f(CRCode\fR\&.
 .EX
-P11 >\fBBold\fR =\fIItalic\fR &\f(CRCode\fR\&.
+P11 >*Bold* =\fIItalic\fR &`Code`.
 .EE
 .sp
 .if n .RS 4
 .nf
 .fam C
-P12 >\fBBold\fR =\fIItalic\fR &\f(CRCode\fR\&.
+P12 >*Bold* =\fIItalic\fR &`Code`.
 .fam
 .fi
 .if n .RE
 .RS 0
 .IP \(bu 2
-P13 =\fBBold\fR >\fIItalic\fR &\f(CRCode\fR\&.
+P13 =\fBBold\fR >_Italic_ &`Code`.
 .RE
 .TS
 allbox tab(:);
 ltx.
 T{
-P14 =\fBBold\fR >\fIItalic\fR &\f(CRCode\fR\&.
+P14 =\fBBold\fR >_Italic_ &`Code`.
 T}
 .TE
 .sp
-\fBP15 >\fBBold\fB =\fIItalic\fB &\f(CRCode\fB\&.\fR
+\fBP15 >*Bold* =\fIItalic\fB &`Code`.\fR
 .br
 paragraph.
-.SS "P16 >Bold =Italic &Code."
+.SS "P16 >*Bold* =Italic &`Code`."
 .sp
 end.

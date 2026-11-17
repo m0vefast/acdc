@@ -58,6 +58,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -123,6 +124,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -623,11 +625,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Attribute \\] text]",
+              "value": "Attribute \\] text",
               "location": [
                 {
                   "line": 30,
                   "col": 28
+                },
+                {
+                  "line": 30,
+                  "col": 34
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 35
                 },
                 {
                   "line": 30,
@@ -2116,7 +2133,7 @@
                   },
                   {
                     "line": 59,
-                    "col": 11
+                    "col": 10
                   }
                 ]
               }
@@ -2292,6 +2309,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

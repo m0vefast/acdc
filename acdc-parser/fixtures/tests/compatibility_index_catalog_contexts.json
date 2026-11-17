@@ -108,11 +108,32 @@
             {
               "name": "text",
               "type": "string",
-              "value": " Early ",
+              "value": " ",
               "location": [
                 {
                   "line": 2,
                   "col": 34,
+                  "file": [
+                    "includes/index_catalog_selected.adoc"
+                  ]
+                },
+                {
+                  "line": 2,
+                  "col": 34,
+                  "file": [
+                    "includes/index_catalog_selected.adoc"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early ",
+              "location": [
+                {
+                  "line": 2,
+                  "col": 35,
                   "file": [
                     "includes/index_catalog_selected.adoc"
                   ]
@@ -497,11 +518,26 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "Cell Later ",
+                            "value": "Cell ",
                             "location": [
                               {
                                 "line": 11,
                                 "col": 13
+                              },
+                              {
+                                "line": 11,
+                                "col": 17
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "Later ",
+                            "location": [
+                              {
+                                "line": 11,
+                                "col": 18
                               },
                               {
                                 "line": 11,
@@ -609,11 +645,26 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "Frozen Later ",
+                            "value": "Frozen ",
                             "location": [
                               {
                                 "line": 14,
                                 "col": 13
+                              },
+                              {
+                                "line": 14,
+                                "col": 19
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "Later ",
+                            "location": [
+                              {
+                                "line": 14,
+                                "col": 20
                               },
                               {
                                 "line": 14,

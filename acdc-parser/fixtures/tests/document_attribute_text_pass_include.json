@@ -34,6 +34,18 @@
     "directory": "includes",
     "source": "includes/document_attribute_pass.txt"
   },
+  "attribute_parts": {
+    "source": [
+      {
+        "text": "includes",
+        "special_chars": 1
+      },
+      {
+        "text": "/document_attribute_pass.txt",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "paragraph",

@@ -47,7 +47,9 @@
     "long-verbatim": "<x> & {name}",
     "manmanual": "Attribute tests",
     "manname": "attribute-text-pass",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "attribute-text-pass",
     "manpurpose": "text-only attribute substitutions",
     "mansource": "acdc",
     "mantitle": "attribute-text-pass",
@@ -66,6 +68,158 @@
     "revdate": "2026-10-01",
     "unicode": "café <α> &",
     "verbatim": "<x> & {name}"
+  },
+  "attribute_parts": {
+    "a": [
+      {
+        "text": "Early",
+        "special_chars": 1
+      },
+      {
+        "text": " *Bold*",
+        "special_chars": 0
+      }
+    ],
+    "alias": [
+      {
+        "text": "prefix ",
+        "special_chars": 1
+      },
+      {
+        "text": "<x> & {name} *Bold*",
+        "special_chars": 1
+      },
+      {
+        "text": " / ",
+        "special_chars": 1
+      },
+      {
+        "text": "Early",
+        "special_chars": 1
+      },
+      {
+        "text": " *Bold*",
+        "special_chars": 0
+      }
+    ],
+    "brackets": [
+      {
+        "text": "Early",
+        "special_chars": 1
+      },
+      {
+        "text": " a\\]b",
+        "special_chars": 0
+      }
+    ],
+    "ca": [
+      {
+        "text": "<raw> &",
+        "special_chars": 0
+      }
+    ],
+    "character": [
+      {
+        "text": "<",
+        "special_chars": 0
+      },
+      {
+        "text": ">",
+        "special_chars": 0
+      },
+      {
+        "text": "&",
+        "special_chars": 0
+      }
+    ],
+    "duplicate": [
+      {
+        "text": "<raw> &",
+        "special_chars": 0
+      }
+    ],
+    "escaped": [
+      {
+        "text": "{name}",
+        "special_chars": 0
+      },
+      {
+        "text": " ",
+        "special_chars": 0
+      },
+      {
+        "text": "{name}",
+        "special_chars": 0
+      },
+      {
+        "text": " ",
+        "special_chars": 0
+      },
+      {
+        "text": "{name}",
+        "special_chars": 0
+      },
+      {
+        "text": " \\",
+        "special_chars": 0
+      },
+      {
+        "text": "{name}",
+        "special_chars": 0
+      }
+    ],
+    "missing": [
+      {
+        "text": "{not-set}",
+        "special_chars": 0
+      }
+    ],
+    "nested": [
+      {
+        "text": "pass:[",
+        "special_chars": 0
+      },
+      {
+        "text": "Early",
+        "special_chars": 1
+      },
+      {
+        "text": "]",
+        "special_chars": 0
+      }
+    ],
+    "nested-c": [
+      {
+        "text": "pass:c[",
+        "special_chars": 0
+      },
+      {
+        "text": "Early",
+        "special_chars": 1
+      },
+      {
+        "text": "]",
+        "special_chars": 0
+      }
+    ],
+    "none": [
+      {
+        "text": "{name} &",
+        "special_chars": 0
+      }
+    ],
+    "normal-ac": [
+      {
+        "text": "<ordinary> &",
+        "special_chars": 2
+      }
+    ],
+    "raw": [
+      {
+        "text": "<raw> &",
+        "special_chars": 0
+      }
+    ]
   },
   "blocks": [
     {
@@ -89,6 +243,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -154,6 +309,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "name",
@@ -177,11 +333,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P01 Early *Bold*",
+              "value": "P01 ",
               "location": [
                 {
                   "line": 39,
                   "col": 1
+                },
+                {
+                  "line": 39,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early *Bold*",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 5
                 },
                 {
                   "line": 39,
@@ -529,11 +700,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P05 Early ",
+              "value": "P05 ",
               "location": [
                 {
                   "line": 47,
                   "col": 1
+                },
+                {
+                  "line": 47,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early ",
+              "location": [
+                {
+                  "line": 47,
+                  "col": 5
                 },
                 {
                   "line": 47,
@@ -644,11 +830,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P06 {name} ",
+              "value": "P06 ",
               "location": [
                 {
                   "line": 49,
                   "col": 1
+                },
+                {
+                  "line": 49,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{name} ",
+              "location": [
+                {
+                  "line": 49,
+                  "col": 5
                 },
                 {
                   "line": 49,
@@ -690,11 +891,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P07 {name} {name} {name} \\{name}",
+              "value": "P07 ",
               "location": [
                 {
                   "line": 51,
                   "col": 1
+                },
+                {
+                  "line": 51,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{name} {name} {name} \\{name}",
+              "location": [
+                {
+                  "line": 51,
+                  "col": 5
                 },
                 {
                   "line": 51,
@@ -721,11 +937,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P08 pass:[Early]",
+              "value": "P08 ",
               "location": [
                 {
                   "line": 53,
                   "col": 1
+                },
+                {
+                  "line": 53,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "pass:[Early]",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 5
                 },
                 {
                   "line": 53,
@@ -752,11 +983,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P09 Before  after.",
+              "value": "P09 Before ",
               "location": [
                 {
                   "line": 55,
                   "col": 1
+                },
+                {
+                  "line": 55,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.",
+              "location": [
+                {
+                  "line": 55,
+                  "col": 19
                 },
                 {
                   "line": 55,
@@ -783,11 +1029,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P10 Before {not-set} after.",
+              "value": "P10 Before ",
               "location": [
                 {
                   "line": 57,
                   "col": 1
+                },
+                {
+                  "line": 57,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{not-set}",
+              "location": [
+                {
+                  "line": 57,
+                  "col": 12
+                },
+                {
+                  "line": 57,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.",
+              "location": [
+                {
+                  "line": 57,
+                  "col": 21
                 },
                 {
                   "line": 57,
@@ -814,11 +1090,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P11 Early a\\]b",
+              "value": "P11 ",
               "location": [
                 {
                   "line": 59,
                   "col": 1
+                },
+                {
+                  "line": 59,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early a\\]b",
+              "location": [
+                {
+                  "line": 59,
+                  "col": 5
                 },
                 {
                   "line": 59,
@@ -845,11 +1136,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P12 prefix ",
+              "value": "P12 ",
               "location": [
                 {
                   "line": 61,
                   "col": 1
+                },
+                {
+                  "line": 61,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "prefix ",
+              "location": [
+                {
+                  "line": 61,
+                  "col": 5
                 },
                 {
                   "line": 61,
@@ -1495,11 +1801,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} | ",
+              "value": " {name}",
               "location": [
                 {
                   "line": 71,
                   "col": 5
+                },
+                {
+                  "line": 71,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " | ",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 15
                 },
                 {
                   "line": 71,
@@ -1701,11 +2022,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P19 café ",
+              "value": "P19 ",
               "location": [
                 {
                   "line": 75,
                   "col": 1
+                },
+                {
+                  "line": 75,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café ",
+              "location": [
+                {
+                  "line": 75,
+                  "col": 5
                 },
                 {
                   "line": 75,
@@ -1962,11 +2298,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "P22 pass:c[Early]",
+              "value": "P22 ",
               "location": [
                 {
                   "line": 81,
                   "col": 1
+                },
+                {
+                  "line": 81,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "pass:c[Early]",
+              "location": [
+                {
+                  "line": 81,
+                  "col": 5
                 },
                 {
                   "line": 81,
@@ -2001,11 +2352,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C01 Early *Bold*\nC02 ",
+              "value": "C01 ",
               "location": [
                 {
                   "line": 85,
                   "col": 1
+                },
+                {
+                  "line": 85,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early *Bold*",
+              "location": [
+                {
+                  "line": 85,
+                  "col": 5
+                },
+                {
+                  "line": 85,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC02 ",
+              "location": [
+                {
+                  "line": 85,
+                  "col": 8
                 },
                 {
                   "line": 86,
@@ -2100,11 +2481,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold*\nC03 ",
+              "value": " {name} *Bold*",
               "location": [
                 {
                   "line": 86,
                   "col": 5
+                },
+                {
+                  "line": 86,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC03 ",
+              "location": [
+                {
+                  "line": 86,
+                  "col": 8
                 },
                 {
                   "line": 87,
@@ -2199,7 +2595,7 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\nC05 Early ",
+              "value": "\nC05 ",
               "location": [
                 {
                   "line": 87,
@@ -2207,6 +2603,21 @@
                 },
                 {
                   "line": 88,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early ",
+              "location": [
+                {
+                  "line": 88,
+                  "col": 5
+                },
+                {
+                  "line": 88,
                   "col": 10
                 }
               ]
@@ -2298,11 +2709,161 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\nC07 {name} {name} {name} \\{name}\nC08 pass:[Early]\nC09 Before  after.\nC10 Before {not-set} after.\nC11 Early a\\]b\nC12 prefix ",
+              "value": "\nC07 ",
               "location": [
                 {
                   "line": 88,
                   "col": 11
+                },
+                {
+                  "line": 89,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{name} {name} {name} \\{name}",
+              "location": [
+                {
+                  "line": 89,
+                  "col": 5
+                },
+                {
+                  "line": 89,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC08 ",
+              "location": [
+                {
+                  "line": 89,
+                  "col": 14
+                },
+                {
+                  "line": 90,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "pass:[Early]",
+              "location": [
+                {
+                  "line": 90,
+                  "col": 5
+                },
+                {
+                  "line": 90,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC09 Before ",
+              "location": [
+                {
+                  "line": 90,
+                  "col": 13
+                },
+                {
+                  "line": 91,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.\nC10 Before ",
+              "location": [
+                {
+                  "line": 91,
+                  "col": 19
+                },
+                {
+                  "line": 92,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{not-set}",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 12
+                },
+                {
+                  "line": 92,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " after.\nC11 ",
+              "location": [
+                {
+                  "line": 92,
+                  "col": 21
+                },
+                {
+                  "line": 93,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Early a\\]b",
+              "location": [
+                {
+                  "line": 93,
+                  "col": 5
+                },
+                {
+                  "line": 93,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC12 ",
+              "location": [
+                {
+                  "line": 93,
+                  "col": 15
+                },
+                {
+                  "line": 94,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "prefix ",
+              "location": [
+                {
+                  "line": 94,
+                  "col": 5
                 },
                 {
                   "line": 94,
@@ -2397,11 +2958,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold* / Early *Bold*\nC13 ",
+              "value": " {name} *Bold* / Early *Bold*",
               "location": [
                 {
                   "line": 94,
                   "col": 5
+                },
+                {
+                  "line": 94,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC13 ",
+              "location": [
+                {
+                  "line": 94,
+                  "col": 12
                 },
                 {
                   "line": 95,
@@ -2796,11 +3372,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} | ",
+              "value": " {name}",
               "location": [
                 {
                   "line": 98,
                   "col": 5
+                },
+                {
+                  "line": 98,
+                  "col": 14
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " | ",
+              "location": [
+                {
+                  "line": 98,
+                  "col": 15
                 },
                 {
                   "line": 98,
@@ -2895,11 +3486,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name}\nC18 ",
+              "value": " {name}",
               "location": [
                 {
                   "line": 98,
                   "col": 18
+                },
+                {
+                  "line": 98,
+                  "col": 32
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nC18 ",
+              "location": [
+                {
+                  "line": 98,
+                  "col": 33
                 },
                 {
                   "line": 99,
@@ -2961,11 +3567,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\nC19 café ",
+              "value": "\nC19 ",
               "location": [
                 {
                   "line": 99,
                   "col": 15
+                },
+                {
+                  "line": 100,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "café ",
+              "location": [
+                {
+                  "line": 100,
+                  "col": 5
                 },
                 {
                   "line": 100,
@@ -3060,11 +3681,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\nC22 pass:c[Early]",
+              "value": "\nC22 ",
               "location": [
                 {
                   "line": 100,
                   "col": 14
+                },
+                {
+                  "line": 101,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "pass:c[Early]",
+              "location": [
+                {
+                  "line": 101,
+                  "col": 5
                 },
                 {
                   "line": 101,
@@ -3099,11 +3735,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C06 {name} ",
+              "value": "C06 ",
               "location": [
                 {
                   "line": 106,
                   "col": 1
+                },
+                {
+                  "line": 106,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "{name} ",
+              "location": [
+                {
+                  "line": 106,
+                  "col": 5
                 },
                 {
                   "line": 106,
@@ -3251,11 +3902,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold*\nN02 ",
+              "value": " {name} *Bold*",
               "location": [
                 {
                   "line": 111,
                   "col": 5
+                },
+                {
+                  "line": 111,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nN02 ",
+              "location": [
+                {
+                  "line": 111,
+                  "col": 8
                 },
                 {
                   "line": 112,
@@ -3545,11 +4211,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold*\nR02 ",
+              "value": " {name} *Bold*",
               "location": [
                 {
                   "line": 118,
                   "col": 5
+                },
+                {
+                  "line": 118,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nR02 ",
+              "location": [
+                {
+                  "line": 118,
+                  "col": 8
                 },
                 {
                   "line": 119,
@@ -3845,11 +4526,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold*\nO02 ",
+              "value": " {name} *Bold*",
               "location": [
                 {
                   "line": 125,
                   "col": 5
+                },
+                {
+                  "line": 125,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nO02 ",
+              "location": [
+                {
+                  "line": 125,
+                  "col": 8
                 },
                 {
                   "line": 126,
@@ -4137,11 +4833,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " {name} *Bold*\nO05 ",
+              "value": " {name} *Bold*",
               "location": [
                 {
                   "line": 132,
                   "col": 5
+                },
+                {
+                  "line": 132,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\nO05 ",
+              "location": [
+                {
+                  "line": 132,
+                  "col": 8
                 },
                 {
                   "line": 133,

@@ -31,18 +31,18 @@
 empty\-profiles \- empty profile context
 .SH "DESCRIPTION"
 .sp
- \(em \&
+\-\-
 .sp
- \(em \&
+\-\-
 .sp
- \(em \&
+\-\-
 .sp
- \(em \&
+\-\-
 .sp
-left\(emright
+left\-\-right
 .sp
-left \(em right
+left \-\- right
 .sp
-left \(em right
+left \-\- right
 .sp
-Sam\(cqs
+Sam\(aqs

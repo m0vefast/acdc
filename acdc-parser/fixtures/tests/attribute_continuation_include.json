@@ -60,11 +60,53 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Included [\\] café.",
+          "value": "Included [",
           "location": [
             {
               "line": 2,
               "col": 1,
+              "file": [
+                "attribute_continuation_source.inc"
+              ]
+            },
+            {
+              "line": 2,
+              "col": 10,
+              "file": [
+                "attribute_continuation_source.inc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "\\",
+          "location": [
+            {
+              "line": 2,
+              "col": 11,
+              "file": [
+                "attribute_continuation_source.inc"
+              ]
+            },
+            {
+              "line": 2,
+              "col": 20,
+              "file": [
+                "attribute_continuation_source.inc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "] café.",
+          "location": [
+            {
+              "line": 2,
+              "col": 21,
               "file": [
                 "attribute_continuation_source.inc"
               ]

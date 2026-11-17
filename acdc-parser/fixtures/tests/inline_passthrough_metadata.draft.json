@@ -387,7 +387,7 @@
         {
           "name": "text",
           "type": "string",
-          "value": "P07 [#expanded-id.expanded]",
+          "value": "P07 [#",
           "location": [
             {
               "line": 17,
@@ -395,7 +395,67 @@
             },
             {
               "line": 17,
-              "col": 27
+              "col": 6
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded-id",
+          "location": [
+            {
+              "line": 17,
+              "col": 7
+            },
+            {
+              "line": 17,
+              "col": 18
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 17,
+              "col": 19
+            },
+            {
+              "line": 17,
+              "col": 19
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 17,
+              "col": 20
+            },
+            {
+              "line": 17,
+              "col": 30
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "]",
+          "location": [
+            {
+              "line": 17,
+              "col": 31
+            },
+            {
+              "line": 17,
+              "col": 31
             }
           ]
         },

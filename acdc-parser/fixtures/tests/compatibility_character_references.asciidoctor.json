@@ -955,59 +955,11 @@
         {
           "name": "text",
           "type": "string",
-          "value": " and &",
+          "value": " and &*copy*;.",
           "location": [
             {
               "line": 9,
               "col": 44
-            },
-            {
-              "line": 9,
-              "col": 49
-            }
-          ]
-        },
-        {
-          "name": "span",
-          "type": "inline",
-          "variant": "strong",
-          "form": "constrained",
-          "inlines": [
-            {
-              "name": "text",
-              "type": "string",
-              "value": "copy",
-              "location": [
-                {
-                  "line": 9,
-                  "col": 51
-                },
-                {
-                  "line": 9,
-                  "col": 54
-                }
-              ]
-            }
-          ],
-          "location": [
-            {
-              "line": 9,
-              "col": 50
-            },
-            {
-              "line": 9,
-              "col": 55
-            }
-          ]
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "value": ";.",
-          "location": [
-            {
-              "line": 9,
-              "col": 56
             },
             {
               "line": 9,

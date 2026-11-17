@@ -75,7 +75,7 @@
             {
               "name": "raw",
               "type": "string",
-              "value": "Early Early *literal* (C).",
+              "value": "Early ",
               "substitutions": [
                 "special_chars"
               ],
@@ -83,6 +83,42 @@
                 {
                   "line": 8,
                   "col": 17
+                },
+                {
+                  "line": 8,
+                  "col": 22
+                }
+              ]
+            },
+            {
+              "name": "raw",
+              "type": "string",
+              "value": "Early",
+              "substitutions": [
+                "special_chars"
+              ],
+              "location": [
+                {
+                  "line": 8,
+                  "col": 23
+                },
+                {
+                  "line": 8,
+                  "col": 28
+                }
+              ]
+            },
+            {
+              "name": "raw",
+              "type": "string",
+              "value": " *literal* (C).",
+              "substitutions": [
+                "special_chars"
+              ],
+              "location": [
+                {
+                  "line": 8,
+                  "col": 29
                 },
                 {
                   "line": 8,
@@ -233,11 +269,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": " footnote:attribute[Attribute ",
+          "value": " ",
           "location": [
             {
               "line": 13,
               "col": 43
+            },
+            {
+              "line": 13,
+              "col": 43
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "footnote:attribute[Attribute ",
+          "location": [
+            {
+              "line": 13,
+              "col": 44
             },
             {
               "line": 13,
@@ -639,6 +690,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

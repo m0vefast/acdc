@@ -268,3 +268,49 @@ fn formatted_inline_locations_map_standalone_inline_parses() -> Result<(), Error
     }
     Ok(())
 }
+
+/// A formatted span's location starts at its delimiter (the ASG span); the
+/// attribute list written before it (`[.r]`) has its own location.
+#[test]
+fn formatted_inline_attribute_lists_have_their_own_location() -> Result<(), Error> {
+    for (open, close) in [
+        ("*", "*"),
+        ("**", "**"),
+        ("_", "_"),
+        ("__", "__"),
+        ("`", "`"),
+        ("``", "``"),
+        ("#", "#"),
+        ("##", "##"),
+        ("~", "~"),
+        ("^", "^"),
+        ("\"`", "`\""),
+        ("'`", "`'"),
+    ] {
+        let source = format!("first line\nsecond [.r]{open}x{close} and {open}y{close} end");
+        let parsed = parse(&source, &Options::default())?;
+        let Some(BlockKind::Paragraph(paragraph)) = parsed.document().blocks().next().map(BlockRef::kind) else {
+            return Err("expected a paragraph".into());
+        };
+        let lists = paragraph
+            .content()
+            .inlines()
+            .filter_map(|inline| match inline.kind() {
+                InlineKind::Bold(span) => Some(span.attribute_location()),
+                InlineKind::Italic(span) => Some(span.attribute_location()),
+                InlineKind::Monospace(span) => Some(span.attribute_location()),
+                InlineKind::Highlight(span) => Some(span.attribute_location()),
+                InlineKind::Subscript(span) => Some(span.attribute_location()),
+                InlineKind::Superscript(span) => Some(span.attribute_location()),
+                InlineKind::DoubleQuotedSpan(span) => Some(span.attribute_location()),
+                InlineKind::SingleQuotedSpan(span) => Some(span.attribute_location()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [Some(attributed), None] = lists.as_slice() else {
+            return Err(format!("{open}{close}: expected an attributed span then a plain one, got {lists:?}").into());
+        };
+        assert_span(&source, *attributed, "[.r]")?;
+    }
+    Ok(())
+}

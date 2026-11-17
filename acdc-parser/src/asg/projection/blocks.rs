@@ -251,7 +251,25 @@ impl<'a, 'doc> Export<'a, 'doc> {
         }
         let mut result = node("heading", "block");
         result.insert("level".into(), value.level.into());
+        if let Some(id) = crate::Section::explicit_id(&value.metadata).or(value.id) {
+            result.insert("id".into(), id.into());
+        }
         self.block_metadata(&mut result, &value.metadata, Some(&value.title), path)?;
+        if crate::Section::explicit_id(&value.metadata).is_none()
+            && let Some(id) = value.id
+        {
+            self.insert_target(
+                id.into(),
+                super::Target {
+                    owner: Some(path.into()),
+                    title: Some(&value.title),
+                    label: super::metadata::label(&value.metadata),
+                    section: None,
+                    caption: None,
+                },
+                path,
+            )?;
+        }
         Ok(result)
     }
 

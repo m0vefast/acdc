@@ -81,7 +81,7 @@
 
 #text("pass:m[link:https://example.org[Label\\]]")
 
-#text("pass:a,m[link:https://example.org[Expanded\\]]")
+#text("pass:a,m[link:https://example.org[")#text("Expanded")#text("\\]]")
 
 #text("pass:m[link:https://example.org[Label\\]]")
 

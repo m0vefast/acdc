@@ -31,7 +31,7 @@
 header\-comments \- check comment isolation
 .SH "CHECKS"
 .sp
-C01 kept=original; header=active; author=Correct Author; revision=1.0.
+C01 kept=original; header=active; author=Correct Author; revision=1.0\&.
 .sp
 C02 {hidden\-before} {hidden\-author} {hidden\-revision} {hidden\-header}.
 .sp

@@ -39,25 +39,7 @@
               "col": 8
             }
           ]
-        }
-      ],
-      "location": [
-        {
-          "line": 1,
-          "col": 1
         },
-        {
-          "line": 1,
-          "col": 8
-        }
-      ]
-    },
-    {
-      "name": "list",
-      "type": "block",
-      "variant": "unordered",
-      "marker": "*",
-      "items": [
         {
           "name": "listItem",
           "type": "block",
@@ -93,7 +75,7 @@
       ],
       "location": [
         {
-          "line": 2,
+          "line": 1,
           "col": 1
         },
         {

@@ -173,44 +173,13 @@
               "line": 7
             },
             {
-              "col": 35,
-              "line": 7
-            }
-          ],
-          "name": "text",
-          "type": "string",
-          "value": " and empty "
-        },
-        {
-          "inlines": [],
-          "location": [
-            {
-              "col": 36,
-              "line": 7
-            },
-            {
-              "col": 42,
-              "line": 7
-            }
-          ],
-          "name": "stem",
-          "notation": "latexmath",
-          "type": "inline"
-        },
-        {
-          "location": [
-            {
-              "col": 43,
-              "line": 7
-            },
-            {
               "col": 43,
               "line": 7
             }
           ],
           "name": "text",
           "type": "string",
-          "value": "."
+          "value": " and empty stem:[]."
         }
       ],
       "location": [

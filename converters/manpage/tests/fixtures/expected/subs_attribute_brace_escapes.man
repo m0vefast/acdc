@@ -31,7 +31,7 @@
 code\-brace\-escapes \- preserve escaped references in code
 .SH "DESCRIPTION"
 .EX
-C01 {value} / {value} / {value} / Expanded.
+C01 {value} / {value} / {value} / Expanded\&.
 C02 α {value} β {value} γ.
 C03 {markup} / {markup} / {markup}\&.
 C04 \e{value} / \e{value} / \e\e{value}\&.
@@ -39,7 +39,7 @@ C05 {value\e\e} / \e{value\e\e} / {value\e\e\e}.
 C06 \e{bad name} / {bad name\e} / \e{bad name\e}.
 .EE
 .nf
-C07 {value} / {value} / {value} / Expanded.
+C07 {value} / {value} / {value} / Expanded\&.
 .fi
 .EX
 C08 let template = "{value} / {value} / Expanded";

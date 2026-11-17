@@ -119,11 +119,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": " expanded ",
+          "value": " ",
           "location": [
             {
               "line": 7,
               "col": 11
+            },
+            {
+              "line": 7,
+              "col": 11
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 7,
+              "col": 12
+            },
+            {
+              "line": 7,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 7,
+              "col": 18
             },
             {
               "line": 7,
@@ -166,11 +196,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": ".\n  ",
+          "value": ".\n",
           "location": [
             {
               "line": 7,
               "col": 47
+            },
+            {
+              "line": 7,
+              "col": 48
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "  ",
+          "location": [
+            {
+              "line": 8,
+              "col": 3
             },
             {
               "line": 8,
@@ -255,8 +300,8 @@
           "value": "Alias *Bold* {word}.",
           "location": [
             {
-              "line": 10,
-              "col": 1
+              "line": 11,
+              "col": 3
             },
             {
               "line": 11,
@@ -1086,11 +1131,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Unknown *Bold* {word}.\n  Extra indentation.",
+          "value": "Unknown *Bold* {word}.\n",
           "location": [
             {
-              "line": 38,
-              "col": 1
+              "line": 39,
+              "col": 3
+            },
+            {
+              "line": 39,
+              "col": 25
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "  Extra indentation.",
+          "location": [
+            {
+              "line": 40,
+              "col": 3
             },
             {
               "line": 40,
@@ -1120,11 +1180,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Implicit literal.\n  Extra indentation.",
+          "value": "Implicit literal.\n",
           "location": [
             {
               "line": 42,
-              "col": 1
+              "col": 5
+            },
+            {
+              "line": 42,
+              "col": 22
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "  Extra indentation.",
+          "location": [
+            {
+              "line": 43,
+              "col": 5
             },
             {
               "line": 43,

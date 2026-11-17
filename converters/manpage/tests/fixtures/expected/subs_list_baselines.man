@@ -63,7 +63,7 @@ B14 \c
 .URL "https://example.org" "Link" "\fR\c"
 \&.
 .sp
-B15 link:https://example.org[Link].
+B15 link:https://example.org[Link]\&.
 .sp
 B16 \c
 .URL "https://example.org" "Link" "\fR\c"
@@ -92,7 +92,7 @@ B21 \fBsource\fR *bold* \(co \c
 .sp
 B22 footnote:[Literal note.] anchor:literal[] indexterm:[Literal].
 .sp
-B23 café \fBaccentué\fR *bold*.
+B23 café \fBaccentué\fR *bold*\&.
 .sp
 B24 \fBdefaults restored\fR \(co \c
 .URL "https://example.org" "Link" "\fR\c"

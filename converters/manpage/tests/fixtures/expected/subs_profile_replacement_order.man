@@ -35,11 +35,11 @@ Earlier.
 .sp
 Sam\(aqs
 .sp
-Sam\(cqs
+Sam\(aqs
 .sp
 Sam\(aqs
 .sp
-Sam\(cqs
+Sam\(aqs
 .sp
 (C)
 .sp
@@ -47,11 +47,11 @@ Sam\(cqs
 .sp
 left\-\-right
 .sp
-left\(emright
+left\-\-right
 .sp
-Sam\(cqs
+Sam\(aqs
 .sp
-Sam\(cqs
+Sam\(aqs
 .sp
  \(em \&
 .sp
@@ -59,13 +59,9 @@ Sam\(cqs
 .sp
 \(coSam\(aqs
 .sp
-\(aqSam Sam\(cqs
+\(aqSam Sam\(aqs
 .sp
-Sam\(aqs and Sam\(cqs
-.sp
-Sam\(aqs
-.sp
-Sam\(cqs
+Sam\(aqs and Sam\(aqs
 .sp
 Sam\(aqs
 .sp
@@ -73,13 +69,17 @@ Sam\(aqs
 .sp
 Sam\e\(aqs
 .sp
+Sam\e\(aqs
+.sp
+Sam\e\(aqs
+.sp
 \fBSam\(aqs\fR
 .sp
-\fBSam\(cqs\fR
+\fBSam\(aqs\fR
 .sp
 \fBSam\(aqs\fR
 .sp
-\fBSam\(cqs\fR
+\fBSam\(aqs\fR
 .sp
 \fB(C)\fR
 .sp
@@ -87,7 +87,7 @@ Sam\e\(aqs
 .sp
 \fBleft\-\-right\fR
 .sp
-\fBleft\(emright\fR
+\fBleft\-\-right\fR
 .sp
 \c
 .URL "target.html" "\(co" "\fR\c"

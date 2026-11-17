@@ -86,10 +86,10 @@
 
 #heading(level: 1)[#text("Checks")] <id-5f636865636b73>
 
-#text("C01 kept=original; header=active; author=Correct Author; revision=1.0.")
+#text("C01 kept=")#text("original")#text("; header=")#text("active")#text("; author=")#text("Correct Author")#text("; revision=")#text("1.0")#text(".")
 
 #text("C02 {hidden-before} {hidden-author} {hidden-revision} {hidden-header}.")
 
-#text("C03 kept=original; body={hidden-body}.")
+#text("C03 kept=")#text("original")#text("; body={hidden-body}.")
 
 #raw(block: true, "fn main() {}")

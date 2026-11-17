@@ -137,7 +137,8 @@ fn link_label_quotes_keep_multiline_passthrough_source_spans() -> Result<(), Err
             return Err("expected paragraph".into());
         };
         let text = label(paragraph.content())?;
-        assert_eq!(label_text(text.inlines())?, "é \"café\"\nfin");
+        // asciidoctor 2.0.26 (measured 2026-11-16) folds the attribute-list label's line feed.
+        assert_eq!(label_text(text.inlines())?, "é \"café\" fin");
         assert_eq!(
             text.inlines()
                 .next()

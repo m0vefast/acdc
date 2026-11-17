@@ -1008,11 +1008,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "((Start Expanded ",
+          "value": "((Start ",
           "location": [
             {
               "line": 20,
               "col": 10
+            },
+            {
+              "line": 20,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Expanded",
+          "location": [
+            {
+              "line": 20,
+              "col": 18
+            },
+            {
+              "line": 20,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 20,
+              "col": 24
             },
             {
               "line": 20,
@@ -1203,11 +1233,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "((Start Expanded ",
+          "value": "((Start ",
           "location": [
             {
               "line": 23,
               "col": 16
+            },
+            {
+              "line": 23,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Expanded",
+          "location": [
+            {
+              "line": 23,
+              "col": 24
+            },
+            {
+              "line": 23,
+              "col": 29
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " ",
+          "location": [
+            {
+              "line": 23,
+              "col": 30
             },
             {
               "line": 23,
@@ -2300,6 +2360,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -2311,7 +2372,7 @@
               },
               {
                 "line": 40,
-                "col": 11
+                "col": 10
               }
             ]
           }
@@ -2594,6 +2655,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

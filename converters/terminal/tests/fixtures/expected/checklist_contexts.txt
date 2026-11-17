@@ -6,7 +6,7 @@
 
 • [1m[ ][0m Unchecked parent
   • [1m[✔][0m Lowercase checked child
-  • [1m[✔][0m Uppercase checked child
+  • [X] Uppercase checked child
   • [1m[✔][0m Star checked child
 • [1m[✔][0m Checked sibling
 
@@ -36,7 +36,7 @@
 [38;2;215;0;135m[1mOrdinary bullet nested under a checklist item[0m
 [38;2;215;0;135m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[39m
 
-• [1m[✔][0m Checklist parent
+• [X] Checklist parent
   • Ordinary bullet
     • [1m[ ][0m Nested checklist
 

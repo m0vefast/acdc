@@ -210,7 +210,7 @@ pub fn code_inline_text<'inline>(
         if matches!(node.kind(), InlineKind::Anchor(_)) {
             linked = true;
         } else if let InlineKind::Footnote(note) = node.kind() {
-            let _ = write!(text, "[{}]", note.number());
+            let _ = write!(text, "[{}]", note.mark());
             linked = true;
         } else if let Some(link) = resolve_code_link(node, references, output_extension) {
             text.push_str(&link.text);

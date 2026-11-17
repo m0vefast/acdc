@@ -1,6 +1,6 @@
 use crate::{
     CrossReference, XrefCaptionLabel, XrefSignifier, XrefStyle,
-    ast::{AttributesRef, ContentRef, ElementIdRef, TokensRef},
+    ast::{AttributesRef, ContentRef, ElementIdRef, LocationRef, TokensRef},
 };
 
 use super::CrossReferenceRef;
@@ -16,6 +16,37 @@ impl<'doc> CrossReferenceRef<'doc> {
     #[must_use]
     pub fn target_is_local(self) -> bool {
         self.node.target_is_local
+    }
+
+    /// How the author wrote the reference.
+    #[must_use]
+    pub fn form(self) -> crate::XrefForm {
+        self.node.form
+    }
+
+    /// The target as written, before natural or included-source resolution.
+    #[must_use]
+    pub fn written_target(self) -> &'doc str {
+        self.node.written_target
+    }
+
+    /// Whether the reference stands in a heading title converted, as Asciidoctor
+    /// converts it while parsing, before its target was registered: it reads as `[id]`.
+    #[must_use]
+    pub fn precedes_target(self) -> bool {
+        self.node.precedes_target
+    }
+
+    /// Where the written target stands in the source.
+    #[must_use]
+    pub fn target_location(self) -> LocationRef<'doc> {
+        LocationRef::new(&self.node.target_location)
+    }
+
+    /// What the written target names, read with asciidoctor's rule.
+    #[must_use]
+    pub fn target_kind(self) -> crate::XrefTarget<'doc> {
+        crate::xref_target_kind(self.node.written_target, self.node.form)
     }
 
     /// Explicit label content. Empty content uses the target's reference text or title.

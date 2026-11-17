@@ -671,6 +671,7 @@
         }
       ],
       "level": 1,
+      "id": "_installation",
       "blocks": [
         {
           "name": "paragraph",

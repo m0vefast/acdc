@@ -123,15 +123,15 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "Attached paragraph.\n* Sibling",
+                            "value": "Attached paragraph.",
                             "location": [
                               {
                                 "line": 6,
                                 "col": 1
                               },
                               {
-                                "line": 7,
-                                "col": 9
+                                "line": 6,
+                                "col": 19
                               }
                             ]
                           }
@@ -142,8 +142,8 @@
                             "col": 1
                           },
                           {
-                            "line": 7,
-                            "col": 9
+                            "line": 6,
+                            "col": 19
                           }
                         ]
                       }
@@ -154,8 +154,8 @@
                         "col": 8
                       },
                       {
-                        "line": 7,
-                        "col": 9
+                        "line": 6,
+                        "col": 19
                       }
                     ]
                   },
@@ -165,8 +165,8 @@
                       "col": 1
                     },
                     {
-                      "line": 7,
-                      "col": 9
+                      "line": 6,
+                      "col": 19
                     }
                   ]
                 }
@@ -177,6 +177,38 @@
                   "col": 1
                 },
                 {
+                  "line": 6,
+                  "col": 19
+                }
+              ]
+            }
+          ],
+          "location": [
+            {
+              "line": 3,
+              "col": 1
+            },
+            {
+              "line": 6,
+              "col": 19
+            }
+          ]
+        },
+        {
+          "name": "listItem",
+          "type": "block",
+          "marker": "*",
+          "principal": [
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Sibling",
+              "location": [
+                {
+                  "line": 7,
+                  "col": 3
+                },
+                {
                   "line": 7,
                   "col": 9
                 }
@@ -185,7 +217,7 @@
           ],
           "location": [
             {
-              "line": 3,
+              "line": 7,
               "col": 1
             },
             {

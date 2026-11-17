@@ -48,9 +48,7 @@ fn text(content: ContentRef<'_>) -> Result<String, Error> {
 #[case("Ctrl,Alt+Del", &["Ctrl", "Alt+Del"])]
 #[case("Ctrl+,", &["Ctrl", ","])]
 #[case("Ctrl+\\]", &["Ctrl", "]"])]
-#[case("[π]", &["[π]"])]
 #[case("\\[π\\]", &["\\[π]"])]
-#[case("[π\\]x]", &["[π]x]"])]
 #[case("Ctrl+pass:[a+b]", &["Ctrl", "a+b"])]
 fn keyboard_key_boundaries_match_the_selected_separator(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
@@ -114,18 +112,27 @@ fn keyboard_deep_brackets_do_not_overflow_the_stack(
             }
         })
         .ok_or("missing keyboard")?;
+    // asciidoctor's `InlineKbdBtnMacroRx` ends at the first `]`; Draft balances the brackets.
+    let (key, tail) = if mode == CompatibilityMode::Asciidoctor {
+        (
+            format!("{}{inner}", "[".repeat(20_000)),
+            format!("{} after.", "]".repeat(20_000)),
+        )
+    } else {
+        (label, " after.".to_owned())
+    };
     assert_eq!(
         keyboard.keys().map(text).collect::<Result<Vec<_>, _>>()?,
-        [label]
+        [key]
     );
     let start = source.find("kbd:[").ok_or("missing authored keyboard")?;
     assert_eq!(keyboard.location().absolute_start(), start);
     assert_eq!(
         keyboard.location().absolute_end(),
-        source.len() - " after.".len() - 1
+        source.len() - tail.len() - 1
     );
     let last = content.inlines().last().ok_or("missing trailing text")?;
-    assert!(matches!(last.kind(), InlineKind::Plain(value) if value.text() == " after."));
+    assert!(matches!(last.kind(), InlineKind::Plain(value) if value.text() == tail));
     Ok(())
 }
 
@@ -133,7 +140,6 @@ fn keyboard_deep_brackets_do_not_overflow_the_stack(
 #[case::empty("")]
 #[case::unclosed_nested("[")]
 #[case::escaped_close("\\]")]
-#[case::closed_nested("[π]")]
 fn keyboard_unclosed_brackets_remain_literal(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[case] body: &str,
@@ -249,5 +255,64 @@ fn menu_separators_do_not_split_nested_reference_syntax(
     };
     assert!(item.inlines().any(|node| matches!(node.kind(), InlineKind::CrossReference(reference) if reference.target() == "target")));
     assert_eq!(text(*close)?, "Close");
+    Ok(())
+}
+
+fn drawn(content: ContentRef<'_>) -> Result<String, Error> {
+    let mut out = String::new();
+    for node in content.inlines() {
+        match node.kind() {
+            InlineKind::Plain(plain) => out.push_str(plain.text()),
+            InlineKind::Raw(raw) => out.push_str(raw.text()),
+            InlineKind::Stem(stem) => out.push_str(&format!("<s:{}>", stem.text())),
+            InlineKind::Button(button) => out.push_str(&format!("<b:{}>", text(button.label())?)),
+            InlineKind::KeyboardShortcut(keyboard) => out.push_str(&format!(
+                "<k:{}>",
+                keyboard.keys().map(text).collect::<Result<Vec<_>, _>>()?.join("|")
+            )),
+            InlineKind::MenuPath(menu) => {
+                out.push_str(&format!("<m:{}", text(menu.target())?));
+                for item in menu.items() {
+                    out.push_str(&format!("|{}", text(item)?));
+                }
+                out.push('>');
+            }
+            other => return Err(format!("unexpected node {other:?}").into()),
+        }
+    }
+    Ok(out)
+}
+
+/// asciidoctor 2.0.26 (measured 2026-11-16): `InlineStemMacroRx`, `InlineKbdBtnMacroRx` and
+/// `InlineMenuMacroRx` end at the first unescaped `]` and need one character (menu: blank
+/// brackets are a menuref), so empty brackets reach the next `]`.
+#[rstest::rstest]
+#[case("stem:[] stem:[x]", "<s:] stem:[x>", "<s:> <s:x>")]
+#[case("btn:[] btn:[Save]", "<b:] btn:[Save>", "<b:> <b:Save>")]
+#[case("kbd:[] kbd:[Ctrl]", "<k:] kbd:[Ctrl>", "<k:> <k:Ctrl>")]
+#[case("menu:File[ ]", "<m:File>", "<m:File|>")]
+#[case("btn:[a[b]c]", "<b:a[b>c]", "<b:a[b]c>")]
+#[case("kbd:[[π]]", "<k:[π>]", "<k:[π]>")]
+#[case("kbd:[[π\\]x]]", "<k:[π]x>]", "<k:[π]x]>")]
+#[case("Before kbd:[[π]", "Before <k:[π>", "Before kbd:[[π]")]
+#[case("menu:F[[a]]", "<m:F|[a>]", "<m:F|[a]>")]
+// A passthrough an attribute introduces is not extracted, so its `]` closes the macro.
+#[case("kbd:[{keys}]", "<k:Ctrl|pass:[a|b>]", "<k:Ctrl|pass:[a+b]>")]
+fn ui_macros_end_at_the_first_unescaped_bracket(
+    #[case] body: &str,
+    #[case] asciidoctor: &str,
+    #[case] draft: &str,
+) -> Result<(), Error> {
+    let source = format!(":experimental:\n:keys: Ctrl+pass:[a+b]\n\n{body}\n");
+    for (mode, expected) in [
+        (CompatibilityMode::Asciidoctor, asciidoctor),
+        (CompatibilityMode::Draft, draft),
+    ] {
+        let parsed = parse(
+            &source,
+            &Options::builder().with_compatibility_mode(mode).build()?,
+        )?;
+        assert_eq!(drawn(paragraph(&parsed)?)?, expected, "{mode:?}");
+    }
     Ok(())
 }

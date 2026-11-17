@@ -64,11 +64,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Early Expanded",
+              "value": "Early ",
               "location": [
                 {
                   "line": 8,
                   "col": 11
+                },
+                {
+                  "line": 8,
+                  "col": 16
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 8,
+                  "col": 17
                 },
                 {
                   "line": 8,
@@ -222,11 +237,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Late Expanded ",
+              "value": "Late ",
               "location": [
                 {
                   "line": 11,
                   "col": 8
+                },
+                {
+                  "line": 11,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 13
+                },
+                {
+                  "line": 11,
+                  "col": 18
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 19
                 },
                 {
                   "line": 11,
@@ -336,11 +381,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Macro Expanded ",
+              "value": "Macro ",
               "location": [
                 {
                   "line": 11,
                   "col": 45
+                },
+                {
+                  "line": 11,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 51
+                },
+                {
+                  "line": 11,
+                  "col": 56
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 57
                 },
                 {
                   "line": 11,
@@ -488,11 +563,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Root Expanded",
+              "value": "Root ",
               "location": [
                 {
                   "line": 14,
                   "col": 11
+                },
+                {
+                  "line": 14,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 14,
+                  "col": 16
                 },
                 {
                   "line": 14,
@@ -555,11 +645,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Leaf end",
+              "value": "Leaf ",
               "location": [
                 {
                   "line": 14,
                   "col": 38
+                },
+                {
+                  "line": 14,
+                  "col": 42
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "end",
+              "location": [
+                {
+                  "line": 14,
+                  "col": 50
                 },
                 {
                   "line": 14,
@@ -821,11 +926,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Alias Expanded",
+              "value": "Alias ",
               "location": [
                 {
                   "line": 17,
                   "col": 4
+                },
+                {
+                  "line": 17,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 10
                 },
                 {
                   "line": 17,
@@ -840,11 +960,26 @@
               {
                 "name": "text",
                 "type": "string",
-                "value": "Target Expanded",
+                "value": "Target ",
                 "location": [
                   {
                     "line": 17,
                     "col": 20
+                  },
+                  {
+                    "line": 17,
+                    "col": 26
+                  }
+                ]
+              },
+              {
+                "name": "text",
+                "type": "string",
+                "value": "Expanded",
+                "location": [
+                  {
+                    "line": 17,
+                    "col": 27
                   },
                   {
                     "line": 17,
@@ -1172,11 +1307,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "Nested Expanded",
+                  "value": "Nested ",
                   "location": [
                     {
                       "line": 20,
                       "col": 10
+                    },
+                    {
+                      "line": 20,
+                      "col": 16
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "Expanded",
+                  "location": [
+                    {
+                      "line": 20,
+                      "col": 17
                     },
                     {
                       "line": 20,
@@ -1328,11 +1478,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " Expanded",
+              "value": " ",
               "location": [
                 {
                   "line": 20,
                   "col": 50
+                },
+                {
+                  "line": 20,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 51
                 },
                 {
                   "line": 20,
@@ -1772,11 +1937,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Code Expanded ",
+              "value": "Code ",
               "location": [
                 {
                   "line": 28,
                   "col": 3
+                },
+                {
+                  "line": 28,
+                  "col": 7
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Expanded",
+              "location": [
+                {
+                  "line": 28,
+                  "col": 8
+                },
+                {
+                  "line": 28,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 28,
+                  "col": 14
                 },
                 {
                   "line": 28,
@@ -2378,7 +2573,7 @@
                     },
                     {
                       "line": 36,
-                      "col": 55
+                      "col": 54
                     }
                   ]
                 },
@@ -2480,6 +2675,7 @@
         }
       ],
       "level": 1,
+      "id": "_index",
       "metadata": {
         "style": "index"
       },

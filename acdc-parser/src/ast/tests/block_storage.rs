@@ -100,8 +100,8 @@ fn typed_heading_ids_keep_constructed_fallbacks_and_heading_precedence(
                     crate::Anchor::new("last", Location::default()),
                 ];
             }
-            let mut header = original.clone();
-            header.title = title.clone();
+            let mut header =
+                crate::DiscreteHeading::new(title.clone(), original.level, Location::default());
             header.metadata = section.metadata.clone();
             let before = serde_json::to_value((&section, &header))?;
             let section_id = SectionRef::from(&section).resolve_id();

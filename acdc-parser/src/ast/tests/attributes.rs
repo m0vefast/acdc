@@ -162,7 +162,7 @@ fn block_image_fields_keep_absent_empty_and_contextual_names_distinct() {
 #[test]
 fn block_audio_title_content_suppresses_stale_scalar_metadata() -> Result<(), Error> {
     let mut audio = crate::Audio::new(
-        Source::Url(crate::SourceUrl::new("https://EXAMPLE.org:443/music")?),
+        Source::Url(crate::SourceUrl::new("https://EXAMPLE.org:443/music")),
         Location::default(),
     );
     audio.title = Title::new(Vec::new());

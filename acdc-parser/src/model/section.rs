@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, VecDeque},
-    fmt::Display,
     sync::Arc,
 };
 
@@ -115,11 +114,14 @@ pub enum SectionKind {
     Glossary,
     Bibliography,
     Index,
+    /// A style Asciidoctor does not name: a special section of that name (parser.rb
+    /// `initialize_section`), numbered only under `:sectnums: all`.
+    Other,
 }
 
 impl SectionKind {
-    /// Classify a section from its block style (e.g. `[preface]`). Unknown or
-    /// absent styles are `Normal`.
+    /// Classify a section from its block style (e.g. `[preface]`). No style, or a
+    /// `sectN` level style, is `Normal`; any other unnamed style is `Other`.
     #[must_use]
     pub fn from_style(style: Option<&str>) -> Self {
         match style {
@@ -131,16 +133,19 @@ impl SectionKind {
             Some("glossary") => SectionKind::Glossary,
             Some("bibliography") => SectionKind::Bibliography,
             Some("index") => SectionKind::Index,
-            _ => SectionKind::Normal,
+            None | Some("") => SectionKind::Normal,
+            Some(style) if is_section_level_style(style) => SectionKind::Normal,
+            Some(_) => SectionKind::Other,
         }
     }
 
     /// The block style string this kind corresponds to (e.g. `"preface"`), or
-    /// `None` for `Normal`. Inverse of [`from_style`](Self::from_style).
+    /// `None` for `Normal` and `Other`. Inverse of [`from_style`](Self::from_style)
+    /// for the named kinds.
     #[must_use]
     pub fn as_style(self) -> Option<&'static str> {
         match self {
-            SectionKind::Normal => None,
+            SectionKind::Normal | SectionKind::Other => None,
             SectionKind::Preface => Some("preface"),
             SectionKind::Abstract => Some("abstract"),
             SectionKind::Dedication => Some("dedication"),
@@ -159,6 +164,14 @@ impl SectionKind {
         !matches!(self, SectionKind::Normal)
     }
 }
+
+/// Asciidoctor's `SectionLevelStyleRx` (`^sect\d$`).
+fn is_section_level_style(style: &str) -> bool {
+    style.strip_prefix("sect").is_some_and(|digit| digit.len() == 1 && digit.as_bytes()[0].is_ascii_digit())
+}
+
+/// Targets registered so far, which a title's cross-references draw from.
+pub(crate) type Refs<'r, 'a> = Option<&'r HashMap<&'a str, ReferenceTarget<'a>>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SectionIdSettings<'a> {
@@ -191,19 +204,21 @@ impl<'a> SectionIdSettings<'a> {
         Self { prefix, separator }
     }
 
+    /// `refs`: targets registered so far, for cross-references in the title.
     pub(crate) fn generate(
         self,
         arena: &'a Bump,
         metadata: &BlockMetadata<'a>,
         title: &[InlineNode<'a>],
+        refs: Refs<'_, 'a>,
     ) -> &'a str {
-        if self == Self::default() {
-            return Section::generate_id(arena, metadata, title).as_arena_str(arena);
+        match Section::explicit_id(metadata) {
+            Some(id) => id,
+            None => arena.alloc_str(&self.title_id(title, refs)),
         }
-        arena.alloc_str(&self.title_id(title))
     }
 
-    fn title_id(self, title: &[InlineNode<'a>]) -> String {
+    fn title_id(self, title: &[InlineNode<'a>], refs: Refs<'_, 'a>) -> String {
         let mut id = String::new();
         let mut previous_separator = false;
         let mut append = |ch| {
@@ -224,7 +239,7 @@ impl<'a> SectionIdSettings<'a> {
         for ch in self.prefix.chars() {
             append(ch);
         }
-        Section::append_id_from_inlines(title, &mut |text| {
+        Section::append_id_from_inlines(refs, &[], title, &mut |text| {
             for ch in text.chars().flat_map(char::to_lowercase) {
                 if ch.is_whitespace() {
                     append(' ');
@@ -265,6 +280,9 @@ pub struct Section<'a> {
     // Retained until the reference catalog assigns the section's ID.
     pub(crate) reference_text: Option<&'a str>,
     pub(crate) location: Location,
+    /// A dot-title written before the heading, owed to the next content block
+    /// (`Block::deliver_carried_titles`); empty once delivered.
+    pub(crate) carried_title: Title<'a>,
 }
 
 impl<'a> Section<'a> {
@@ -291,6 +309,7 @@ impl<'a> Section<'a> {
             id_settings: SectionIdSettings::default(),
             reference_text: None,
             location,
+            carried_title: Title::default(),
         }
     }
 
@@ -316,6 +335,7 @@ impl<'a> Section<'a> {
             id_settings: SectionIdSettings::default(),
             reference_text: None,
             location,
+            carried_title: Title::default(),
         }
     }
 
@@ -471,8 +491,22 @@ struct NumberingState {
     counters: [usize; MAX_SECTION_LEVELS as usize + 1],
     part_counter: usize,
     appendix_counter: usize,
-    appendix_letter: Option<char>,
+    appendix_letter: Option<String>,
     base_level: Option<SectionLevel>,
+}
+
+/// The `index`th appendix letter, counting as Ruby's `String#succ` does from `A`:
+/// `Z` is followed by `AA`.
+fn appendix_letter(mut index: usize) -> String {
+    let mut letters = Vec::new();
+    loop {
+        letters.push(char::from(b'A' + u8::try_from(index % 26).unwrap_or(0)));
+        if index < 26 {
+            break;
+        }
+        index = index / 26 - 1;
+    }
+    letters.iter().rev().collect()
 }
 
 impl NumberingState {
@@ -502,12 +536,12 @@ impl NumberingState {
     fn next_appendix(&mut self) -> SectionNumber {
         let index = self.appendix_counter;
         self.appendix_counter = self.appendix_counter.saturating_add(1);
-        let letter = char::from(b'A' + u8::try_from(index).unwrap_or(25).min(25));
-        self.appendix_letter = Some(letter);
+        let letter = appendix_letter(index);
+        self.appendix_letter = Some(letter.clone());
         for counter in self.counters.iter_mut().skip(1) {
             *counter = 0;
         }
-        SectionNumber::new(letter.to_string())
+        SectionNumber::new(letter)
     }
 
     fn next_section(&mut self, level: SectionLevel) -> Option<SectionNumber> {
@@ -526,8 +560,8 @@ impl NumberingState {
         }
 
         let mut number = String::new();
-        if let Some(letter) = self.appendix_letter {
-            number.push(letter);
+        if let Some(letter) = &self.appendix_letter {
+            number.push_str(letter);
             for component in self.counters.get(1..=level_index)? {
                 use std::fmt::Write as _;
                 let _ = write!(number, ".{component}");
@@ -915,7 +949,8 @@ fn section_participates(section: &Section<'_>, is_book: bool) -> bool {
         | SectionKind::Colophon
         | SectionKind::Glossary
         | SectionKind::Bibliography
-        | SectionKind::Index => section.numbering.number_all,
+        | SectionKind::Index
+        | SectionKind::Other => section.numbering.number_all,
     }
 }
 
@@ -961,7 +996,9 @@ fn renumber_table<'a, F>(
     }
 }
 
-fn effective_numbering_level(level: SectionLevel, kind: SectionKind) -> SectionLevel {
+/// asciidoctor `initialize_section`: a section with a special style written at level 0
+/// stands at level 1 (`sect_level = 1 if sect_level == 0`).
+pub(crate) fn effective_numbering_level(level: SectionLevel, kind: SectionKind) -> SectionLevel {
     if level == 0 && kind.is_special() {
         1
     } else {
@@ -995,56 +1032,25 @@ fn to_upper_roman(mut number: usize) -> String {
     result
 }
 
-/// A `SafeId` represents a sanitized ID.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-enum SafeId<'a> {
-    Generated(&'a str),
-    Explicit(&'a str),
-}
-
-impl Display for SafeId<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            // An empty generated slug (a title with no id-able characters)
-            // yields an empty id rather than a bare `_`, matching asciidoctor.
-            SafeId::Generated("") => Ok(()),
-            SafeId::Generated(id) => write!(f, "_{id}"),
-            SafeId::Explicit(id) => write!(f, "{id}"),
-        }
-    }
-}
-
-impl<'a> SafeId<'a> {
-    /// Return the display-equivalent `&'a str` for this safe id without going
-    /// through `format!`/`to_string()`. `Generated` variants are prepended
-    /// with `_` into the arena; an empty generated slug stays empty; `Explicit`
-    /// is returned unchanged.
-    #[must_use]
-    fn as_arena_str(&self, arena: &'a Bump) -> &'a str {
-        match self {
-            SafeId::Generated("") => "",
-            SafeId::Generated(id) => {
-                let mut s = bumpalo::collections::String::new_in(arena);
-                s.push('_');
-                s.push_str(id);
-                s.into_bump_str()
-            }
-            SafeId::Explicit(id) => id,
-        }
-    }
-}
-
 impl<'a> Section<'a> {
     fn id_from_title(title: &[InlineNode<'a>]) -> String {
         SectionIdSettings {
             prefix: "",
             separator: Some('_'),
         }
-        .title_id(title)
+        .title_id(title, None)
     }
 
-    fn append_id_from_inlines(inlines: &[InlineNode<'a>], append: &mut impl FnMut(&str)) {
+    /// The text Asciidoctor's converted title leaves for an ID: replacements and
+    /// character references are entities and leave nothing, a footnote leaves
+    /// its number, a formula its text, a cross-reference without text its
+    /// registered target's label.
+    fn append_id_from_inlines(
+        refs: Refs<'_, 'a>,
+        expanding: &[&str],
+        inlines: &[InlineNode<'a>],
+        append: &mut impl FnMut(&str),
+    ) {
         for node in inlines {
             match node {
                 InlineNode::PlainText(text) => {
@@ -1057,41 +1063,38 @@ impl<'a> Section<'a> {
                     append(text.content);
                 }
                 InlineNode::BoldText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::ItalicText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::MonospaceText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::HighlightText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::SubscriptText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::SuperscriptText(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::DoubleQuotedSpan(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::SingleQuotedSpan(text) => {
-                    Self::append_id_from_inlines(&text.content, append);
-                }
-                InlineNode::Symbol(symbol) => {
-                    append(symbol.kind.text());
-                }
-                InlineNode::StandaloneCurvedApostrophe(_) => {
-                    append("'");
+                    Self::append_id_from_inlines(refs, expanding, &text.content, append);
                 }
                 InlineNode::LineBreak(_) => {
                     append(" ");
                 }
-                InlineNode::CharacterReference(_) | InlineNode::InlineAnchor(_) => {}
+                InlineNode::Symbol(_)
+                | InlineNode::StandaloneCurvedApostrophe(_)
+                | InlineNode::CharacterReference(_)
+                | InlineNode::InlineAnchor(_) => {}
                 InlineNode::Macro(macro_node) => {
-                    Self::append_id_from_macro(macro_node, append);
+                    Self::append_id_from_macro(refs, expanding, macro_node, append);
                 }
                 InlineNode::CalloutMarker(callout) => {
                     append(&format!("<{}>", callout.number));
@@ -1100,41 +1103,58 @@ impl<'a> Section<'a> {
         }
     }
 
-    fn append_id_from_macro(macro_node: &InlineMacro<'a>, append: &mut impl FnMut(&str)) {
+    fn append_id_from_macro(
+        refs: Refs<'_, 'a>,
+        expanding: &[&str],
+        macro_node: &InlineMacro<'a>,
+        append: &mut impl FnMut(&str),
+    ) {
         match macro_node {
             InlineMacro::Link(link) => {
                 if link.text.is_empty() {
                     append(&link.target.to_string());
                 } else {
-                    Self::append_id_from_inlines(&link.text, append);
+                    Self::append_id_from_inlines(refs, expanding, &link.text, append);
                 }
             }
             InlineMacro::UrlMacro(url) => {
                 if url.text.is_empty() {
                     append(&url.target.to_string());
                 } else {
-                    Self::append_id_from_inlines(&url.text, append);
+                    Self::append_id_from_inlines(refs, expanding, &url.text, append);
                 }
             }
             InlineMacro::Mailto(mailto) => {
                 if mailto.text.is_empty() {
                     append(&mailto.target.to_string());
                 } else {
-                    Self::append_id_from_inlines(&mailto.text, append);
+                    Self::append_id_from_inlines(refs, expanding, &mailto.text, append);
                 }
             }
             InlineMacro::Autolink(autolink) => {
                 append(&autolink.url.to_string());
             }
             InlineMacro::CrossReference(xref) => {
-                if xref.text.is_empty() {
-                    append(xref.target);
-                } else {
-                    Self::append_id_from_inlines(&xref.text, append);
+                let label = refs
+                    .and_then(|refs| refs.get(xref.target))
+                    .and_then(|target| target.xreflabel.as_ref().or(target.title.as_ref()));
+                match label {
+                    _ if !xref.text.is_empty() => Self::append_id_from_inlines(refs, expanding, &xref.text, append),
+                    // Inside its own target's expansion a reference reads as Asciidoctor's `[id]`.
+                    Some(_) if expanding.contains(&xref.target) => append(&format!("[{}]", xref.target)),
+                    Some(label) => {
+                        let mut nested = expanding.to_vec();
+                        nested.push(xref.target);
+                        Self::append_id_from_inlines(refs, &nested, label.as_inlines(), append);
+                    }
+                    None => append(xref.target),
                 }
             }
+            InlineMacro::Footnote(footnote) => {
+                append(&format!("[{}]", footnote.number));
+            }
             InlineMacro::IndexTerm(index_term) if index_term.is_visible() => {
-                Self::append_id_from_inlines(index_term.term(), append);
+                Self::append_id_from_inlines(refs, expanding, index_term.term(), append);
             }
             InlineMacro::Passthrough(pass) => {
                 append(pass.text.unwrap_or_default());
@@ -1144,25 +1164,26 @@ impl<'a> Section<'a> {
                     if index > 0 {
                         append("+");
                     }
-                    Self::append_id_from_inlines(key.as_inlines(), append);
+                    Self::append_id_from_inlines(refs, expanding, key.as_inlines(), append);
                 }
             }
             InlineMacro::Button(button) => {
-                Self::append_id_from_inlines(button.label.as_inlines(), append);
+                Self::append_id_from_inlines(refs, expanding, button.label.as_inlines(), append);
             }
             InlineMacro::MenuPath(menu) => {
                 for (index, item) in menu.items.iter().enumerate() {
                     if index > 0 {
                         append(" > ");
                     }
-                    Self::append_id_from_inlines(item.as_inlines(), append);
+                    Self::append_id_from_inlines(refs, expanding, item.as_inlines(), append);
                 }
             }
-            InlineMacro::Image(_)
-            | InlineMacro::Footnote(_)
-            | InlineMacro::Stem(_)
-            | InlineMacro::Icon(_)
-            | InlineMacro::IndexTerm(_) => {}
+            // A formula converts to its text in delimiters (`\(…\)`, `\$…\$`), which the ID
+            // rule drops.
+            InlineMacro::Stem(stem) => {
+                append(stem.content);
+            }
+            InlineMacro::Image(_) | InlineMacro::Icon(_) | InlineMacro::IndexTerm(_) => {}
         }
     }
 
@@ -1170,23 +1191,6 @@ impl<'a> Section<'a> {
     /// the arena-returning and `String`-returning variants below.
     pub(crate) fn explicit_id(metadata: &BlockMetadata<'a>) -> Option<&'a str> {
         metadata.heading_anchor().map(|anchor| anchor.id)
-    }
-
-    /// Generate a section ID based on its title and metadata.
-    ///
-    /// Checks in order: explicit `metadata.id` (e.g. `[id=foo]`), then the last entry in
-    /// `metadata.anchors` (e.g. `[[foo]]`), otherwise auto-generates one from the title
-    /// and interns it into the supplied arena.
-    #[must_use]
-    fn generate_id(
-        arena: &'a Bump,
-        metadata: &BlockMetadata<'a>,
-        title: &[InlineNode<'a>],
-    ) -> SafeId<'a> {
-        match Self::explicit_id(metadata) {
-            Some(id) => SafeId::Explicit(id),
-            None => SafeId::Generated(arena.alloc_str(&Self::id_from_title(title))),
-        }
     }
 
     /// Generate a section ID based on its title and metadata, returning a `String`
@@ -1218,6 +1222,9 @@ impl Serialize for Section<'_> {
         state.serialize_entry("type", "block")?;
         state.serialize_entry("title", &self.title)?;
         state.serialize_entry("level", &self.level)?;
+        if let Some(id) = Self::explicit_id(&self.metadata).or(self.id) {
+            state.serialize_entry("id", id)?;
+        }
         if !self.metadata.is_empty_for_serialization() {
             state.serialize_entry("metadata", &self.metadata)?;
         }
@@ -1367,7 +1374,7 @@ mod tests {
     #[test]
     fn test_id_from_title_strips_leading_separators() {
         // Leading non-alphanumerics must be squeezed away so the `_` prefix
-        // added by `SafeId::Generated` does not produce a doubled `__`.
+        // does not produce a doubled `__`.
         let inlines: &[InlineNode] = &[InlineNode::PlainText(Plain {
             content: "--  Specialized Environments",
             location: Location::default(),
@@ -1399,10 +1406,7 @@ mod tests {
             Section::generate_id_string(&metadata, inlines),
             String::new()
         );
-        let safe_id = Section::generate_id(&arena, &metadata, inlines);
-        assert_eq!(safe_id, SafeId::Generated(""));
-        assert_eq!(safe_id.to_string(), String::new());
-        assert_eq!(safe_id.as_arena_str(&arena), "");
+        assert_eq!(SectionIdSettings::default().generate(&arena, &metadata, inlines, None), "");
     }
 
     #[test]
@@ -1439,11 +1443,11 @@ mod tests {
             escaped: false,
         })];
         // metadata has an empty id
+        let generate = |metadata: &BlockMetadata<'_>| {
+            SectionIdSettings::default().generate(&arena, metadata, inlines, None).to_string()
+        };
         let metadata = BlockMetadata::default();
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Generated("this_is_a_b_i_g_title")
-        );
+        assert_eq!(generate(&metadata), "_this_is_a_b_i_g_title");
 
         // metadata has a specific id in metadata.id
         let metadata = BlockMetadata {
@@ -1457,10 +1461,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("custom_id")
-        );
+        assert_eq!(generate(&metadata), "custom_id");
 
         // metadata has anchor in metadata.anchors (from [[id]] or [#id] syntax)
         let metadata = BlockMetadata {
@@ -1474,10 +1475,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("anchor_id")
-        );
+        assert_eq!(generate(&metadata), "anchor_id");
 
         // with multiple anchors, the last one is used (matches asciidoctor behavior)
         let metadata = BlockMetadata {
@@ -1501,10 +1499,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("last_anchor")
-        );
+        assert_eq!(generate(&metadata), "last_anchor");
 
         // metadata.id takes precedence over metadata.anchors
         let metadata = BlockMetadata {
@@ -1526,9 +1521,25 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert_eq!(
-            Section::generate_id(&arena, &metadata, inlines),
-            SafeId::Explicit("from_id")
-        );
+        assert_eq!(generate(&metadata), "from_id");
+    }
+
+    /// A consumer of the serialized tree reads the id the renderer emits: the
+    /// written one, or the one the parser allocated, duplicates numbered.
+    #[test]
+    fn serialized_sections_carry_their_assigned_id() -> Result<(), Box<dyn std::error::Error>> {
+        let parsed = parse(
+            "== Intro\n\n== Intro\n\n[[own]]\n== Named\n\n[#short]\n== Short\n",
+            &Options::default(),
+        )?;
+        let json = serde_json::to_value(parsed.document())?;
+        let ids: Vec<&str> = json["blocks"]
+            .as_array()
+            .ok_or("blocks")?
+            .iter()
+            .map(|b| b["id"].as_str().unwrap_or("<none>"))
+            .collect();
+        assert_eq!(ids, ["_intro", "_intro_2", "own", "short"]);
+        Ok(())
     }
 }

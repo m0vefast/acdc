@@ -65,11 +65,32 @@
           {
             "name": "text",
             "type": "string",
-            "value": "café Earlier ",
+            "value": "café ",
             "location": [
               {
                 "line": 2,
                 "col": 33,
+                "file": [
+                  "includes/reference_typography_selected.adoc"
+                ]
+              },
+              {
+                "line": 2,
+                "col": 37,
+                "file": [
+                  "includes/reference_typography_selected.adoc"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "Earlier ",
+            "location": [
+              {
+                "line": 2,
+                "col": 38,
                 "file": [
                   "includes/reference_typography_selected.adoc"
                 ]
@@ -243,11 +264,26 @@
                         {
                           "name": "text",
                           "type": "string",
-                          "value": "Cell Later ",
+                          "value": "Cell ",
                           "location": [
                             {
                               "line": 10,
                               "col": 26
+                            },
+                            {
+                              "line": 10,
+                              "col": 30
+                            }
+                          ]
+                        },
+                        {
+                          "name": "text",
+                          "type": "string",
+                          "value": "Later ",
+                          "location": [
+                            {
+                              "line": 10,
+                              "col": 31
                             },
                             {
                               "line": 10,

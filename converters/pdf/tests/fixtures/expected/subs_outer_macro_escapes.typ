@@ -95,9 +95,9 @@
 
 #text("S03 \\indexterm2:[None] and \\\\xref:target[None] and \\footnote:[None] and \\https://example.org[None].")
 
-#text("S04 ")#text("indexterm2:[Attribute]")#text(" and ")#text("xref:target[Attribute]")#text(".")
+#text("S04 ")#text("indexterm2:[")#text("Attribute")#text("]")#text(" and ")#text("xref:target[")#text("Attribute")#text("]")#text(".")
 
-#text("S05 ")#text("indexterm2:[Attribute]")#text(" and ")#text("xref:target[Attribute]")#text(".")
+#text("S05 ")#text("indexterm2:[")#text("Attribute")#text("]")#text(" and ")#text("xref:target[")#text("Attribute")#text("]")#text(".")
 
 #{
   // Slice highlighted text without discarding its syntax styles.
@@ -141,13 +141,13 @@
 }
 #raw(block: true, "S09 \\indexterm2:[Disabled] \\xref:target[Disabled] \\https://example.org[Disabled]")
 
-#text("S10 \\\\")#metadata(none)<__indexterm-1>#text("Late index")#text(" and \\\\")#context link(query(<id-746172676574>).first().location())[#text("Late reference")]#text(".")
+#text("S10 ")#text("\\\\")#metadata(none)<__indexterm-1>#text("Late index")#text(" and ")#text("\\\\")#context link(query(<id-746172676574>).first().location())[#text("Late reference")]#text(".")
 
-#text("S11 \\")#text("indexterm2:[Early index]")#text(" and \\")#text("xref:target[Early reference]")#text(".")
+#text("S11 ")#text("\\")#text("indexterm2:[Early index]")#text(" and ")#text("\\")#text("xref:target[Early reference]")#text(".")
 
-#text("S12 ")#text("\\\\https://example.org[Late URL]")#text(".")
+#text("S12 ")#text("\\\\")#text("https://example.org[Late URL]")#text(".")
 
-#text("S13 ")#text("\\\\https://example.org[Early URL]")#text(".")
+#text("S13 ")#text("\\\\")#text("https://example.org[Early URL]")#text(".")
 
 #metadata(none) <id-746172676574>
 #text("Target paragraph.")

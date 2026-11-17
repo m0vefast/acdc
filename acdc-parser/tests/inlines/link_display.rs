@@ -192,6 +192,51 @@ fn xref_text_accepts_protected_inline_macro_forms() -> Result<(), Error> {
     Ok(())
 }
 
+/// asciidoctor `InlineLinkMacroRx`: a link target is any run of non-space characters
+/// up to `[` that does not start with `:`.
+#[test]
+fn link_macro_target_is_any_non_space_run() -> Result<(), Error> {
+    for (input, target) in [
+        ("link:Meeting%20Notes.pdf[m]", "Meeting%20Notes.pdf"),
+        ("link:~/a+b.txt[y]", "~/a+b.txt"),
+    ] {
+        let parsed = parse_inline(input, &Options::default())?;
+        let targets = parsed
+            .content()
+            .inlines()
+            .filter_map(|inline| match inline.kind() {
+                InlineKind::Link(link) => Some(link.target().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(targets, [target], "{input}");
+    }
+    Ok(())
+}
+
+/// asciidoctor `InlineXrefMacroRx`: the macro target runs lazily to the first `[`,
+/// spaces included.
+#[test]
+fn xref_macro_target_may_hold_spaces() -> Result<(), Error> {
+    for (input, target) in [
+        ("xref:my guide.adoc#x[]", "my guide.adoc#x"),
+        ("see xref:my guide.adoc[Guide] now", "my guide.adoc"),
+        ("xref:a b[]", "a b"),
+    ] {
+        let parsed = parse_inline(input, &Options::default())?;
+        let targets = parsed
+            .content()
+            .inlines()
+            .filter_map(|inline| match inline.kind() {
+                InlineKind::CrossReference(xref) => Some(xref.written_target()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(targets, [target], "{input}");
+    }
+    Ok(())
+}
+
 #[test]
 fn xref_macro_honors_closing_bracket_boundaries() -> Result<(), Error> {
     let parsed = parse_inline(r"xref:target[literal \] tail]", &Options::default())?;

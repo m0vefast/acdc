@@ -112,11 +112,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "*Literal formatting* expanded.",
+          "value": "*Literal formatting* ",
           "location": [
             {
               "line": 8,
               "col": 1
+            },
+            {
+              "line": 8,
+              "col": 21
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 8,
+              "col": 22
+            },
+            {
+              "line": 8,
+              "col": 28
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 8,
+              "col": 29
             },
             {
               "line": 8,

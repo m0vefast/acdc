@@ -12,7 +12,6 @@ use crate::{
         },
         helpers::BlockParsingMetadata,
         inline_processing::process_verbatim_inlines,
-        location_walk::walk_inline_nodes_mut,
     },
     model::{
         Substitution,
@@ -166,6 +165,85 @@ fn callout_guard(text: &str, prefix: Option<&AttributeValue<'_>>) -> Option<usiz
     }
 }
 
+/// Remove `indent` from every line of literal text. Each line becomes a node of
+/// its own, located after the indentation it lost.
+fn dedent_lines<'a>(
+    state: &ParserState<'a>,
+    nodes: Vec<InlineNode<'a>>,
+    indent: usize,
+) -> Vec<InlineNode<'a>> {
+    let mut out = Vec::with_capacity(nodes.len());
+    for mut node in nodes {
+        let children = match &mut node {
+            InlineNode::BoldText(span) => Some(&mut span.content),
+            InlineNode::ItalicText(span) => Some(&mut span.content),
+            InlineNode::MonospaceText(span) => Some(&mut span.content),
+            InlineNode::HighlightText(span) => Some(&mut span.content),
+            InlineNode::SubscriptText(span) => Some(&mut span.content),
+            InlineNode::SuperscriptText(span) => Some(&mut span.content),
+            InlineNode::DoubleQuotedSpan(span) => Some(&mut span.content),
+            InlineNode::SingleQuotedSpan(span) => Some(&mut span.content),
+            _ => None,
+        };
+        if let Some(children) = children {
+            *children = dedent_lines(state, std::mem::take(children), indent);
+            out.push(node);
+            continue;
+        }
+        let (content, location, escaped) = match &node {
+            InlineNode::PlainText(text) => (text.content, &text.location, Some(text.escaped)),
+            InlineNode::VerbatimText(text) => (text.content, &text.location, None),
+            _ => {
+                out.push(node);
+                continue;
+            }
+        };
+        // Lines keep their breaks through every substitution, so each line is
+        // located by the source line it came from, whatever its text became.
+        let end = location.absolute_end;
+        let mut at = location.absolute_start;
+        let mut starts_line = location.start.column == 1;
+        for line in content.split_inclusive('\n') {
+            let line_end = if line.ends_with('\n') {
+                state
+                    .input
+                    .as_bytes()
+                    .get(at..=end)
+                    .and_then(|source| source.iter().position(|&byte| byte == b'\n'))
+                    .map_or(end, |newline| at + newline)
+            } else {
+                end
+            };
+            let strip = if starts_line {
+                line.bytes()
+                    .take(indent)
+                    .take_while(|byte| *byte == b' ' || *byte == b'\t')
+                    .count()
+            } else {
+                0
+            };
+            let text = &line[strip..];
+            if !text.is_empty() {
+                let location = state.create_location(at + strip, line_end);
+                out.push(match escaped {
+                    Some(escaped) => InlineNode::PlainText(Plain {
+                        content: text,
+                        location,
+                        escaped,
+                    }),
+                    None => InlineNode::VerbatimText(Verbatim {
+                        content: text,
+                        location,
+                    }),
+                });
+            }
+            at = line_end + 1;
+            starts_line = true;
+        }
+    }
+    out
+}
+
 pub(super) fn get_literal_paragraph<'input>(
     state: &mut ParserState<'input>,
     content: &'input str,
@@ -198,7 +276,7 @@ pub(super) fn get_literal_paragraph<'input>(
             if let InlineNode::VerbatimText(text) = node {
                 *node = InlineNode::PlainText(Plain {
                     content: text.content,
-                    location: location.clone(),
+                    location: text.location.clone(),
                     escaped: false,
                 });
             }
@@ -210,37 +288,8 @@ pub(super) fn get_literal_paragraph<'input>(
 
     let indent = common_indent(content);
     if indent != 0 {
-        for node in &mut inlines {
-            // Parse before dedenting so callouts and nested formatting keep source locations.
-            walk_inline_nodes_mut(node, &mut |node| {
-                let starts_line = node.location().start.column == 1;
-                let content = if let InlineNode::VerbatimText(text) = node {
-                    &mut text.content
-                } else if let InlineNode::PlainText(text) = node {
-                    &mut text.content
-                } else {
-                    return;
-                };
-                let mut first = true;
-                *content = state.intern_join(
-                    content.split_inclusive('\n').map(|line| {
-                        let strip = !first || starts_line;
-                        first = false;
-                        if strip {
-                            line.get(..indent)
-                                .filter(|prefix| {
-                                    prefix.bytes().all(|byte| byte == b' ' || byte == b'\t')
-                                })
-                                .and_then(|_| line.get(indent..))
-                                .unwrap_or(line)
-                        } else {
-                            line
-                        }
-                    }),
-                    "",
-                );
-            });
-        }
+        // Parse before dedenting so callouts and nested formatting keep source locations.
+        inlines = dedent_lines(state, inlines, indent);
     }
     Ok(Block::Paragraph(Paragraph {
         source_text: Some(content),

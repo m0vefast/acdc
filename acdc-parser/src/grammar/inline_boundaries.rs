@@ -37,6 +37,33 @@ pub(super) fn check_constrained_opening_boundary(
     }
 }
 
+impl super::ParserState<'_> {
+    /// In Asciidoctor mode with replacements before macros, a macro's label is replaced while
+    /// its delimiters still surround it (asciidoctor `apply_subs` order).
+    pub(super) fn label_delimits_replacements(&self) -> bool {
+        self.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+            && self
+                .inline_ctx
+                .substitutions
+                .precedes(&crate::Substitution::Replacements, &crate::Substitution::Macros)
+    }
+
+    /// A constrained quote's opening at `pos`, judged where quotes run. In Asciidoctor mode,
+    /// special characters replaced before quotes leave `<` `>` `&` as entities ending in `;`,
+    /// which no constrained quote follows (asciidoctor `QuoteSubs`, `(^|[^\p{Word};:}])`).
+    pub(super) fn quote_opening(&self, pos: usize, marker: u8) -> bool {
+        let escaped = self.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+            && self
+                .inline_ctx
+                .substitutions
+                .precedes(&crate::Substitution::SpecialChars, &crate::Substitution::Quotes);
+        if escaped && pos > 0 && matches!(self.input.as_bytes().get(pos - 1), Some(b'<' | b'>' | b'&')) {
+            return false;
+        }
+        check_constrained_opening_boundary(pos, self.input.as_bytes(), self.outer_constrained_delimiter, marker)
+    }
+}
+
 /// Decode the UTF-8 character whose final byte is at `end - 1` (i.e. the
 /// character immediately preceding byte offset `end`). Returns `None` at the
 /// start of input or if the bytes are not valid UTF-8.

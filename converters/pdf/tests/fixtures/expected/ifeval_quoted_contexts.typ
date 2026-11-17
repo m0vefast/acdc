@@ -85,24 +85,10 @@
 
 #heading(level: 1)[#text("DESCRIPTION")] <id-5f6465736372697074696f6e>
 
-#text("C01 Header assignment: accepted.")
+#text("C01 Header assignment: {header-result}.")
 
-#text("C02 The initial value matches.")
-
-#text("C03 The body assignment takes effect.")
-
-#text("C04 Body assignment: accepted.")
+#text("C04 Body assignment: {body-result}.")
 
 #text("C05 A quoted comparison nests inside ifdef.")
-
-#text("C06 Active nested comparisons include their content.")
-
-#text("C07 Closing the inner comparison restores its parent.")
-
-  - #text("C08 A conditional list item remains a list.")
-
-#raw(block: true, "C09 A conditional listing remains a listing.")
-
-#text("C10 ")#strong[#text("Formatting")]#text(" remains available in included content.")
 
 #text("C11 Final content keeps its original source location.")

@@ -83,7 +83,7 @@
               },
               {
                 "line": 5,
-                "col": 33
+                "col": 32
               }
             ]
           }
@@ -121,6 +121,7 @@
         }
       ],
       "level": 1,
+      "id": "outer",
       "metadata": {
         "anchors": [
           {
@@ -132,7 +133,7 @@
               },
               {
                 "line": 8,
-                "col": 10
+                "col": 9
               }
             ]
           }
@@ -179,6 +180,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "inner",
                         "metadata": {
                           "anchors": [
                             {
@@ -190,7 +192,7 @@
                                 },
                                 {
                                   "line": 14,
-                                  "col": 10
+                                  "col": 9
                                 }
                               ]
                             }
@@ -261,6 +263,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "outer",
                         "metadata": {
                           "anchors": [
                             {
@@ -272,7 +275,7 @@
                                 },
                                 {
                                   "line": 19,
-                                  "col": 10
+                                  "col": 9
                                 }
                               ]
                             }
@@ -343,6 +346,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "paragraph",
                         "metadata": {
                           "anchors": [
                             {
@@ -354,7 +358,7 @@
                                 },
                                 {
                                   "line": 24,
-                                  "col": 14
+                                  "col": 13
                                 }
                               ]
                             }
@@ -425,6 +429,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "labelled",
                         "metadata": {
                           "anchors": [
                             {
@@ -453,7 +458,7 @@
                                 },
                                 {
                                   "line": 29,
-                                  "col": 26
+                                  "col": 25
                                 }
                               ]
                             }
@@ -569,6 +574,7 @@
         }
       ],
       "level": 1,
+      "id": "inner",
       "metadata": {
         "anchors": [
           {
@@ -580,7 +586,7 @@
               },
               {
                 "line": 35,
-                "col": 10
+                "col": 9
               }
             ]
           }

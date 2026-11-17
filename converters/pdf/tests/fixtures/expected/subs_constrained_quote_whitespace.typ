@@ -217,21 +217,21 @@
 
 #raw(block: true, "V13    ")
 
-#text("V14 ")#strong[#text("bold ")]#text(" ")#emph[#text("italic ")]#text(" ")#highlight[#text("mark ")]#text(" ")#raw("code ")#text(".")
+#text("V14 ")#strong[#text("bold")#text(" ")]#text(" ")#emph[#text("italic")#text(" ")]#text(" ")#highlight[#text("mark")#text(" ")]#text(" ")#raw("code ")#text(".")
 
-#text("V15 ")#strong[#text(" bold")]#text(" ")#emph[#text(" italic")]#text(" ")#highlight[#text(" mark")]#text(" ")#raw(" code")#text(".")
+#text("V15 ")#strong[#text(" ")#text("bold")]#text(" ")#emph[#text(" ")#text("italic")]#text(" ")#highlight[#text(" ")#text("mark")]#text(" ")#raw(" code")#text(".")
 
 #text("V16 ")#strong[#text("bold ")]#text(" ")#emph[#text("italic ")]#text(" ")#highlight[#text("mark ")]#text(" ")#raw("code ")#text(".")
 
 #text("V17 ")#strong[#text(" bold")]#text(" ")#emph[#text(" italic")]#text(" ")#highlight[#text(" mark")]#text(" ")#raw(" code")#text(".")
 
-#text("V18 *bold * _italic _ #mark # `code `.")
+#text("V18 *bold")#text(" ")#text("* _italic")#text(" ")#text("_ #mark")#text(" ")#text("# `code")#text(" ")#text("`.")
 
-#text("V19 * bold* _ italic_ # mark# ` code`.")
+#text("V19 *")#text(" ")#text("bold* _")#text(" ")#text("italic_ #")#text(" ")#text("mark# `")#text(" ")#text("code`.")
 
-#text("V20 *bold * _italic _ #mark # `code `.")
+#text("V20 *bold ")#text("* _italic ")#text("_ #mark ")#text("# `code ")#text("`.")
 
-#text("V21 * bold* _ italic_ # mark# ` code`.")
+#text("V21 *")#text(" bold* _")#text(" italic_ #")#text(" mark# `")#text(" code`.")
 
 #{
   // Slice highlighted text without discarding its syntax styles.

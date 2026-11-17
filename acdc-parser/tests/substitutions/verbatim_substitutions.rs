@@ -101,34 +101,28 @@ fn verbatim_quotes_keep_indented_multiline_source_spans() -> Result<(), Error> {
             }
         })
         .ok_or("missing bold text")?;
-    let [InlineKind::Plain(text)] = &*bold
+    // Each line is a node of its own, located after the indentation it lost.
+    let [InlineKind::Plain(first), InlineKind::Plain(second)] = &*bold
         .content()
         .inlines()
         .map(InlineRef::kind)
         .collect::<Vec<_>>()
     else {
-        return Err("expected one formatted text fragment".into());
+        return Err("expected one formatted text fragment per line".into());
     };
-    assert_eq!(text.text(), "First\n  café");
-    let end = text.location().absolute_end();
-    let last = source
-        .get(end..)
-        .and_then(|s| s.chars().next())
-        .ok_or("invalid end")?;
-    assert_eq!(
-        source.get(text.location().absolute_start()..end + last.len_utf8()),
-        Some("First\n   café")
-    );
-    assert_eq!(
-        (
-            text.location().start().line(),
-            text.location().start().column()
-        ),
-        (2, 3)
-    );
-    assert_eq!(
-        (text.location().end().line(), text.location().end().column()),
-        (3, 7)
-    );
+    for (text, want, start, end) in [(first, "First\n", (2, 3), (2, 8)), (second, "  café", (3, 2), (3, 7))] {
+        assert_eq!(text.text(), want);
+        let location = text.location();
+        let last = source
+            .get(location.absolute_end()..)
+            .and_then(|s| s.chars().next())
+            .ok_or("invalid end")?;
+        assert_eq!(
+            source.get(location.absolute_start()..location.absolute_end() + last.len_utf8()),
+            Some(want)
+        );
+        assert_eq!((location.start().line(), location.start().column()), start);
+        assert_eq!((location.end().line(), location.end().column()), end);
+    }
     Ok(())
 }

@@ -82,7 +82,7 @@
 #metadata(none) <id-73696465>
 #sidebarbox[
 #sidebartitle[#text("Sidebar title")]
-#text("Sidebar ")#strong[#text("Bold")]#text(" expanded.")]
+#text("Sidebar ")#strong[#text("Bold")]#text(" ")#text("expanded")#text(".")]
 
 #sidebarbox[
 #text(" Indented ")#strong[#text("Bold")]#text(".")]

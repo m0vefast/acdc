@@ -167,7 +167,8 @@ fn prepared_styles_and_numbering_follow_explicit_edits() -> Result<(), Error> {
     assert_eq!(SectionRef::from(&edited).kind(), SectionKind::Normal);
     metadata.style = Some("custom");
     edited.set_metadata(metadata)?;
-    assert_eq!(SectionRef::from(&edited).kind(), SectionKind::Normal);
+    // asciidoctor 2.0.26: a style other than `sectN` makes a special section named by it.
+    assert_eq!(SectionRef::from(&edited).kind(), SectionKind::Other);
     assert_eq!(SectionRef::from(&edited).style(), Some("custom"));
     Ok(())
 }

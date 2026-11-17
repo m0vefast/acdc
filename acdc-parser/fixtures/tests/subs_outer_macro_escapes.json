@@ -58,6 +58,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -123,6 +124,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -206,6 +208,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -335,11 +338,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "indexterm2:[Attribute]",
+              "value": "indexterm2:[",
               "location": [
                 {
                   "line": 26,
                   "col": 5
+                },
+                {
+                  "line": 26,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Attribute",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 18
+                },
+                {
+                  "line": 26,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 25
                 },
                 {
                   "line": 26,
@@ -365,11 +398,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "xref:target[Attribute]",
+              "value": "xref:target[",
               "location": [
                 {
                   "line": 26,
                   "col": 31
+                },
+                {
+                  "line": 26,
+                  "col": 43
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Attribute",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 44
+                },
+                {
+                  "line": 26,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 51
                 },
                 {
                   "line": 26,
@@ -432,11 +495,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "indexterm2:[Attribute]",
+              "value": "indexterm2:[",
               "location": [
                 {
                   "line": 29,
                   "col": 5
+                },
+                {
+                  "line": 29,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Attribute",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 18
+                },
+                {
+                  "line": 29,
+                  "col": 24
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 25
                 },
                 {
                   "line": 29,
@@ -462,11 +555,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "xref:target[Attribute]",
+              "value": "xref:target[",
               "location": [
                 {
                   "line": 29,
                   "col": 31
+                },
+                {
+                  "line": 29,
+                  "col": 43
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Attribute",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 44
+                },
+                {
+                  "line": 29,
+                  "col": 50
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 51
                 },
                 {
                   "line": 29,
@@ -796,11 +919,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S10 \\\\",
+              "value": "S10 ",
               "location": [
                 {
                   "line": 44,
                   "col": 1
+                },
+                {
+                  "line": 44,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\\\",
+              "location": [
+                {
+                  "line": 44,
+                  "col": 5
                 },
                 {
                   "line": 44,
@@ -843,11 +981,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " and \\\\",
+              "value": " and ",
               "location": [
                 {
                   "line": 44,
                   "col": 36
+                },
+                {
+                  "line": 44,
+                  "col": 40
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\\\",
+              "location": [
+                {
+                  "line": 44,
+                  "col": 41
                 },
                 {
                   "line": 44,
@@ -928,11 +1081,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S11 \\",
+              "value": "S11 ",
               "location": [
                 {
                   "line": 47,
                   "col": 1
+                },
+                {
+                  "line": 47,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 47,
+                  "col": 5
                 },
                 {
                   "line": 47,
@@ -947,7 +1115,7 @@
               "location": [
                 {
                   "line": 47,
-                  "col": 5
+                  "col": 13
                 },
                 {
                   "line": 47,
@@ -958,11 +1126,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " and \\",
+              "value": " and ",
               "location": [
                 {
                   "line": 47,
                   "col": 37
+                },
+                {
+                  "line": 47,
+                  "col": 41
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 47,
+                  "col": 42
                 },
                 {
                   "line": 47,
@@ -977,7 +1160,7 @@
               "location": [
                 {
                   "line": 47,
-                  "col": 42
+                  "col": 50
                 },
                 {
                   "line": 47,
@@ -1040,11 +1223,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\\\\https://example.org[Late URL]",
+              "value": "\\\\",
               "location": [
                 {
                   "line": 50,
                   "col": 5
+                },
+                {
+                  "line": 50,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org[Late URL]",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 13
                 },
                 {
                   "line": 50,
@@ -1107,11 +1305,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "\\\\https://example.org[Early URL]",
+              "value": "\\\\",
               "location": [
                 {
                   "line": 53,
                   "col": 5
+                },
+                {
+                  "line": 53,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "https://example.org[Early URL]",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 13
                 },
                 {
                   "line": 53,
@@ -1200,7 +1413,7 @@
                   },
                   {
                     "line": 55,
-                    "col": 18
+                    "col": 17
                   }
                 ]
               }

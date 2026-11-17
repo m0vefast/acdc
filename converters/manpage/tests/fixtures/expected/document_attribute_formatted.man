@@ -44,7 +44,7 @@ Macros: \c
 .sp
 Empty: ** / \fB\fR\&. Escaped: \fB{name}\fR\&.
 .sp
-Order: pass:q,c[*Escaped*] / pass:m,c[https://example.org[Escaped site]]\&. Partial: prefix pass:q[*Literal*].
+Order: pass:q,c[*Escaped*] / pass:m,c[https://example.org[Escaped site]]\&. Partial: prefix pass:q[*Literal*]\&.
 .TS
 allbox tab(:);
 ltx ltx.

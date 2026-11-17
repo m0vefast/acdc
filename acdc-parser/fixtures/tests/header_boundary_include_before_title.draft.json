@@ -27,6 +27,7 @@
         }
       ],
       "level": 0,
+      "id": "_title",
       "blocks": [
         {
           "name": "paragraph",

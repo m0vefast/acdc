@@ -34,8 +34,8 @@ v1.0, 2026\-10\-04
 header\-metadata\-boundaries \- stop metadata at a blank line
 .SH "SYNOPSIS"
 .sp
-H21 kept=header; authorcount=0.
+H21 kept=header; authorcount=0\&.
 .sp
 H22 author={author}; revision={revnumber}.
 .sp
-H23 kept=body.
+H23 kept=body\&.

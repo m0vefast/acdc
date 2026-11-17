@@ -136,7 +136,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => index-anchors.at(line.number - 1, default: []) + code-links(line)
-  raw(block: true, "S01 Before (1)\nS02 Bold (1)\nS03 attribute (1)\nS04 % (1)\nS05 ￼ (1)\nS06 code Index (1)\nS07 code (1)")
+  raw(block: true, "S01 Before (1)\nS02 Bold (1)\nS03 attribute % (1)\nS04 % (1)\nS05 ￼ (1)\nS06 code Index (1)\nS07 code (1)")
 }
 #grid(columns: (auto, 1fr), column-gutter: 0.5em, row-gutter: 0.5em, align: (x, _) => if x == 0 { right + top } else { left + top },
 [#text("(1)")], [#text("Enabled substitutions and targets.")],

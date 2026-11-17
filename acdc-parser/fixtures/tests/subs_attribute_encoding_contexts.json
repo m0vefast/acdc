@@ -42,6 +42,14 @@
     "toc-title": "Research & <Development>",
     "version-label": "Version & <label>"
   },
+  "attribute_parts": {
+    "raw-label": [
+      {
+        "text": "<em>Raw title</em>",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -64,6 +72,7 @@
         }
       ],
       "level": 1,
+      "id": "_section",
       "blocks": [
         {
           "name": "example",
@@ -138,11 +147,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Ordinary: Research ",
+              "value": "Ordinary: ",
               "location": [
                 {
                   "line": 18,
                   "col": 1
+                },
+                {
+                  "line": 18,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Research ",
+              "location": [
+                {
+                  "line": 18,
+                  "col": 11
                 },
                 {
                   "line": 18,
@@ -302,11 +326,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Attributes only: Research ",
+              "value": "Attributes only: ",
               "location": [
                 {
                   "line": 24,
                   "col": 1
+                },
+                {
+                  "line": 24,
+                  "col": 17
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Research ",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 18
                 },
                 {
                   "line": 24,
@@ -455,7 +494,7 @@
             },
             {
               "line": 28,
-              "col": 8
+              "col": 7
             }
           ]
         },
@@ -466,11 +505,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Body inline: Body ",
+              "value": "Body inline: ",
               "location": [
                 {
                   "line": 30,
                   "col": 1
+                },
+                {
+                  "line": 30,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Body ",
+              "location": [
+                {
+                  "line": 30,
+                  "col": 14
                 },
                 {
                   "line": 30,
@@ -554,6 +608,12 @@
           "name": "toc-title",
           "type": "attribute",
           "value": "<em>Raw title</em>",
+          "parts": [
+            {
+              "text": "<em>Raw title</em>",
+              "special_chars": 0
+            }
+          ],
           "location": [
             {
               "line": 32,
@@ -575,7 +635,7 @@
             },
             {
               "line": 34,
-              "col": 8
+              "col": 7
             }
           ]
         },

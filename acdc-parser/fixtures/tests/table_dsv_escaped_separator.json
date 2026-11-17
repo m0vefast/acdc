@@ -27,7 +27,7 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "cell with : colon",
+                        "value": "cell with ",
                         "location": [
                           {
                             "line": 3,
@@ -35,7 +35,22 @@
                           },
                           {
                             "line": 3,
-                            "col": 17
+                            "col": 10
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": ": colon",
+                        "location": [
+                          {
+                            "line": 3,
+                            "col": 12
+                          },
+                          {
+                            "line": 3,
+                            "col": 18
                           }
                         ]
                       }
@@ -47,7 +62,7 @@
                       },
                       {
                         "line": 3,
-                        "col": 17
+                        "col": 18
                       }
                     ]
                   }
@@ -101,7 +116,7 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "another : escaped",
+                        "value": "another ",
                         "location": [
                           {
                             "line": 4,
@@ -109,7 +124,22 @@
                           },
                           {
                             "line": 4,
-                            "col": 17
+                            "col": 8
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": ": escaped",
+                        "location": [
+                          {
+                            "line": 4,
+                            "col": 10
+                          },
+                          {
+                            "line": 4,
+                            "col": 18
                           }
                         ]
                       }
@@ -121,7 +151,7 @@
                       },
                       {
                         "line": 4,
-                        "col": 17
+                        "col": 18
                       }
                     ]
                   }

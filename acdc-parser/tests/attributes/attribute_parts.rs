@@ -114,19 +114,27 @@ fn attribute_parts_keeps_caller_overrides_literal() -> Result<(), Error> {
     Ok(())
 }
 
-#[test]
-fn attribute_parts_uses_neutral_text_for_conditions_and_paths() -> Result<(), Error> {
+// Draft compares the neutral text; asciidoctor 2.0.26 compares the stored value, whose
+// special characters `pass:c` escaped, so the literal never matches (measured 2026-11-16).
+#[rstest::rstest]
+#[case::asciidoctor(CompatibilityMode::Asciidoctor, false)]
+#[case::draft(CompatibilityMode::Draft, true)]
+fn attribute_parts_uses_neutral_text_for_conditions_and_paths(
+    #[case] mode: CompatibilityMode,
+    #[case] matched: bool,
+) -> Result<(), Error> {
     let directory = tempfile::tempdir()?;
     std::fs::write(directory.path().join("A & B.adoc"), "Included.\n")?;
     let options = Options::builder()
         .with_base_dir(directory.path())
         .with_safe_mode(acdc_parser::SafeMode::Unsafe)
+        .with_compatibility_mode(mode)
         .build()?;
     let parsed = parse(
         ":label: pass:c[A & <B>]\n:chapter: pass:c[A & B]\n\nifeval::[\"{label}\" == \"A & <B>\"]\nMatched.\nendif::[]\n\ninclude::{chapter}.adoc[]\n",
         &options,
     )?;
-    assert!(parsed.preprocessed_source().contains("Matched."));
+    assert_eq!(parsed.preprocessed_source().contains("Matched."), matched);
     assert!(parsed.preprocessed_source().contains("Included."));
     assert!(!parsed.preprocessed_source().contains("include::"));
     assert_eq!(parsed.warnings(), []);

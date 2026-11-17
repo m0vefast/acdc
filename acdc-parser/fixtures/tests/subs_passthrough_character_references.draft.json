@@ -40,6 +40,14 @@
     "mantitle": "char-refs",
     "manvolnum": "1"
   },
+  "attribute_parts": {
+    "encoded": [
+      {
+        "text": "&amp;#169;",
+        "special_chars": 0
+      }
+    ]
+  },
   "blocks": [
     {
       "name": "section",
@@ -62,6 +70,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -127,6 +136,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -192,6 +202,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",

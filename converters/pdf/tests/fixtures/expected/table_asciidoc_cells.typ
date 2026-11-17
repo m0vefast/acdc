@@ -104,7 +104,7 @@
 
 #heading(level: 1)[#text("1. ")#text("Nested block content")] <id-5f6e65737465645f626c6f636b5f636f6e74656e74>
 
-#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("First paragraph with ")#strong[#text("bold")]#text(", ")#emph[#text("italic")]#text(", ")#link("https://example.com")[#text("a link")]#text(", and inherited.")
+#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("First paragraph with ")#strong[#text("bold")]#text(", ")#emph[#text("italic")]#text(", ")#link("https://example.com")[#text("a link")]#text(", and ")#text("inherited")#text(".")
 
 #text("Second paragraph.")
 
@@ -176,7 +176,7 @@
 
 #table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.header(repeat: true, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 1.25pt + rgb("#dddddd"), ))[#tableheader[#text("Header ")#strong[#text("bold")]
 
-]], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 1.25pt + rgb("#dddddd"), ))[#tableheader[#text("Header inherited")
+]], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 1.25pt + rgb("#dddddd"), ))[#tableheader[#text("Header ")#text("inherited")
 
 ]]), table.cell(x: 0, y: 1, colspan: 2, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 1.25pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Colspan paragraph.")
 
@@ -205,7 +205,7 @@
 
 #heading(level: 1)[#text("4. ")#text("Nested headings and references")] <id-5f6e65737465645f68656164696e67735f616e645f7265666572656e636573>
 
-#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Cell sees inherited.")
+#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Cell sees ")#text("inherited")#text(".")
 
 #heading(level: 1, outlined: false, bookmarked: false)[#text("1. ")#text("Same-level cell heading")] <id-63656c6c2d68656164696e67>
 
@@ -215,12 +215,12 @@
 
 #text("Cell child text.")
 
-], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Sibling sees inherited.")
+], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Sibling sees ")#text("inherited")#text(".")
 
 ])
 
 #heading(level: 1)[#text("5. ")#text("After the table")] <id-5f61667465725f7468655f7461626c65>
 
-#text("Outer content sees inherited.")
+#text("Outer content sees ")#text("inherited")#text(".")
 
 #text("See ")#context link(query(<id-63656c6c2d68656164696e67>).first().location())[#text("Same-level cell heading")]#text(" and ")#context link(query(<id-5f67656e6572617465645f63656c6c5f6368696c64>).first().location())[#text("Generated cell child")]#text(".")

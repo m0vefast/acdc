@@ -66,6 +66,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -131,6 +132,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -187,11 +189,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold* (C) link:https://example.org[Link].",
+              "value": " ",
               "location": [
                 {
                   "line": 17,
                   "col": 13
+                },
+                {
+                  "line": 17,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 14
+                },
+                {
+                  "line": 17,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 21
                 },
                 {
                   "line": 17,
@@ -608,11 +640,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B05 *source* *bold* (C) link:https://example.org[Link].",
+              "value": "B05 *source* ",
               "location": [
                 {
                   "line": 29,
                   "col": 1
+                },
+                {
+                  "line": 29,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 14
+                },
+                {
+                  "line": 29,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 21
                 },
                 {
                   "line": 29,
@@ -693,11 +755,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold* ",
+              "value": " ",
               "location": [
                 {
                   "line": 32,
                   "col": 13
+                },
+                {
+                  "line": 32,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 32,
+                  "col": 14
+                },
+                {
+                  "line": 32,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 32,
+                  "col": 21
                 },
                 {
                   "line": 32,
@@ -760,11 +852,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B07 *source* *bold* (C) link:https://example.org[Link].",
+              "value": "B07 *source* ",
               "location": [
                 {
                   "line": 35,
                   "col": 1
+                },
+                {
+                  "line": 35,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 14
+                },
+                {
+                  "line": 35,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 35,
+                  "col": 21
                 },
                 {
                   "line": 35,
@@ -1006,11 +1128,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B11 *source* *bold* (C) link:https://example.org[Link].",
+              "value": "B11 *source* ",
               "location": [
                 {
                   "line": 47,
                   "col": 1
+                },
+                {
+                  "line": 47,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 47,
+                  "col": 14
+                },
+                {
+                  "line": 47,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 47,
+                  "col": 21
                 },
                 {
                   "line": 47,
@@ -1091,11 +1243,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold* (C) link:https://example.org[Link].",
+              "value": " ",
               "location": [
                 {
                   "line": 50,
                   "col": 13
+                },
+                {
+                  "line": 50,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 14
+                },
+                {
+                  "line": 50,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 50,
+                  "col": 21
                 },
                 {
                   "line": 50,
@@ -1178,11 +1360,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold* (C) link:https://example.org[Link].",
+              "value": " ",
               "location": [
                 {
                   "line": 53,
                   "col": 13
+                },
+                {
+                  "line": 53,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 14
+                },
+                {
+                  "line": 53,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link].",
+              "location": [
+                {
+                  "line": 53,
+                  "col": 21
                 },
                 {
                   "line": 53,
@@ -1303,11 +1515,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B15 link:https://example.org[Link].",
+              "value": "B15 ",
               "location": [
                 {
                   "line": 59,
                   "col": 1
+                },
+                {
+                  "line": 59,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "link:https://example.org[Link]",
+              "location": [
+                {
+                  "line": 59,
+                  "col": 5
+                },
+                {
+                  "line": 59,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 59,
+                  "col": 11
                 },
                 {
                   "line": 59,
@@ -1488,11 +1730,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold* (C) link:https://example.org[Link] <1>.",
+              "value": " ",
               "location": [
                 {
                   "line": 66,
                   "col": 13
+                },
+                {
+                  "line": 66,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 66,
+                  "col": 14
+                },
+                {
+                  "line": 66,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link] <1>.",
+              "location": [
+                {
+                  "line": 66,
+                  "col": 21
                 },
                 {
                   "line": 66,
@@ -1710,11 +1982,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "B20 *source* *bold* (C) link:https://example.org[Link] <1>.",
+              "value": "B20 *source* ",
               "location": [
                 {
                   "line": 79,
                   "col": 1
+                },
+                {
+                  "line": 79,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 79,
+                  "col": 14
+                },
+                {
+                  "line": 79,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " (C) link:https://example.org[Link] <1>.",
+              "location": [
+                {
+                  "line": 79,
+                  "col": 21
                 },
                 {
                   "line": 79,
@@ -2040,11 +2342,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold*.",
+              "value": " ",
               "location": [
                 {
                   "line": 89,
                   "col": 20
+                },
+                {
+                  "line": 89,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 89,
+                  "col": 21
+                },
+                {
+                  "line": 89,
+                  "col": 27
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 89,
+                  "col": 28
                 },
                 {
                   "line": 89,

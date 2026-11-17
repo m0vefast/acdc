@@ -1,6 +1,6 @@
 use acdc_parser::{
     Options,
-    ast::{BlockKind, BlockRef, InlineKind, InlineRef},
+    ast::{BlockKind, BlockRef, InlineKind},
     parse,
 };
 
@@ -137,15 +137,12 @@ fn attribute_first_code_uses_a_later_valid_closer_with_complete_locations() -> R
                 &parsed.preprocessed_source()[span.absolute_start()..=span.absolute_end()],
                 quote.replace("\r\n", "\n")
             );
-            let word = code
-                .content()
-                .inlines()
-                .next()
-                .ok_or("missing code content")?;
-            let word_span = word.location();
+            let (text, first, last) =
+                crate::plain_text::plain_run(code.content().inlines(), parsed.preprocessed_source())
+                    .ok_or("missing code content")?;
+            assert_eq!(text, format!("café `{}tail", gap.replace("\r\n", "\n")));
             assert_eq!(
-                &parsed.preprocessed_source()
-                    [word_span.absolute_start()..=word_span.absolute_end()],
+                &parsed.preprocessed_source()[first.absolute_start()..=last.absolute_end()],
                 format!("{{word}}{{sp}}`{}tail", gap.replace("\r\n", "\n"))
             );
             let sibling = paragraph
@@ -176,15 +173,13 @@ fn attribute_first_code_expands_references_when_quotes_are_disabled() -> Result<
         else {
             return Err("expected one paragraph".into());
         };
-        let [InlineKind::Plain(text)] = &*paragraph
-            .content()
-            .inlines()
-            .map(InlineRef::kind)
-            .collect::<Vec<_>>()
+        let Some((text, first, last)) =
+            crate::plain_text::plain_run(paragraph.content().inlines(), &source)
         else {
             return Err("expected literal backticks".into());
         };
-        assert_eq!(text.text(), "P `café`.");
+        assert_eq!(text, "P `café`.");
+        assert_eq!(&source[first.absolute_start()..=last.absolute_end()], "P `{word}`.");
     }
     Ok(())
 }

@@ -35,4 +35,4 @@ useful work
 \fBtool\fR
 .SH "DESCRIPTION"
 .sp
-Uses tool.
+Uses tool\&.

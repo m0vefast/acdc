@@ -36,7 +36,9 @@
     "link": "link:https://example.org[Link]",
     "manmanual": "Test Manual",
     "manname": "modifier-order",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "modifier-order",
     "manpurpose": "incremental substitution order",
     "mansource": "acdc",
     "mantitle": "modifier order",
@@ -66,6 +68,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -131,6 +134,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -223,11 +227,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S02 *bold*.",
+              "value": "S02 ",
               "location": [
                 {
                   "line": 20,
                   "col": 1
+                },
+                {
+                  "line": 20,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 5
+                },
+                {
+                  "line": 20,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 20,
+                  "col": 12
                 },
                 {
                   "line": 20,
@@ -259,11 +293,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S03 *bold*.",
+              "value": "S03 ",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 5
+                },
+                {
+                  "line": 23,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 12
                 },
                 {
                   "line": 23,
@@ -296,11 +360,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S04 ``.",
+              "value": "S04 `",
               "location": [
                 {
                   "line": 26,
                   "col": 1
+                },
+                {
+                  "line": 26,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "`.",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 13
                 },
                 {
                   "line": 26,
@@ -332,11 +411,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S05 *bold *.",
+              "value": "S05 *bold",
               "location": [
                 {
                   "line": 29,
                   "col": 1
+                },
+                {
+                  "line": 29,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 10
+                },
+                {
+                  "line": 29,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*.",
+              "location": [
+                {
+                  "line": 29,
+                  "col": 14
                 },
                 {
                   "line": 29,
@@ -655,11 +764,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": " *bold*.",
+              "value": " ",
               "location": [
                 {
                   "line": 41,
                   "col": 13
+                },
+                {
+                  "line": 41,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 41,
+                  "col": 14
+                },
+                {
+                  "line": 41,
+                  "col": 20
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 41,
+                  "col": 21
                 },
                 {
                   "line": 41,
@@ -921,11 +1060,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S12 *bold*.",
+              "value": "S12 ",
               "location": [
                 {
                   "line": 51,
                   "col": 1
+                },
+                {
+                  "line": 51,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 51,
+                  "col": 5
+                },
+                {
+                  "line": 51,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 51,
+                  "col": 12
                 },
                 {
                   "line": 51,
@@ -1054,11 +1223,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S14 *bold*.",
+              "value": "S14 ",
               "location": [
                 {
                   "line": 61,
                   "col": 1
+                },
+                {
+                  "line": 61,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 61,
+                  "col": 5
+                },
+                {
+                  "line": 61,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 61,
+                  "col": 12
                 },
                 {
                   "line": 61,
@@ -1260,11 +1459,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S17 link:https://example.org[Link].",
+              "value": "S17 ",
               "location": [
                 {
                   "line": 71,
                   "col": 1
+                },
+                {
+                  "line": 71,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "link:https://example.org[Link]",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 5
+                },
+                {
+                  "line": 71,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 71,
+                  "col": 11
                 },
                 {
                   "line": 71,
@@ -1309,11 +1538,56 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S18 `` *café *.",
+              "value": "S18 `",
               "location": [
                 {
                   "line": 75,
                   "col": 1
+                },
+                {
+                  "line": 75,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "` *café",
+              "location": [
+                {
+                  "line": 75,
+                  "col": 13
+                },
+                {
+                  "line": 75,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": " ",
+              "location": [
+                {
+                  "line": 75,
+                  "col": 20
+                },
+                {
+                  "line": 75,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*.",
+              "location": [
+                {
+                  "line": 75,
+                  "col": 24
                 },
                 {
                   "line": 75,
@@ -1377,11 +1651,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S20 *bold*.",
+              "value": "S20 ",
               "location": [
                 {
                   "line": 82,
                   "col": 1
+                },
+                {
+                  "line": 82,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "*bold*",
+              "location": [
+                {
+                  "line": 82,
+                  "col": 5
+                },
+                {
+                  "line": 82,
+                  "col": 11
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 82,
+                  "col": 12
                 },
                 {
                   "line": 82,

@@ -36,7 +36,9 @@
     "kind": "source",
     "manmanual": "Parser checks",
     "manname": "paragraph-comments",
+    "manname-id": "_name",
     "manname-title": "Name",
+    "mannames": "paragraph-comments",
     "manpurpose": "preserve code comments",
     "mansource": "acdc",
     "mantitle": "paragraph-comments",
@@ -65,6 +67,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +133,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -270,10 +274,40 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C05 start\n////\nC06 enabled\n////\n// C07 after slash delimiters",
+              "value": "C05 start\n////\n",
               "location": [
                 {
                   "line": 23,
+                  "col": 1
+                },
+                {
+                  "line": 24,
+                  "col": 5
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C06 enabled\n",
+              "location": [
+                {
+                  "line": 26,
+                  "col": 1
+                },
+                {
+                  "line": 26,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "////\n// C07 after slash delimiters",
+              "location": [
+                {
+                  "line": 28,
                   "col": 1
                 },
                 {
@@ -457,10 +491,25 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C14 ordinary\nC15 ordinary tail",
+              "value": "C14 ordinary\n",
               "location": [
                 {
                   "line": 44,
+                  "col": 1
+                },
+                {
+                  "line": 44,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C15 ordinary tail",
+              "location": [
+                {
+                  "line": 46,
                   "col": 1
                 },
                 {
@@ -765,10 +814,25 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "C24 cell start\nC25 cell end",
+                            "value": "C24 cell start\n",
                             "location": [
                               {
                                 "line": 75,
+                                "col": 1
+                              },
+                              {
+                                "line": 75,
+                                "col": 15
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "C25 cell end",
+                            "location": [
+                              {
+                                "line": 77,
                                 "col": 1
                               },
                               {
@@ -835,10 +899,25 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C26 before false conditional\n// C27 after false conditional\nC28 end",
+              "value": "C26 before false conditional\n",
               "location": [
                 {
                   "line": 81,
+                  "col": 1
+                },
+                {
+                  "line": 81,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "// C27 after false conditional\nC28 end",
+              "location": [
+                {
+                  "line": 87,
                   "col": 1
                 },
                 {

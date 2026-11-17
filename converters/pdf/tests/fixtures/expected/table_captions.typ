@@ -99,7 +99,7 @@
 ]
 
 #block(sticky: true, above: 0pt, below: 0pt)[
-#blocktitle[#text("Table 2. ")#text("Formatted ")#emph[#text("title")]#text(", ")#raw("mono")#text(", Ada, and ")#link("https://example.com")[#text("link")]]
+#blocktitle[#text("Table 2. ")#text("Formatted ")#emph[#text("title")]#text(", ")#raw("mono")#text(", ")#text("Ada")#text(", and ")#link("https://example.com")[#text("link")]]
 ]
 #table(columns: (1fr), align: (left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Formatted title cell")
 

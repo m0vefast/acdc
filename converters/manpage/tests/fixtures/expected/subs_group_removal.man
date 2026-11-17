@@ -59,7 +59,7 @@ G10 \c
 .URL "https://example.org" "Link" "\fR\c"
 \&.
 .sp
-G11 link:https://example.org[Link].
+G11 link:https://example.org[Link]\&.
 .sp
 G12 footnote:[Literal note.] anchor:literal[] indexterm:[Literal].
 .sp
@@ -132,7 +132,7 @@ G27 code <1>
 .fi
 .if n .RE
 .sp
-G28 café *accentué* *bold*.
+G28 café *accentué* *bold*\&.
 .sp
 G29 \fBdefaults restored\fR \(co \c
 .URL "https://example.org" "Link" "\fR\c"

@@ -5,7 +5,7 @@
 
 - \[ \] Unchecked parent
     - \[x\] Lowercase checked child
-    - \[x\] Uppercase checked child
+    - \[X\] Uppercase checked child
     - \[x\] Star checked child
 - \[x\] Checked sibling
 
@@ -32,7 +32,7 @@
 <a id="_ordinary_bullet_nested_under_a_checklist_item"></a>
 ## Ordinary bullet nested under a checklist item
 
-- \[x\] Checklist parent
+- \[X\] Checklist parent
     - Ordinary bullet
         - \[ \] Nested checklist
 

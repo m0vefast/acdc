@@ -85,7 +85,7 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("P01 Early *Bold*")
+#text("P01 ")#text("Early *Bold*")
 
 #text("P02 ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name} *Bold*")
 
@@ -93,21 +93,21 @@
 
 #text("P04 ")#text("<raw>")#text(" ")#text("&")
 
-#text("P05 Early ")#text("<")#text("x")#text(">")#text(" ")#text("&")
+#text("P05 ")#text("Early ")#text("<")#text("x")#text(">")#text(" ")#text("&")
 
-#text("P06 {name} ")#text("&")
+#text("P06 ")#text("{name} ")#text("&")
 
-#text("P07 {name} {name} {name} \\{name}")
+#text("P07 ")#text("{name} {name} {name} \\{name}")
 
-#text("P08 pass:[Early]")
+#text("P08 ")#text("pass:[Early]")
 
-#text("P09 Before after.")
+#text("P09 Before ")#text("after.")
 
-#text("P10 Before {not-set} after.")
+#text("P10 Before ")#text("{not-set}")#text(" after.")
 
-#text("P11 Early a\\]b")
+#text("P11 ")#text("Early a\\]b")
 
-#text("P12 prefix ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name} *Bold* / Early *Bold*")
+#text("P12 ")#text("prefix ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name} *Bold* / Early *Bold*")
 
 #text("P13 ")#text("<")#text("ordinary")#text(">")#text(" ")#text("&")
 
@@ -117,17 +117,17 @@
 
 #text("P16 ")#text("<raw>")#text(" ")#text("&")
 
-#text("P17 ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name} | ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name}")
+#text("P17 ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name}")#text(" | ")#text("<")#text("x")#text(">")#text(" ")#text("&")#text(" {name}")
 
 #text("P18 ")#text("©")#text(" ")#text("&")
 
-#text("P19 café ")#text("<")#text("α")#text(">")#text(" ")#text("&")
+#text("P19 ")#text("café ")#text("<")#text("α")#text(">")#text(" ")#text("&")
 
 #text("P20 ")#text("<>")#text("&")
 
 #text("P21 ")#text("<")#text("&")#text(">")
 
-#text("P22 pass:c[Early]")
+#text("P22 ")#text("pass:c[Early]")
 
 #raw(block: true, "C01 Early *Bold*\nC02 <x> & {name} *Bold*\nC03 <raw> &\nC05 Early <x> &\nC07 {name} {name} {name} \\{name}\nC08 pass:[Early]\nC09 Before  after.\nC10 Before {not-set} after.\nC11 Early a\\]b\nC12 prefix <x> & {name} *Bold* / Early *Bold*\nC13 <ordinary> &\nC14 <ordinary> &\nC15 <ordinary> &\nC17 <x> & {name} | <x> & {name}\nC18 &#169; &amp;\nC19 café <α> &\nC22 pass:c[Early]")
 

@@ -42,6 +42,7 @@ dependencies = [
  "rustc-hash",
  "thiserror",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -173,6 +174,22 @@ dependencies = [
  "rstest",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "acdc-glyph-wasm"
+version = "0.1.0"
+dependencies = [
+ "acdc-converters-core",
+ "acdc-converters-html",
+ "acdc-lint",
+ "acdc-parser",
+ "console_error_panic_hook",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1717,9 +1734,9 @@ dependencies = [
 
 [[package]]
 name = "evalexpr"
-version = "13.1.0"
+version = "11.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25929004897f2bbab309121a60400d36992f6d911d09baa6c172f6cc55706601"
+checksum = "b6aff27af350e7b53e82aac3e5ab6389abd8f280640ac034508dff0608c4c7e5"
 
 [[package]]
 name = "exr"
@@ -4826,6 +4843,17 @@ dependencies = [
  "serde_core",
  "smallvec",
  "zmij",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
+dependencies = [
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]

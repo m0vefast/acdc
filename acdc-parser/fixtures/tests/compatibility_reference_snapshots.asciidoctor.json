@@ -87,6 +87,7 @@
         }
       ],
       "level": 1,
+      "id": "snapshot",
       "metadata": {
         "reftext": [
           {
@@ -125,11 +126,26 @@
           {
             "name": "text",
             "type": "string",
-            "value": " {later}",
+            "value": " ",
             "location": [
               {
                 "line": 6,
                 "col": 29
+              },
+              {
+                "line": 6,
+                "col": 29
+              }
+            ]
+          },
+          {
+            "name": "text",
+            "type": "string",
+            "value": "{later}",
+            "location": [
+              {
+                "line": 6,
+                "col": 30
               },
               {
                 "line": 6,
@@ -234,7 +250,7 @@
                   },
                   {
                     "line": 12,
-                    "col": 30
+                    "col": 29
                   }
                 ]
               }
@@ -347,7 +363,7 @@
                   },
                   {
                     "line": 15,
-                    "col": 25
+                    "col": 24
                   }
                 ]
               }
@@ -1245,7 +1261,7 @@
                   },
                   {
                     "line": 40,
-                    "col": 27
+                    "col": 26
                   }
                 ]
               }

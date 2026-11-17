@@ -6,6 +6,113 @@ use acdc_parser::{
 
 type Error = Box<dyn std::error::Error>;
 
+/// asciidoctor 2.0.26 (measured 2026-11-16, `extract_attributes_from_text`): a link or xref
+/// label read as an attribute list (it holds `=`) folds its line feeds into spaces; other
+/// labels keep them.
+#[test]
+fn attribute_list_labels_fold_line_feeds() -> Result<(), Error> {
+    let source = "[[d]]Dest.\n\nA link:https://e.org/a[First\nsecond,id=x] link:https://e.org/b[First\nsecond] link:https://e.org/c[\"Line\ntwo\",role=g] link:https://e.org/d[\"Q\nr\"] <<d,First\nsecond>> xref:d[First\nsecond] xref:d[First\nsecond,role=r].\n";
+    for (mode, folded) in [
+        (acdc_parser::CompatibilityMode::Asciidoctor, true),
+        (acdc_parser::CompatibilityMode::Draft, false),
+    ] {
+        let parsed = parse(source, &Options::builder().with_compatibility_mode(mode).build()?)?;
+        let Some(BlockKind::Paragraph(paragraph)) = parsed.document().blocks().nth(1).map(BlockRef::kind)
+        else {
+            return Err("missing paragraph".into());
+        };
+        let mut labels = Vec::new();
+        for node in paragraph.content().inlines() {
+            let content = match node.kind() {
+                InlineKind::Link(link) => link.text(),
+                InlineKind::CrossReference(xref) => xref.text(),
+                _ => continue,
+            };
+            let mut text = String::new();
+            for inner in content.inlines() {
+                if let InlineKind::Plain(plain) = inner.kind() {
+                    text.push_str(plain.text());
+                }
+            }
+            labels.push(text);
+        }
+        let fold = |text: &'static str| if folded { text.replace('\n', " ") } else { text.to_owned() };
+        assert_eq!(
+            labels,
+            [
+                fold("First\nsecond"),
+                "First\nsecond".to_owned(),
+                fold("Line\ntwo"),
+                "\"Q\nr\"".to_owned(),
+                "First\nsecond".to_owned(),
+                "First\nsecond".to_owned(),
+                fold("First\nsecond"),
+            ],
+            "{mode:?}"
+        );
+    }
+    Ok(())
+}
+
+/// asciidoctor 2.0.26 (measured 2026-11-16): a visible index term is the shortest label
+/// before a `))` no `)` follows — `((fn((x)) tail))` is the term `fn((x` and then ` tail))`.
+#[test]
+fn visible_index_terms_end_at_the_first_closing_pair() -> Result<(), Error> {
+    for (source, drawn) in [
+        ("A ((fn((x)) tail)) after.", "A fn((x tail)) after."),
+        ("B ((one)) two)).", "B one two))."),
+        // Replacements run before macros: the label's neighbors are `[` `]`, so `--` stays.
+        ("P01 prefixindexterm2:[--]tail", "P01 prefix--tail"),
+        // Outside words see the macro source (`]`, `i`), and an escape no replacement used stays.
+        ("P02 Saindexterm2:[m]'s", "P02 Sam's"),
+        (r"P03 Samindexterm2:[\']s", r"P03 Sam\'s"),
+        (r"P04 wordindexterm2:[\--]word", r"P04 word\--word"),
+        (r"P05 word\-- end", "P05 word-- end"),
+        (r"P06 word\--word", "P06 word--word"),
+        (r"P07 a \--b", r"P07 a \--b"),
+        // An inline anchor is its source too (asciidoctor 2.0.26, measured 2026-11-16).
+        ("P08 Sam'anchor:digits[]123", "P08 Sam’123"),
+        ("P09 Sam'anchor:late[]s", "P09 Sam’s"),
+        ("P10 Samanchor:early[]'s", "P10 Sam's"),
+        ("P11 left-anchor:between[]-right", "P11 left--right"),
+        ("P12 left--indexterm2:[x]y", "P12 left—\u{200b}xy"),
+        ("P13 Sam'((x))", "P13 Sam'x"),
+        ("P14 Sam'indexterm2:[x]", "P14 Sam’x"),
+        ("P15 Sam'[[mid]]s", "P15 Sam's"),
+        ("P16 x((y))--z", "P16 xy--z"),
+        // Macros first: an anchor is already its tag, a hidden term already nothing.
+        ("[subs=\"macros,replacements\"]\nP18 left-anchor:x[]-right", "P18 left--right"),
+        ("[subs=\"macros,replacements\"]\nP19 left--anchor:y[]right", "P19 left--right"),
+        ("[subs=\"macros,replacements\"]\nP20 left--indexterm:[h]right", "P20 left—\u{200b}right"),
+    ] {
+        let parsed = parse(source, &Options::default())?;
+        let Some(BlockKind::Paragraph(paragraph)) = parsed.document().blocks().next().map(BlockRef::kind) else {
+            return Err("missing paragraph".into());
+        };
+        let mut text = String::new();
+        for node in paragraph.content().inlines() {
+            match node.kind() {
+                InlineKind::Plain(plain) => text.push_str(plain.text()),
+                InlineKind::Raw(raw) => text.push_str(raw.text()),
+                InlineKind::Symbol(symbol) => text.push_str(symbol.text()),
+                InlineKind::StandaloneCurvedApostrophe(_) => text.push('’'),
+                InlineKind::Anchor(_) => {}
+                InlineKind::IndexTerm(term) if !term.is_visible() => {}
+                InlineKind::IndexTerm(term) => {
+                    for inner in term.term().inlines() {
+                        if let InlineKind::Plain(plain) = inner.kind() {
+                            text.push_str(plain.text());
+                        }
+                    }
+                }
+                other => return Err(format!("unexpected node {other:?} in {source:?}").into()),
+            }
+        }
+        assert_eq!(text, drawn, "{source:?}");
+    }
+    Ok(())
+}
+
 #[test]
 fn index_registration_boundaries_survive_later_substitutions() -> Result<(), Error> {
     for subs in [

@@ -64,6 +64,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -129,6 +130,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "dlist",
@@ -216,11 +218,41 @@
                   {
                     "name": "text",
                     "type": "string",
-                    "value": " expanded ",
+                    "value": " ",
                     "location": [
                       {
                         "line": 14,
                         "col": 18
+                      },
+                      {
+                        "line": 14,
+                        "col": 18
+                      }
+                    ]
+                  },
+                  {
+                    "name": "text",
+                    "type": "string",
+                    "value": "expanded",
+                    "location": [
+                      {
+                        "line": 14,
+                        "col": 19
+                      },
+                      {
+                        "line": 14,
+                        "col": 25
+                      }
+                    ]
+                  },
+                  {
+                    "name": "text",
+                    "type": "string",
+                    "value": " ",
+                    "location": [
+                      {
+                        "line": 14,
+                        "col": 26
                       },
                       {
                         "line": 14,
@@ -576,7 +608,7 @@
             },
             {
               "line": 20,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -778,7 +810,7 @@
             },
             {
               "line": 26,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -887,7 +919,7 @@
             },
             {
               "line": 31,
-              "col": 4
+              "col": 3
             }
           ]
         },
@@ -1141,7 +1173,7 @@
             },
             {
               "line": 38,
-              "col": 4
+              "col": 3
             }
           ]
         },

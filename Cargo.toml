@@ -3,6 +3,7 @@ members = [
   "acdc-cli",
   "acdc-editor-wasm",
   "acdc-execute",
+  "acdc-glyph-wasm",
   "acdc-lint",
   "acdc-lsp",
   "acdc-mcp",

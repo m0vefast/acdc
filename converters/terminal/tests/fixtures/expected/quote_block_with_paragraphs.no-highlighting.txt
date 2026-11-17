@@ -1,0 +1,4 @@
+[38;5;10m│ [39m[3mFirst paragraph in quote.[0m
+[38;5;10m│ [39m[3mSecond paragraph in quote.[0m
+[38;5;10m│ [39m[3mQuote authorThird paragraph with title.[0m
+[38;5;10m│[39m

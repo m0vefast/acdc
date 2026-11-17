@@ -1,6 +1,6 @@
 use crate::{
     FormattingForm,
-    ast::{AttributesRef, ContentRef, ElementIdRef, TokensRef},
+    ast::{AttributesRef, ContentRef, ElementIdRef, LocationRef, TokensRef},
 };
 
 use super::{
@@ -46,6 +46,13 @@ macro_rules! span_reads {
             #[must_use]
             pub fn attributes(self) -> AttributesRef<'doc> {
                 AttributesRef::$attributes(self.node)
+            }
+
+            /// Where the attribute list before the delimiter (`[.role]`) is written,
+            /// when there is one. The span's own location starts at its delimiter.
+            #[must_use]
+            pub fn attribute_location(self) -> Option<LocationRef<'doc>> {
+                self.node.attribute_location.as_deref().map(LocationRef::new)
             }
         }
 

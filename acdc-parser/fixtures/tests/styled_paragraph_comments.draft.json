@@ -65,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -138,10 +140,25 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C01 start\nC04 end",
+              "value": "C01 start\n",
               "location": [
                 {
                   "line": 15,
+                  "col": 1
+                },
+                {
+                  "line": 15,
+                  "col": 10
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C04 end",
+              "location": [
+                {
+                  "line": 18,
                   "col": 1
                 },
                 {
@@ -183,11 +200,11 @@
                 "number": 1,
                 "location": [
                   {
-                    "line": 18,
+                    "line": 20,
                     "col": 1
                   },
                   {
-                    "line": 18,
+                    "line": 20,
                     "col": 29
                   }
                 ]
@@ -444,10 +461,25 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C14 ordinary\nC15 ordinary tail",
+              "value": "C14 ordinary\n",
               "location": [
                 {
                   "line": 44,
+                  "col": 1
+                },
+                {
+                  "line": 44,
+                  "col": 13
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C15 ordinary tail",
+              "location": [
+                {
+                  "line": 46,
                   "col": 1
                 },
                 {
@@ -752,10 +784,25 @@
                           {
                             "name": "text",
                             "type": "string",
-                            "value": "C24 cell start\nC25 cell end",
+                            "value": "C24 cell start\n",
                             "location": [
                               {
                                 "line": 75,
+                                "col": 1
+                              },
+                              {
+                                "line": 75,
+                                "col": 15
+                              }
+                            ]
+                          },
+                          {
+                            "name": "text",
+                            "type": "string",
+                            "value": "C25 cell end",
+                            "location": [
+                              {
+                                "line": 77,
                                 "col": 1
                               },
                               {
@@ -822,10 +869,25 @@
             {
               "name": "text",
               "type": "string",
-              "value": "C26 before false conditional\nC28 end",
+              "value": "C26 before false conditional\n",
               "location": [
                 {
                   "line": 81,
+                  "col": 1
+                },
+                {
+                  "line": 81,
+                  "col": 29
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "C28 end",
+              "location": [
+                {
+                  "line": 88,
                   "col": 1
                 },
                 {

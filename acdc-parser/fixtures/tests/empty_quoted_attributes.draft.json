@@ -65,6 +65,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -130,6 +131,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -138,11 +140,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q01 Before ** after.",
+              "value": "Q01 Before *",
               "location": [
                 {
                   "line": 15,
                   "col": 1
+                },
+                {
+                  "line": 15,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "* after.",
+              "location": [
+                {
+                  "line": 15,
+                  "col": 20
                 },
                 {
                   "line": 15,
@@ -169,11 +186,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q02 Before __ after.",
+              "value": "Q02 Before _",
               "location": [
                 {
                   "line": 17,
                   "col": 1
+                },
+                {
+                  "line": 17,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "_ after.",
+              "location": [
+                {
+                  "line": 17,
+                  "col": 20
                 },
                 {
                   "line": 17,
@@ -200,11 +232,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q03 Before `` after.",
+              "value": "Q03 Before `",
               "location": [
                 {
                   "line": 19,
                   "col": 1
+                },
+                {
+                  "line": 19,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "` after.",
+              "location": [
+                {
+                  "line": 19,
+                  "col": 20
                 },
                 {
                   "line": 19,
@@ -231,11 +278,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q04 Before ## after.",
+              "value": "Q04 Before #",
               "location": [
                 {
                   "line": 21,
                   "col": 1
+                },
+                {
+                  "line": 21,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "# after.",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 20
                 },
                 {
                   "line": 21,
@@ -262,11 +324,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q05 Before ^^ after.",
+              "value": "Q05 Before ^",
               "location": [
                 {
                   "line": 23,
                   "col": 1
+                },
+                {
+                  "line": 23,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "^ after.",
+              "location": [
+                {
+                  "line": 23,
+                  "col": 20
                 },
                 {
                   "line": 23,
@@ -293,11 +370,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q06 Before ~~ after.",
+              "value": "Q06 Before ~",
               "location": [
                 {
                   "line": 25,
                   "col": 1
+                },
+                {
+                  "line": 25,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "~ after.",
+              "location": [
+                {
+                  "line": 25,
+                  "col": 20
                 },
                 {
                   "line": 25,
@@ -345,11 +437,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "**",
+                  "value": "*",
                   "location": [
                     {
                       "line": 27,
                       "col": 13
+                    },
+                    {
+                      "line": 27,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "*",
+                  "location": [
+                    {
+                      "line": 27,
+                      "col": 21
                     },
                     {
                       "line": 27,
@@ -424,11 +531,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "__",
+                  "value": "_",
                   "location": [
                     {
                       "line": 29,
                       "col": 13
+                    },
+                    {
+                      "line": 29,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "_",
+                  "location": [
+                    {
+                      "line": 29,
+                      "col": 21
                     },
                     {
                       "line": 29,
@@ -503,11 +625,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "``",
+                  "value": "`",
                   "location": [
                     {
                       "line": 31,
                       "col": 13
+                    },
+                    {
+                      "line": 31,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "`",
+                  "location": [
+                    {
+                      "line": 31,
+                      "col": 21
                     },
                     {
                       "line": 31,
@@ -582,11 +719,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "##",
+                  "value": "#",
                   "location": [
                     {
                       "line": 33,
                       "col": 13
+                    },
+                    {
+                      "line": 33,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "#",
+                  "location": [
+                    {
+                      "line": 33,
+                      "col": 21
                     },
                     {
                       "line": 33,
@@ -661,11 +813,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "__",
+                  "value": "_",
                   "location": [
                     {
                       "line": 35,
                       "col": 13
+                    },
+                    {
+                      "line": 35,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "_",
+                  "location": [
+                    {
+                      "line": 35,
+                      "col": 21
                     },
                     {
                       "line": 35,
@@ -740,11 +907,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "**",
+                  "value": "*",
                   "location": [
                     {
                       "line": 37,
                       "col": 13
+                    },
+                    {
+                      "line": 37,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "*",
+                  "location": [
+                    {
+                      "line": 37,
+                      "col": 21
                     },
                     {
                       "line": 37,
@@ -798,11 +980,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q13 Before [.role]** after.",
+              "value": "Q13 Before [.role]*",
               "location": [
                 {
                   "line": 39,
                   "col": 1
+                },
+                {
+                  "line": 39,
+                  "col": 19
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "* after.",
+              "location": [
+                {
+                  "line": 39,
+                  "col": 27
                 },
                 {
                   "line": 39,
@@ -829,11 +1026,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q14 Before [#empty-id]** after.",
+              "value": "Q14 Before [#empty-id]*",
               "location": [
                 {
                   "line": 41,
                   "col": 1
+                },
+                {
+                  "line": 41,
+                  "col": 23
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "* after.",
+              "location": [
+                {
+                  "line": 41,
+                  "col": 31
                 },
                 {
                   "line": 41,
@@ -939,11 +1151,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Q16 Before ** and __ after.",
+              "value": "Q16 Before *",
               "location": [
                 {
                   "line": 45,
                   "col": 1
+                },
+                {
+                  "line": 45,
+                  "col": 12
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "* and _",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 27
+                },
+                {
+                  "line": 45,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "_ after.",
+              "location": [
+                {
+                  "line": 45,
+                  "col": 41
                 },
                 {
                   "line": 45,
@@ -995,7 +1237,7 @@
                   "location": [
                     {
                       "line": 47,
-                      "col": 13
+                      "col": 20
                     },
                     {
                       "line": 47,
@@ -1162,7 +1404,7 @@
               "location": [
                 {
                   "line": 51,
-                  "col": 14
+                  "col": 21
                 },
                 {
                   "line": 51,
@@ -1340,11 +1582,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "**",
+                  "value": "*",
                   "location": [
                     {
                       "line": 55,
                       "col": 37
+                    },
+                    {
+                      "line": 55,
+                      "col": 37
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "*",
+                  "location": [
+                    {
+                      "line": 55,
+                      "col": 45
                     },
                     {
                       "line": 55,
@@ -1577,11 +1834,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "__",
+                  "value": "_",
                   "location": [
                     {
                       "line": 61,
                       "col": 14
+                    },
+                    {
+                      "line": 61,
+                      "col": 14
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "_",
+                  "location": [
+                    {
+                      "line": 61,
+                      "col": 22
                     },
                     {
                       "line": 61,
@@ -1660,7 +1932,7 @@
                   "location": [
                     {
                       "line": 63,
-                      "col": 13
+                      "col": 20
                     },
                     {
                       "line": 63,
@@ -1893,11 +2165,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "**",
+                  "value": "*",
                   "location": [
                     {
                       "line": 69,
                       "col": 13
+                    },
+                    {
+                      "line": 69,
+                      "col": 13
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "*",
+                  "location": [
+                    {
+                      "line": 69,
+                      "col": 21
                     },
                     {
                       "line": 69,
@@ -1941,11 +2228,26 @@
                 {
                   "name": "text",
                   "type": "string",
-                  "value": "__",
+                  "value": "_",
                   "location": [
                     {
                       "line": 69,
                       "col": 29
+                    },
+                    {
+                      "line": 69,
+                      "col": 29
+                    }
+                  ]
+                },
+                {
+                  "name": "text",
+                  "type": "string",
+                  "value": "_",
+                  "location": [
+                    {
+                      "line": 69,
+                      "col": 37
                     },
                     {
                       "line": 69,

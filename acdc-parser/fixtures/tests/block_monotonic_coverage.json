@@ -945,6 +945,7 @@
         }
       ],
       "level": 1,
+      "id": "_discrete_header",
       "metadata": {
         "style": "discrete"
       },

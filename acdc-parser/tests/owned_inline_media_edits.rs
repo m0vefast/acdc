@@ -172,7 +172,7 @@ fn media_option_and_metadata_transfers_keep_buffers_and_source_lifetimes() {
 fn media_target_replacement_keeps_original_url_spelling_and_does_not_fetch() -> Result<(), Error> {
     let source = String::from("HTTPS://example.invalid/a?key=Value#part");
     // SourceUrl accepts the original spelling; prepared replacement does not classify it again.
-    let url = acdc_parser::SourceUrl::new(&source)?;
+    let url = acdc_parser::SourceUrl::new(&source);
     macro_rules! check {
         ($owner:ident, $read:ident, $variant:ident, $replace:ident, $source:ident) => {
             let old = {

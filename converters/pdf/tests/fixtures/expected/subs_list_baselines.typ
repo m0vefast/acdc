@@ -85,19 +85,19 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("B01 ")#strong[#text("source")]#text(" *bold* (C) link:https://example.org[Link].")
+#text("B01 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
-#text("B02 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
+#text("B02 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
 
 #text("B03 ")#strong[#text("bold")]#text(" (C) link:https://example.org[Link].")
 
 #text("B04 ")#strong[#text("source")]#text(" {value} (C) link:https://example.org[Link].")
 
-#text("B05 *source* *bold* (C) link:https://example.org[Link].")
+#text("B05 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
-#text("B06 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" link:https://example.org[Link].")
+#text("B06 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" link:https://example.org[Link].")
 
-#text("B07 *source* *bold* (C) link:https://example.org[Link].")
+#text("B07 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
 #text("B08 *source* {value} (C) link:https://example.org[Link].")
 
@@ -105,15 +105,15 @@
 
 #text("B10 ")#strong[#text("source")]#text(" {value} (C) link:https://example.org[Link].")
 
-#text("B11 *source* *bold* (C) link:https://example.org[Link].")
+#text("B11 *source* ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
-#text("B12 ")#strong[#text("source")]#text(" *bold* (C) link:https://example.org[Link].")
+#text("B12 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
-#text("B13 ")#strong[#text("source")]#text(" *bold* (C) link:https://example.org[Link].")
+#text("B13 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" (C) link:https://example.org[Link].")
 
 #text("B14 ")#link("https://example.org")[#text("Link")]#text(".")
 
-#text("B15 link:https://example.org[Link].")
+#text("B15 ")#text("link:https://example.org[Link]")#text(".")
 
 #text("B16 ")#link("https://example.org")[#text("Link")]#text(".")
 
@@ -233,10 +233,10 @@
 }
 #raw(block: true, "B20 *source* *bold* (C) link:https://example.org[Link] <1>.")
 
-#text("B21 ")#strong[#text("source")]#text(" *bold* ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
+#text("B21 ")#strong[#text("source")]#text(" ")#text("*bold*")#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")
 
 #text("B22 footnote:[Literal note.] anchor:literal[] indexterm:[Literal].")
 
-#text("B23 café ")#strong[#text("accentué")]#text(" *bold*.")
+#text("B23 café ")#strong[#text("accentué")]#text(" ")#text("*bold*")#text(".")
 
 #text("B24 ")#strong[#text("defaults restored")]#text(" ")#text("©")#text(" ")#link("https://example.org")[#text("Link")]#text(".")

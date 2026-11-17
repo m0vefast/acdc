@@ -62,11 +62,62 @@ fn unsupported_inline_substitutions_preserve_the_complete_source(
     Ok(())
 }
 
+/// asciidoctor 2.0.26 (measured 2026-11-16): `InlineStemMacroRx` needs one character, so an
+/// empty formula is literal text; Draft keeps an empty formula.
 #[rstest::rstest]
-#[case("stem:[]", "", StemNotation::Asciimath)]
-#[case("latexmath:[]", "", StemNotation::Latexmath)]
-#[case(r"stem:[\[x\]]", "[x]", StemNotation::Asciimath)]
-#[case(r"latexmath:[a\\]", "a\\", StemNotation::Latexmath)]
+fn empty_formulas_are_literal_in_asciidoctor_mode(
+    #[values("stem:[]", "latexmath:[]", "asciimath:[]")] authored: &str,
+) -> Result<(), Error> {
+    let source = format!("π {authored} ω.");
+    for (mode, formula) in [
+        (CompatibilityMode::Asciidoctor, false),
+        (CompatibilityMode::Draft, true),
+    ] {
+        let parsed = parse(
+            &source,
+            &Options::builder().with_compatibility_mode(mode).build()?,
+        )?;
+        let found = paragraph(&parsed)?
+            .inlines()
+            .any(|node| matches!(node.kind(), InlineKind::Stem(stem) if stem.text().is_empty()));
+        assert_eq!(found, formula, "{mode:?} {authored}");
+    }
+    Ok(())
+}
+
+/// asciidoctor 2.0.26 (measured 2026-11-16): `normalize_text(text, nil, true)` unescapes only
+/// `\]`, and a `]` after a backslash never closes; Draft decodes `\[` and `\\` too.
+#[rstest::rstest]
+#[case(r"stem:[\[x\]]", Some(r"\[x]"), Some("[x]"))]
+#[case(r"latexmath:[a\\]", None, Some("a\\"))]
+#[case(r"stem:[a\]b]", Some("a]b"), Some("a]b"))]
+fn formula_escapes_follow_the_selected_mode(
+    #[case] authored: &str,
+    #[case] asciidoctor: Option<&str>,
+    #[case] draft: Option<&str>,
+) -> Result<(), Error> {
+    let source = format!("π {authored} ω.");
+    for (mode, expected) in [
+        (CompatibilityMode::Asciidoctor, asciidoctor),
+        (CompatibilityMode::Draft, draft),
+    ] {
+        let parsed = parse(
+            &source,
+            &Options::builder().with_compatibility_mode(mode).build()?,
+        )?;
+        let formula = paragraph(&parsed)?.inlines().find_map(|node| {
+            if let InlineKind::Stem(stem) = node.kind() {
+                Some(stem.text().to_owned())
+            } else {
+                None
+            }
+        });
+        assert_eq!(formula.as_deref(), expected, "{mode:?} {authored}");
+    }
+    Ok(())
+}
+
+#[rstest::rstest]
 #[case("latexmath:[$x$]", "x", StemNotation::Latexmath)]
 #[case("latexmath:[$$x$$]", "$x$", StemNotation::Latexmath)]
 #[case("asciimath:[$x$]", "$x$", StemNotation::Asciimath)]

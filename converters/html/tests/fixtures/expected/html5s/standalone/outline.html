@@ -1668,7 +1668,7 @@ preprocessor directive (<code>\include::target[]</code>)</li>
 <li>
 block macro (<code>\image::target[]</code>)</li>
 <li>
-list item (<code>* is an asterisk</code>)</li>
+list item (<code>\* is an asterisk</code>)</li>
 <li>
 dlist term (<code>App\:: is a Ruby namespace</code>) (or should it be <code>\App:: is a Ruby namespace</code>?)</li>
 <li>
@@ -4280,13 +4280,13 @@ However, this is both context-dependent and ambiguous (as escaping a backslash s
 Therefore, we may have to change this rule to be (<code>\*\*stars**</code>).
 This will introduce a slight incompatibility, but one that is reasonable to explain and to justify with the goal of making backslash escaping stable.</li>
 <li>
-The following question should be tested in the TCK to guide the escaping rules. Q: Does backslash escape a grammar rule match or does it just deactivate the immediate character?</li>
-</ul>
-</div>
-<div class="literalblock">
+The following question should be tested in the TCK to guide the escaping rules. Q: Does backslash escape a grammar rule match or does it just deactivate the immediate character?<div class="literalblock">
 <div class="content">
 <pre>from *\*foo**, do we get &lt;strong&gt;*foo*&lt;/strong&gt; or &lt;strong&gt;*foo&lt;/strong&gt;* ?</pre>
 </div>
+</div>
+</li>
+</ul>
 </div>
 </section>
 <section class="doc-section level-1">

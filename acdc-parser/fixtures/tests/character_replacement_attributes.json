@@ -39,11 +39,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Blank: beforeafter",
+          "value": "Blank: before",
           "location": [
             {
               "line": 3,
               "col": 1
+            },
+            {
+              "line": 3,
+              "col": 13
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "after",
+          "location": [
+            {
+              "line": 3,
+              "col": 21
             },
             {
               "line": 3,

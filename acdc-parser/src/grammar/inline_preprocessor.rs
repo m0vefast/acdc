@@ -693,6 +693,25 @@ impl SourceMap {
         offsets
     }
 
+    /// Visit, in source coordinates and through every earlier transformation,
+    /// where an attribute reference or removed indentation begins and ends.
+    pub(super) fn for_each_piece_boundary(&self, visit: &mut dyn FnMut(usize)) -> Result<(), Error> {
+        for replacement in &self.replacements {
+            if replacement.kind.is_attribute() || replacement.kind == ProcessedKind::Indentation {
+                for at in [replacement.absolute_start, replacement.absolute_end] {
+                    visit(match &self.origin {
+                        Some(origin) => origin.map.map_token_position(at + origin.offset)?,
+                        None => at,
+                    });
+                }
+            }
+        }
+        match &self.origin {
+            Some(origin) => origin.map.for_each_piece_boundary(visit),
+            None => Ok(()),
+        }
+    }
+
     /// Return attribute-produced spans so nested parsing preserves substitution order.
     pub(super) fn attribute_value_ranges(&self, original_start: usize) -> Vec<Range<usize>> {
         let mut original_cursor = original_start;

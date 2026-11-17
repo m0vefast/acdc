@@ -27,8 +27,16 @@ fn complete_tokens_use_profile_text_as_word_context(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[values("{}", "**{}**", "footnote:n[{}]", "link:outer.html[{}]")] context: &str,
     #[case] body: &str,
-    #[case] kind: Option<SymbolKind>,
+    #[case] draft: Option<SymbolKind>,
 ) -> Result<(), Error> {
+    // asciidoctor 2.0.26 (measured 2026-11-16, all four contexts) draws no symbol for any case:
+    // a passthrough is a placeholder to its words and is substituted alone, and a macro or anchor
+    // is still its source when replacements run.
+    let kind = if mode == CompatibilityMode::Asciidoctor {
+        None
+    } else {
+        draft
+    };
     let source = format!("Earlier.\n\nα🚀 {}.", context.replace("{}", body));
     let parsed = parse(
         &source,
@@ -105,6 +113,8 @@ fn active_profiles_keep_their_own_replacement_setting(
             }
         })
         .collect::<Vec<_>>();
+    // asciidoctor 2.0.26 (measured 2026-11-16) draws none: each passthrough is substituted alone.
+    let kind = kind.filter(|_| mode == CompatibilityMode::Draft);
     assert_eq!(kinds, kind.into_iter().collect::<Vec<_>>(), "{source}");
     assert_eq!(parsed.warnings(), []);
     Ok(())
@@ -129,6 +139,12 @@ fn later_outer_expansion_cannot_supply_word_context(
         .flat_map(|field| field.content().inlines())
         .filter(|node| matches!(node.kind(), InlineKind::Symbol(_)))
         .count();
-    assert_eq!(count, usize::from(curved), "{source}");
+    // asciidoctor 2.0.26 (measured 2026-11-16): the passthrough's placeholder follows `'` in both
+    // orders, so the apostrophe stays straight.
+    assert_eq!(
+        count,
+        usize::from(curved && mode == CompatibilityMode::Draft),
+        "{source}"
+    );
     Ok(())
 }

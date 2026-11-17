@@ -55,6 +55,7 @@
         }
       ],
       "level": 1,
+      "id": "_parent",
       "blocks": [
         {
           "name": "section",
@@ -77,6 +78,7 @@
             }
           ],
           "level": 2,
+          "id": "_child",
           "blocks": [
             {
               "name": "heading",
@@ -131,6 +133,7 @@
                 }
               ],
               "level": 1,
+              "id": "selected-heading",
               "metadata": {
                 "style": "discrete",
                 "anchors": [
@@ -143,7 +146,7 @@
                       },
                       {
                         "line": 10,
-                        "col": 21
+                        "col": 20
                       }
                     ]
                   }
@@ -236,6 +239,7 @@
         }
       ],
       "level": 1,
+      "id": "_sibling",
       "blocks": [
         {
           "name": "section",
@@ -258,6 +262,7 @@
             }
           ],
           "level": 2,
+          "id": "_named_style",
           "blocks": [
             {
               "name": "paragraph",
@@ -311,6 +316,7 @@
                 }
               ],
               "level": 1,
+              "id": "_legacy_selection",
               "metadata": {
                 "style": "float"
               },

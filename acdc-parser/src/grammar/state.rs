@@ -17,10 +17,7 @@ use crate::{
     FootnoteDefinition, Location, Options, Passthrough, SourceLocation, TocEntry, Warning,
     WarningKind, XrefCaptionLabel, XrefSignifier,
     document_attribute::{AttributeDeclaration, RawAttributeValue, is_header_only},
-    grammar::{
-        LineMap,
-        document::lists::{DescriptionListScope, OrdinaryListScope},
-    },
+    grammar::LineMap,
     model::{
         DocumentAttributeStatus, LeveloffsetRange, REFSIG_ATTRIBUTES, SourceRange,
         substitution::SubstitutionPlan,
@@ -104,13 +101,20 @@ pub(crate) struct ParserState<'a> {
     /// special styles (`[bibliography]`, `[glossary]`, ...) that are not auto-numbered
     /// under `sectnums`.
     pub(crate) toc_entries: Vec<TocEntry<'a>>,
+    /// The manual page's name and purpose came from its first section (asciidoctor
+    /// `parse_manpage_header`), whose id becomes `manname-id` once the section is parsed.
+    pub(super) manname_from_section: bool,
     pub(crate) block_context: BlockContext,
     /// Base offset of the input containing the active callout list.
     /// Reparsed delimited-block content must not terminate that list.
     pub(super) callout_list_offset: Option<usize>,
-    // Description-list children must leave sibling markers for these parents.
-    pub(super) ordinary_list_scope: Option<OrdinaryListScope<'a>>,
-    pub(super) description_list_scope: Option<DescriptionListScope<'a>>,
+    /// Offset of the input holding a list item's own lines, where a paragraph
+    /// no blank line precedes ends at any list item line.
+    pub(super) list_item_offset: Option<usize>,
+    /// Starts of the empty lines in this input that stand for a `+`
+    /// (`ListContinuationPlaceholder`), which nested list readers keep reading
+    /// as continuations.
+    pub(super) placeholder_lines: Rc<[usize]>,
     /// Verbatim callout references collected since the previous callout list.
     pub(super) pending_callouts: Vec<CalloutMarker>,
     /// The current file being parsed (`None` for inline/string parsing). Used as the
@@ -133,6 +137,10 @@ pub(crate) struct ParserState<'a> {
     /// preprocessor when processing `include::` directives. Used to produce accurate
     /// file/line info in warnings.
     pub(crate) source_ranges: Vec<SourceRange>,
+    /// Input offsets where the byte before and the byte at the offset do not
+    /// follow each other in the source; no text node spans one. Sorted; read
+    /// through [`Self::text_gaps`].
+    pub(crate) text_gaps: Option<Rc<[usize]>>,
     /// Full include names used by document-level cross-reference resolution.
     pub(crate) included_files: HashSet<String>,
     /// Inline owners share this buffer, map their newly collected diagnostics,
@@ -150,6 +158,8 @@ pub(crate) struct ParserState<'a> {
     pub(super) attribute_passthroughs: Rc<[Passthrough<'a>]>,
     // Resolved references cannot contribute syntax to a later stage.
     pub(super) resolved_reference_ranges: Vec<Range<usize>>,
+    /// Source spans of the inline passthroughs extracted before substitution.
+    pub(super) passthrough_spans: Option<Rc<[Range<usize>]>>,
     /// When parsing content extracted from a constrained formatting rule, holds
     /// the delimiter byte of the outer formatting (e.g., `b'_'` for italic).
     /// Used to correctly fail boundary checks when the outer delimiter is a
@@ -275,6 +285,15 @@ impl<'a> FootnoteTracker<'a> {
             shared_next_number: None,
             named_footnotes: HashMap::new(),
             location_finalized: HashSet::new(),
+        }
+    }
+
+    /// A tracker whose numbers no document reaches, for content the document numbers
+    /// later (`Document::rebuild_footnotes`).
+    pub(super) fn provisional() -> Self {
+        Self {
+            next_number: u32::MAX / 2,
+            ..Self::new()
         }
     }
 
@@ -730,21 +749,24 @@ impl<'a> ParserState<'a> {
             footnote_tracker: Rc::new(RefCell::new(FootnoteTracker::new())),
             xref_caption_label_snapshots: Rc::default(),
             toc_entries: Vec::new(),
+            manname_from_section: false,
             block_context: BlockContext::Document,
             callout_list_offset: None,
-            ordinary_list_scope: None,
-            description_list_scope: None,
+            list_item_offset: None,
+            placeholder_lines: Rc::from([]),
             pending_callouts: Vec::new(),
             current_file: None,
             leveloffset_ranges: Vec::new(),
             leveloffset_scopes: Vec::new(),
             source_ranges: Vec::new(),
+            text_gaps: None,
             included_files: HashSet::new(),
             warnings: Rc::default(),
             warnings_start: 0,
             quotes_only: false,
             attribute_passthroughs: Rc::default(),
             resolved_reference_ranges: Vec::new(),
+            passthrough_spans: None,
             outer_constrained_delimiter: None,
             scope: ParserScope::Document,
             inline_ctx: InlineContext {
@@ -787,21 +809,24 @@ impl<'a> ParserState<'a> {
             footnote_tracker: Rc::new(RefCell::new(FootnoteTracker::new())),
             xref_caption_label_snapshots: Rc::default(),
             toc_entries: Vec::new(),
+            manname_from_section: false,
             block_context: BlockContext::Document,
             callout_list_offset: None,
-            ordinary_list_scope: None,
-            description_list_scope: None,
+            list_item_offset: None,
+            placeholder_lines: Rc::from([]),
             pending_callouts: Vec::new(),
             current_file: None,
             leveloffset_ranges: Vec::new(),
             leveloffset_scopes: Vec::new(),
             source_ranges: Vec::new(),
+            text_gaps: None,
             included_files: HashSet::new(),
             warnings: Rc::default(),
             warnings_start: 0,
             quotes_only: true,
             attribute_passthroughs: Rc::default(),
             resolved_reference_ranges: Vec::new(),
+            passthrough_spans: None,
             outer_constrained_delimiter: None,
             scope: ParserScope::Document,
             inline_ctx: InlineContext {
@@ -844,10 +869,11 @@ impl<'a> ParserState<'a> {
             footnote_tracker: Rc::clone(&parent.footnote_tracker),
             xref_caption_label_snapshots: Rc::clone(&parent.xref_caption_label_snapshots),
             toc_entries: Vec::new(),
+            manname_from_section: false,
             block_context: BlockContext::Document,
             callout_list_offset: None,
-            ordinary_list_scope: None,
-            description_list_scope: None,
+            list_item_offset: None,
+            placeholder_lines: Rc::from([]),
             pending_callouts: Vec::new(),
             // Inherit the file so inline sub-parse nodes are stamped with the correct
             // origin file by `create_location` (cheap `Arc` clone).
@@ -855,6 +881,7 @@ impl<'a> ParserState<'a> {
             leveloffset_ranges: Vec::new(),
             leveloffset_scopes: Vec::new(),
             source_ranges: Vec::new(),
+            text_gaps: None,
             included_files: HashSet::new(),
             // Each inline owner maps only the diagnostics appended in its scope.
             warnings: Rc::clone(&parent.warnings),
@@ -878,6 +905,7 @@ impl<'a> ParserState<'a> {
                         })
                         .collect()
                 }),
+            passthrough_spans: parent.passthrough_spans.clone(),
             outer_constrained_delimiter: parent.outer_constrained_delimiter,
             scope: ParserScope::Inline,
             inline_ctx,
@@ -942,6 +970,17 @@ impl<'a> ParserState<'a> {
         for warning in self.warnings.borrow().iter() {
             warning.emit_trace();
         }
+    }
+
+    /// Input offsets where the source does not continue. Sorted.
+    pub(crate) fn text_gaps(&self) -> &[usize] {
+        self.text_gaps.as_deref().unwrap_or_default()
+    }
+
+    /// Forget lookups memoized by offset; they describe the input being replaced.
+    pub(super) fn reset_offset_caches(&self) {
+        self.next_at_sign_cache.set(None);
+        self.failed_link_target_range.set(None);
     }
 
     /// Map a diagnostic's endpoints to their original source coordinates.
@@ -1029,6 +1068,16 @@ impl<'a> ParserState<'a> {
     ///
     /// Adds `offset` to both start and end, then decrements end by one character
     /// (to exclude trailing delimiter/newline). UTF-8 safety is handled by `create_location`.
+    /// `end` (exclusive, relative to `offset`) less the line breaks before it: a
+    /// block that consumed them still ends on its last character.
+    pub(super) fn end_before_line_breaks(&self, start: usize, end: usize, offset: usize) -> usize {
+        let mut end = end;
+        while end > start + 1 && self.input.as_bytes().get(end + offset - 1) == Some(&b'\n') {
+            end -= 1;
+        }
+        end
+    }
+
     pub(super) fn create_block_location(
         &self,
         start: usize,
@@ -1265,6 +1314,7 @@ mod tests {
             start_line: 1,
             source_start_offset: 0,
             column_shift: 0,
+            stands_for: None,
         });
 
         // Location inside the included range (second line of include: "inc_line2")
@@ -1307,6 +1357,7 @@ mod tests {
                 start_line: 4,
                 source_start_offset: 0,
                 column_shift: shift,
+                stands_for: None,
             });
             let start = input.find("<<").ok_or("missing reference")?;
             let location = state.create_location(start, input.len() - 2);
@@ -1336,6 +1387,7 @@ mod tests {
                 start_line: 4,
                 source_start_offset: 100,
                 column_shift: 0,
+                stands_for: None,
             },
             SourceRange {
                 start_offset: 4,
@@ -1345,6 +1397,7 @@ mod tests {
                 start_line: 2,
                 source_start_offset: 0,
                 column_shift: 0,
+                stands_for: None,
             },
         ];
         let source = state.create_error_source_location(state.create_location(0, 6));

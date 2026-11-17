@@ -54,41 +54,11 @@
         {
           "name": "raw",
           "type": "string",
-          "value": "not bold",
+          "value": "not bold\\*</del>",
           "location": [
             {
               "line": 1,
               "col": 34
-            },
-            {
-              "line": 1,
-              "col": 41
-            }
-          ]
-        },
-        {
-          "name": "raw",
-          "type": "string",
-          "value": "*",
-          "location": [
-            {
-              "line": 1,
-              "col": 42
-            },
-            {
-              "line": 1,
-              "col": 43
-            }
-          ]
-        },
-        {
-          "name": "raw",
-          "type": "string",
-          "value": "</del>",
-          "location": [
-            {
-              "line": 1,
-              "col": 44
             },
             {
               "line": 1,
@@ -144,41 +114,11 @@
         {
           "name": "raw",
           "type": "string",
-          "value": "escaped",
+          "value": "escaped\\* ",
           "location": [
             {
               "line": 1,
               "col": 76
-            },
-            {
-              "line": 1,
-              "col": 82
-            }
-          ]
-        },
-        {
-          "name": "raw",
-          "type": "string",
-          "value": "*",
-          "location": [
-            {
-              "line": 1,
-              "col": 83
-            },
-            {
-              "line": 1,
-              "col": 84
-            }
-          ]
-        },
-        {
-          "name": "raw",
-          "type": "string",
-          "value": " ",
-          "location": [
-            {
-              "line": 1,
-              "col": 85
             },
             {
               "line": 1,

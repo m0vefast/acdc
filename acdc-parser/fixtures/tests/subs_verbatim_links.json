@@ -1001,7 +1001,7 @@
           "location": [
             {
               "line": 33,
-              "col": 1
+              "col": 2
             },
             {
               "line": 33,
@@ -1275,11 +1275,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": " link:https://example.org/from-attribute[From attribute]",
+          "value": " ",
           "location": [
             {
               "line": 42,
               "col": 21
+            },
+            {
+              "line": 42,
+              "col": 21
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "link:https://example.org/from-attribute[From attribute]",
+          "location": [
+            {
+              "line": 42,
+              "col": 22
             },
             {
               "line": 42,
@@ -1710,6 +1725,7 @@
         }
       ],
       "level": 1,
+      "id": "destination",
       "metadata": {
         "anchors": [
           {
@@ -1721,7 +1737,7 @@
               },
               {
                 "line": 69,
-                "col": 16
+                "col": 15
               }
             ]
           }

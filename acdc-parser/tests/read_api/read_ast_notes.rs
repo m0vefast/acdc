@@ -308,9 +308,18 @@ fn footnote_reads_preserve_included_and_table_cell_locations(
         return Err("cell paragraph".into());
     };
     let mut occurrences = notes(paragraph.content());
-    assert!(paragraph.content().inlines().any(|node| {
-        matches!(node.kind(), InlineKind::Plain(plain) if plain.text().contains("[n]"))
-    }));
+    // asciidoctor 2.0.26 (measured 2026-11-16) keeps the cell's reference to an outer note as an
+    // unresolved `footnoteref`; Draft writes it as text.
+    if mode == CompatibilityMode::Asciidoctor {
+        let unresolved = occurrences.next().ok_or("unresolved reference")?;
+        assert!(!unresolved.is_resolved());
+        assert_eq!((unresolved.id(), unresolved.number()), (Some("n"), 0));
+        assert!(unresolved.content().is_none());
+    } else {
+        assert!(paragraph.content().inlines().any(|node| {
+            matches!(node.kind(), InlineKind::Plain(plain) if plain.text().contains("[n]"))
+        }));
+    }
     assert_eq!(parsed.warnings().len(), 1);
     let definition = occurrences.next().ok_or("cell definition")?;
     assert_eq!(definition.number(), 2);

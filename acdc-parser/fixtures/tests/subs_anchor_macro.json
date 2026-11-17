@@ -112,11 +112,71 @@
         {
           "name": "text",
           "type": "string",
-          "value": "anchor:expanded[Expanded label]Late ID. ",
+          "value": "anchor:",
           "location": [
             {
               "line": 10,
               "col": 1
+            },
+            {
+              "line": 10,
+              "col": 7
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "expanded",
+          "location": [
+            {
+              "line": 10,
+              "col": 8
+            },
+            {
+              "line": 10,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "[",
+          "location": [
+            {
+              "line": 10,
+              "col": 16
+            },
+            {
+              "line": 10,
+              "col": 16
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Expanded label",
+          "location": [
+            {
+              "line": 10,
+              "col": 17
+            },
+            {
+              "line": 10,
+              "col": 23
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "]Late ID. ",
+          "location": [
+            {
+              "line": 10,
+              "col": 24
             },
             {
               "line": 10,
@@ -201,11 +261,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Before]after",
+              "value": "Before",
               "location": [
                 {
                   "line": 13,
                   "col": 21
+                },
+                {
+                  "line": 13,
+                  "col": 26
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "]",
+              "location": [
+                {
+                  "line": 13,
+                  "col": 27
+                },
+                {
+                  "line": 13,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "after",
+              "location": [
+                {
+                  "line": 13,
+                  "col": 34
                 },
                 {
                   "line": 13,

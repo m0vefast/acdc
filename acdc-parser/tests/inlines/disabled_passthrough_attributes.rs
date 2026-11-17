@@ -42,11 +42,8 @@ fn disabled_passthroughs_use_the_enclosing_attribute_stage() -> Result<(), Error
                 else {
                     return Err("expected one paragraph".into());
                 };
-                let [InlineKind::Plain(text)] = &*paragraph
-                    .content()
-                    .inlines()
-                    .map(InlineRef::kind)
-                    .collect::<Vec<_>>()
+                let Some((text, first, last)) =
+                    crate::plain_run(paragraph.content().inlines(), parsed.preprocessed_source())
                 else {
                     return Err(format!(
                         "expected literal macro syntax: {source}: {:?}",
@@ -55,14 +52,14 @@ fn disabled_passthroughs_use_the_enclosing_attribute_stage() -> Result<(), Error
                     .into());
                 };
                 assert_eq!(
-                    text.text(),
+                    text,
                     format!("α {} ω.", body.replace("{word}", "café")),
                     "{source}"
                 );
                 assert_eq!(
                     parsed
                         .preprocessed_source()
-                        .get(text.location().absolute_start()..=text.location().absolute_end()),
+                        .get(first.absolute_start()..=last.absolute_end()),
                     Some(format!("α {body} ω.").as_str())
                 );
                 assert!(parsed.document().footnotes().next().is_none());
@@ -141,21 +138,16 @@ fn disabled_passthroughs_expand_inside_code_without_losing_source_spans() -> Res
                         }
                     })
                     .ok_or("missing code span")?;
-                let [InlineKind::Plain(text)] = &*code
-                    .content()
-                    .inlines()
-                    .map(InlineRef::kind)
-                    .collect::<Vec<_>>()
-                else {
+                let Some((text, first, last)) = crate::plain_run(code.content().inlines(), &source) else {
                     return Err("expected literal passthrough syntax inside code".into());
                 };
-                assert_eq!(text.text(), body.replace("{word}", "café"), "{source}");
+                assert_eq!(text, body.replace("{word}", "café"), "{source}");
                 assert_eq!(
                     source.get(code.location().absolute_start()..=code.location().absolute_end()),
                     Some(code_source.as_str())
                 );
                 assert_eq!(
-                    source.get(text.location().absolute_start()..=text.location().absolute_end()),
+                    source.get(first.absolute_start()..=last.absolute_end()),
                     Some(body)
                 );
                 let bold = paragraph
@@ -259,36 +251,25 @@ fn disabled_passthrough_expansion_keeps_catalogs_empty_and_include_origins() -> 
             })
         } else { None }
     }).ok_or("missing included paragraph")?;
-    let [InlineKind::Plain(text)] = &*paragraph
-        .content()
-        .inlines()
-        .map(InlineRef::kind)
-        .collect::<Vec<_>>()
-    else {
+    let source = include_str!("../../fixtures/tests/includes/disabled_passthrough_attributes.adoc");
+    let Some((text, first, last)) = crate::plain_run(paragraph.content().inlines(), source) else {
         return Err("expected literal included content".into());
     };
-    assert_eq!(text.text(), "D30 +late+ | pass:[late].");
-    let source = include_str!("../../fixtures/tests/includes/disabled_passthrough_attributes.adoc");
+    assert_eq!(text, "D30 +late+ | pass:[late].");
     assert_eq!(
-        source.get(text.location().absolute_start()..=text.location().absolute_end()),
+        source.get(first.absolute_start()..=last.absolute_end()),
         Some("D30 +{word}+ | pass:[{word}].")
     );
     assert!(
-        text.location()
+        first
             .start()
             .include_chain()
             .and_then(Iterator::last)
             .is_some_and(|file| file.ends_with("includes/disabled_passthrough_attributes.adoc"))
     );
     assert_eq!(
-        text.location()
-            .start()
-            .include_chain()
-            .map(Iterator::collect::<Vec<_>>),
-        text.location()
-            .end()
-            .include_chain()
-            .map(Iterator::collect::<Vec<_>>)
+        first.start().include_chain().map(Iterator::collect::<Vec<_>>),
+        last.end().include_chain().map(Iterator::collect::<Vec<_>>)
     );
     Ok(())
 }

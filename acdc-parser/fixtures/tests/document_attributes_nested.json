@@ -90,11 +90,101 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "First: parent; local; first.",
+                        "value": "First: ",
                         "location": [
                           {
                             "line": 12,
                             "col": 1
+                          },
+                          {
+                            "line": 12,
+                            "col": 7
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "parent",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 8
+                          },
+                          {
+                            "line": 12,
+                            "col": 19
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "; ",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 20
+                          },
+                          {
+                            "line": 12,
+                            "col": 21
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "local",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 22
+                          },
+                          {
+                            "line": 12,
+                            "col": 33
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "; ",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 34
+                          },
+                          {
+                            "line": 12,
+                            "col": 35
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "first",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 36
+                          },
+                          {
+                            "line": 12,
+                            "col": 47
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": ".",
+                        "location": [
+                          {
+                            "line": 12,
+                            "col": 48
                           },
                           {
                             "line": 12,
@@ -136,11 +226,41 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Updated: second.",
+                        "value": "Updated: ",
                         "location": [
                           {
                             "line": 16,
                             "col": 1
+                          },
+                          {
+                            "line": 16,
+                            "col": 9
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "second",
+                        "location": [
+                          {
+                            "line": 16,
+                            "col": 10
+                          },
+                          {
+                            "line": 16,
+                            "col": 21
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": ".",
+                        "location": [
+                          {
+                            "line": 16,
+                            "col": 22
                           },
                           {
                             "line": 16,
@@ -201,11 +321,101 @@
                                     {
                                       "name": "text",
                                       "type": "string",
-                                      "value": "Nested: parent; second; nested.",
+                                      "value": "Nested: ",
                                       "location": [
                                         {
                                           "line": 24,
                                           "col": 1
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 8
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": "parent",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 9
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 20
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": "; ",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 21
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 22
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": "second",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 23
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 34
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": "; ",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 35
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 36
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": "nested",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 37
+                                        },
+                                        {
+                                          "line": 24,
+                                          "col": 49
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "text",
+                                      "type": "string",
+                                      "value": ".",
+                                      "location": [
+                                        {
+                                          "line": 24,
+                                          "col": 50
                                         },
                                         {
                                           "line": 24,
@@ -265,11 +475,41 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "After nested: second; {nested-only}.",
+                        "value": "After nested: ",
                         "location": [
                           {
                             "line": 27,
                             "col": 1
+                          },
+                          {
+                            "line": 27,
+                            "col": 14
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "second",
+                        "location": [
+                          {
+                            "line": 27,
+                            "col": 15
+                          },
+                          {
+                            "line": 27,
+                            "col": 26
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "; {nested-only}.",
+                        "location": [
+                          {
+                            "line": 27,
+                            "col": 27
                           },
                           {
                             "line": 27,
@@ -302,11 +542,41 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Sibling: parent; {cell-unset}; {cell-local}.",
+                        "value": "Sibling: ",
                         "location": [
                           {
                             "line": 30,
                             "col": 1
+                          },
+                          {
+                            "line": 30,
+                            "col": 9
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "parent",
+                        "location": [
+                          {
+                            "line": 30,
+                            "col": 10
+                          },
+                          {
+                            "line": 30,
+                            "col": 21
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "; {cell-unset}; {cell-local}.",
+                        "location": [
+                          {
+                            "line": 30,
+                            "col": 22
                           },
                           {
                             "line": 30,
@@ -338,11 +608,41 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "Plain: parent; {cell-unset}; {cell-local}.",
+                        "value": "Plain: ",
                         "location": [
                           {
                             "line": 32,
                             "col": 2
+                          },
+                          {
+                            "line": 32,
+                            "col": 8
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "parent",
+                        "location": [
+                          {
+                            "line": 32,
+                            "col": 9
+                          },
+                          {
+                            "line": 32,
+                            "col": 20
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "; {cell-unset}; {cell-local}.",
+                        "location": [
+                          {
+                            "line": 32,
+                            "col": 21
                           },
                           {
                             "line": 32,
@@ -405,11 +705,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Parent: parent; {cell-unset}; {cell-local}; {nested-only}.",
+          "value": "Parent: ",
           "location": [
             {
               "line": 35,
               "col": 1
+            },
+            {
+              "line": 35,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "parent",
+          "location": [
+            {
+              "line": 35,
+              "col": 9
+            },
+            {
+              "line": 35,
+              "col": 20
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "; {cell-unset}; {cell-local}; {nested-only}.",
+          "location": [
+            {
+              "line": 35,
+              "col": 21
             },
             {
               "line": 35,

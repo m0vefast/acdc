@@ -9,11 +9,56 @@
         {
           "name": "text",
           "type": "string",
-          "value": "This is a literal paragraph with leading spaces.\nAll lines start with a space.\nSpecial characters like + and ** should be preserved.\nLine continuations using + should not be processed.",
+          "value": "This is a literal paragraph with leading spaces.\n",
           "location": [
             {
               "line": 1,
-              "col": 1
+              "col": 2
+            },
+            {
+              "line": 1,
+              "col": 50
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "All lines start with a space.\n",
+          "location": [
+            {
+              "line": 2,
+              "col": 2
+            },
+            {
+              "line": 2,
+              "col": 31
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Special characters like + and ** should be preserved.\n",
+          "location": [
+            {
+              "line": 3,
+              "col": 2
+            },
+            {
+              "line": 3,
+              "col": 55
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "Line continuations using + should not be processed.",
+          "location": [
+            {
+              "line": 4,
+              "col": 2
             },
             {
               "line": 4,

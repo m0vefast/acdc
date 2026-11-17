@@ -59,6 +59,7 @@
         }
       ],
       "level": 1,
+      "id": "_included_heading",
       "blocks": [
         {
           "name": "comment",
@@ -74,7 +75,7 @@
             },
             {
               "line": 5,
-              "col": 21,
+              "col": 20,
               "file": [
                 "includes/compatibility_setext_selected.adoc"
               ]
@@ -164,6 +165,7 @@
                           }
                         ],
                         "level": 1,
+                        "id": "_cell_heading",
                         "blocks": [
                           {
                             "name": "paragraph",
@@ -377,6 +379,7 @@
         }
       ],
       "level": 1,
+      "id": "_still_mode_owned",
       "blocks": [
         {
           "name": "paragraph",

@@ -717,6 +717,7 @@
         }
       ],
       "level": 1,
+      "id": "_after",
       "blocks": [
         {
           "name": "paragraph",
@@ -829,6 +830,7 @@
         }
       ],
       "level": 1,
+      "id": "_final_index",
       "metadata": {
         "style": "index"
       },

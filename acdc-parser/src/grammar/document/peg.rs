@@ -5,11 +5,10 @@
 use crate::{
     Anchor, Attribution, Audio, Author, Block, BlockMetadata, CalloutList, CalloutListItem,
     CalloutMarker, CiteTitle, Comment, CommentKind, CompatibilityMode, DelimitedBlock,
-    DelimitedBlockType, DescriptionList, DescriptionListDefinition, DescriptionListItem,
-    DescriptionListTerm, DiscreteHeading, Document, DocumentAttribute, DocumentAttributes, Error,
-    Header, Image, InlineNode, ListItem, ListItemCheckedStatus, Location, OrderedList, PageBreak,
-    Paragraph, Plain, Position, Section, Source, Subtitle, TableOfContents, ThematicBreak, Title,
-    UnorderedList, Video, Warning, WarningKind,
+    DelimitedBlockType, DiscreteHeading, Document, DocumentAttribute, DocumentAttributes, Error,
+    Header, Image, InlineNode, RevisionLocations, ListItem, ListItemCheckedStatus, Location, PageBreak,
+    Paragraph, Plain, Position, Section, Source, TableOfContents, ThematicBreak, Title,
+    Video, Warning, WarningKind,
     document_attribute::{AttributeDeclaration, RawAttributeValue, join_wrapped_value},
     grammar::{
         ParserState,
@@ -23,8 +22,7 @@ use crate::{
             doctype::{is_book_doctype, is_manpage_doctype},
             header::{ParsedHeader, header_span, merge_header_metadata},
             lists::{
-                DescriptionListScope, ListMarker, OrdinaryListScope, assemble_principal_text,
-                build_description_list_topology, calculate_item_end, find_dlist_marker,
+                ItemHead, ListMarker, assemble_principal_text, calculate_item_end, find_dlist_marker,
             },
             manpage::{
                 ManpageNameSection, derive_manpage_header_attrs, derive_name_section_attrs,
@@ -46,8 +44,11 @@ use crate::{
                 register_document_references, register_section_header, resolve_source_target,
                 resolve_xref_target,
             },
-            revision::{IgnoredRevisionFields, RevisionInfo, process_revision_info},
-            sections::{apply_leveloffset, expected_child_level},
+            revision::{IgnoredRevisionFields, RevisionInfo, RevisionSpans, process_revision_info},
+            sections::{
+                DocumentTitleParts, apply_leveloffset, document_title_parts, expected_child_level,
+                heading_title, without_closing_marker,
+            },
             table::{
                 PreparedTableCellParagraph, TableClosing, TableParseParams, parse_table_block_impl,
             },
@@ -86,6 +87,7 @@ peg::parser! {
         = eol()* start:position() comments_before_header:(comment:leading_comment() eol()* { comment })* header_result:header() prepare_manpage_front_matter() header_attributes:header_attribute_snapshot() blocks:blocks(0, None, None) end:position!() (eol()* / ![_]) {
             let ParsedHeader { header, untitled_location: untitled_header_location } = header_result?;
             let mut blocks: Vec<Block<'_>> = comments_before_header.into_iter().collect::<Result<Vec<_>, Error>>()?.into_iter().chain(blocks?).collect();
+            let carried_titles = Block::deliver_carried_titles(&mut blocks, &mut None);
 
             // Ensure end offset is on a valid UTF-8 boundary
             let mut document_end_offset = end;
@@ -261,6 +263,24 @@ peg::parser! {
                 &reference_ids,
                 &references.natural_targets,
             )?;
+            // asciidoctor numbers a note when it converts it: a carried title's notes follow
+            // the heading it was written above, and a title its block's own title replaced
+            // has none.
+            // asciidoctor `parse_manpage_header`: `manname-id` is the id of the section the
+            // name came from.
+            if state.manname_from_section
+                && let Some(id) = document.blocks.iter().find_map(|block| {
+                    if let Block::Section(section) = block { Some(section.id) } else { None }
+                }).flatten()
+            {
+                document.attributes.set_text("manname-id".into(), id.into());
+            }
+            if carried_titles {
+                let location = document.location.clone();
+                document.rebuild_footnotes().map_err(|error| {
+                    Error::Parse(Box::new(state.create_error_source_location(location)), error.to_string())
+                })?;
+            }
             Ok(document)
         }
 
@@ -325,7 +345,7 @@ peg::parser! {
         = manpage_comment_block() { None }
         / "//" !"/" [^'\n']* (eol() / ![_]) { None }
         / "[[" (!"]]" [^'\n'])+ "]]" (eol() / ![_]) { None }
-        / !empty_list_separator() block_attribute_start()
+        / block_attribute_start()
           open_square_bracket() attribute_list_content(BlockAttributeMode::Block) (eol() / ![_]) { None }
         / "." ![' ' | '\t' | '\n' | '\r' | '.'] [^'\n']* (eol() / ![_]) { None }
         / attribute:document_attribute_match() (eol() / ![_]) { Some(attribute) }
@@ -365,8 +385,11 @@ peg::parser! {
             )?
             (eol()*<,2> / ![_])
         {
-            if let Some(((title, subtitle, authors), end)) = titled {
+            if let Some((((title_start, title_text), (authors, revision)), end)) = titled {
                 let mut metadata = metadata?;
+                let has_id = Section::explicit_id(&metadata).is_some();
+                let (title, subtitle, trailing_anchor) = document_title_parts(state, title_start, title_text, has_id)?;
+                metadata.anchors.extend(trailing_anchor);
                 crate::grammar::reference_text::resolve_metadata(state, &mut metadata)?;
                 let location = header_span(state, start, end);
                 let mut header = Header {
@@ -374,6 +397,7 @@ peg::parser! {
                     title,
                     subtitle,
                     authors,
+                    revision,
                     location,
                 };
 
@@ -467,21 +491,29 @@ peg::parser! {
             / comment_block_match() (eol() / ![_])
             / attribute_or_anchor_line_match()
 
-        rule title_authors() -> (Title<'input>, Option<Subtitle<'input>>, Vec<Author<'input>>)
+        rule title_authors() -> ((usize, &'input str), (Vec<Author<'input>>, Option<RevisionLocations>))
         // Attribute entries and comments keep each metadata slot open. Consume
         // them outside optional metadata parsing so backtracking cannot assign
         // an entry twice; a blank line still ends the header.
-        = title_and_subtitle:document_title()
+        = title:document_title_raw()
           (eol() (document_attribute() / header_comment()))*
           authors:(eol() authors:authors_and_revision() { authors })?
           &(eol() / ![_])
         {
-            let (title, subtitle) = title_and_subtitle;
             tracing::debug!("Found title and authors in the document header.");
-            (title, subtitle, authors.unwrap_or_default())
+            (title, authors.unwrap_or_default())
         }
 
-        pub(in crate::grammar::document) rule document_title() -> (Title<'input>, Option<Subtitle<'input>>)
+        pub(in crate::grammar::document) rule document_title(has_id: bool) -> DocumentTitleParts<'input>
+        = raw:document_title_raw() {?
+            document_title_parts(state, raw.0, raw.1, has_id).map_err(|_| "could not process document title")
+        }
+
+        // The title's start and text, its inlines not yet processed: the header
+        // processes them once its attribute entries are read, as asciidoctor
+        // converts the doctitle after the header (`= {product}` then
+        // `:product: Glyph` reads "Glyph").
+        rule document_title_raw() -> (usize, &'input str)
         = document_title_atx()
         / document_title_setext()
 
@@ -496,46 +528,11 @@ peg::parser! {
         }
 
         /// ATX-style document title: `= Title` or `# Title`
-        rule document_title_atx() -> (Title<'input>, Option<Subtitle<'input>>)
-        = &atx_heading_prefix() document_title_token() whitespace() start:position!() title:$([^'\n']*) end:position!()
-        {?
+        rule document_title_atx() -> (usize, &'input str)
+        = &atx_heading_prefix() token:$(document_title_token()) whitespace()+ start:position!() title:$([^'\n']*)
+        {
             tracing::debug!("Processing ATX document title");
-            let block_metadata = BlockParsingMetadata::new(state.options.compatibility_mode);
-
-            let (title_inlines, subtitle) = if let Some(colon_pos) = title.rfind(": ") {
-                let subtitle_raw = &title[colon_pos + 1..];
-                let subtitle_text = subtitle_raw.trim();
-                if subtitle_text.is_empty() {
-                    // Empty subtitle after colon, treat whole text as title
-                    let (inlines, _) = process_inlines(state, &block_metadata, start, end, 0, title)
-                        .map_err(|_| "could not process document title")?;
-                    (inlines, None)
-                } else {
-                    let title_raw = &title[..colon_pos];
-                    let title_text = title_raw.trim_end();
-                    let title_end = start + title_text.len();
-                    let (inlines, _) = process_inlines(state, &block_metadata, start, title_end, 0, title_text)
-                        .map_err(|_| "could not process document title")?;
-
-                    let sub_leading = subtitle_raw.len() - subtitle_raw.trim_start().len();
-                    let sub_start_offset = start + colon_pos + 1 + sub_leading;
-                    let subtitle_start = PositionWithOffset {
-                        offset: sub_start_offset,
-                        position: state.line_map.offset_to_position(sub_start_offset, state.input),
-                    };
-                    let sub_end = sub_start_offset + subtitle_text.len();
-                    let (subtitle_inlines, _) = process_inlines(state, &block_metadata, subtitle_start.offset, sub_end, 0, subtitle_text)
-                        .map_err(|_| "could not process document subtitle")?;
-
-                    (inlines, Some(Subtitle::new(subtitle_inlines)))
-                }
-            } else {
-                let (inlines, _) = process_inlines(state, &block_metadata, start, end, 0, title)
-                    .map_err(|_| "could not process document title")?;
-                (inlines, None)
-            };
-
-            Ok((Title::new(title_inlines), subtitle))
+            (start, &title[..without_closing_marker(title, token)])
         }
 
         rule setext_title_text() -> &'input str
@@ -552,59 +549,24 @@ peg::parser! {
         ///
         /// The underline must be within one character of the title width.
         /// Recognized in Asciidoctor mode.
-        rule document_title_setext() -> (Title<'input>, Option<Subtitle<'input>>)
-        = title:setext_title_text() end:position!() eol()
+        rule document_title_setext() -> (usize, &'input str)
+        = title:setext_title_text() eol()
           underline:$("="+) &(eol() / ![_])
         {?
             if !setext::is_document_title(state.options.compatibility_mode, title, underline) {
                 return Err("not a setext document title");
             }
-
             tracing::debug!("Processing setext document title");
-            let block_metadata = BlockParsingMetadata::new(state.options.compatibility_mode);
-
-            let (title_inlines, subtitle) = if let Some(colon_pos) = title.rfind(": ") {
-                let subtitle_raw = &title[colon_pos + 1..];
-                let subtitle_text = subtitle_raw.trim();
-                if subtitle_text.is_empty() {
-                    let (inlines, _) = process_inlines(state, &block_metadata, span_start, end, 0, title)
-                        .map_err(|_| "could not process setext document title")?;
-                    (inlines, None)
-                } else {
-                    let title_raw = &title[..colon_pos];
-                    let title_text = title_raw.trim_end();
-                    let title_end = span_start + title_text.len();
-                    let (inlines, _) = process_inlines(state, &block_metadata, span_start, title_end, 0, title_text)
-                        .map_err(|_| "could not process setext document title")?;
-
-                    let sub_leading = subtitle_raw.len() - subtitle_raw.trim_start().len();
-                    let sub_start_offset = span_start + colon_pos + 1 + sub_leading;
-                    let subtitle_start = PositionWithOffset {
-                        offset: sub_start_offset,
-                        position: state.line_map.offset_to_position(sub_start_offset, state.input),
-                    };
-                    let sub_end = sub_start_offset + subtitle_text.len();
-                    let (subtitle_inlines, _) = process_inlines(state, &block_metadata, subtitle_start.offset, sub_end, 0, subtitle_text)
-                        .map_err(|_| "could not process setext document subtitle")?;
-
-                    (inlines, Some(Subtitle::new(subtitle_inlines)))
-                }
-            } else {
-                let (inlines, _) = process_inlines(state, &block_metadata, span_start, end, 0, title)
-                    .map_err(|_| "could not process setext document title")?;
-                (inlines, None)
-            };
-
-            Ok((Title::new(title_inlines), subtitle))
+            Ok((span_start, title))
         }
 
         rule document_title_token() = "=" / "#"
 
-        rule authors_and_revision() -> Vec<Author<'input>>
+        rule authors_and_revision() -> (Vec<Author<'input>>, Option<RevisionLocations>)
         = authors:author_line()
           (eol() (document_attribute() / header_comment()))*
-          (eol() revision_pre_substitution())?
-          { authors }
+          revision:(eol() revision:revision_pre_substitution() { revision })?
+          { (authors, revision.flatten()) }
 
         rule author_line() -> Vec<Author<'input>>
             = !document_attribute_match() !comment()
@@ -684,17 +646,18 @@ peg::parser! {
                 name
             }
 
-        pub(in crate::grammar::document) rule revision() -> ()
-            = "v"? number:$(digits() ++ ".") date:revision_date()? remark:revision_remark()? {
+        pub(in crate::grammar::document) rule revision() -> RevisionSpans
+            = "v"? number_start:position!() number:$(digits() ++ ".") date:revision_date()? remark:revision_remark()? {
                 let revision_info = RevisionInfo {
                     number: Cow::Owned(number.to_string()),
-                    date: date.map(|d| Cow::Owned(d.to_string())),
-                    remark: remark.map(|r| Cow::Owned(r.to_string())),
+                    date: date.map(|(_, d)| Cow::Owned(d.to_string())),
+                    remark: remark.map(|(_, r)| Cow::Owned(r.to_string())),
                 };
                 if revision_info.number.is_empty() {
-                    return;
+                    return RevisionSpans::default();
                 }
-                let revision_location = state.create_location(span_start, span_end);
+                let span = |start: usize, text: &str| (start, start + text.len());
+                let revision_location = state.create_block_location(span_start, span_end, 0);
                 let ignored: IgnoredRevisionFields = {
                     let document_attributes = Rc::make_mut(&mut state.document_attributes);
                     process_revision_info(revision_info, document_attributes)
@@ -717,12 +680,20 @@ peg::parser! {
                         revision_location,
                     );
                 }
+                RevisionSpans {
+                    number: (!ignored.number).then(|| span(number_start, number)),
+                    date: date.filter(|_| !ignored.date).map(|(start, d)| span(start, d)),
+                    remark: remark.filter(|_| !ignored.remark).map(|(start, r)| span(start, r)),
+                }
             }
 
         /// Parse revision line with attribute reference support
-        rule revision_pre_substitution() -> ()
-            = rev_line:$([^'\n']+) {?
+        rule revision_pre_substitution() -> Option<RevisionLocations>
+            = line_start:position!() rev_line:$([^'\n']+) {?
                 let substituted_cow = apply_attribute_substitutions(rev_line.trim(), HEADER, &state.document_attributes);
+                // The fields sit in the source only when no reference was replaced.
+                let written_at = matches!(substituted_cow, Cow::Borrowed(_))
+                    .then(|| line_start + rev_line.len() - rev_line.trim_start().len());
                 let substituted: &'input str = match substituted_cow {
                     Cow::Borrowed(s) => s,
                     Cow::Owned(s) => state.intern_str(&s),
@@ -733,7 +704,7 @@ peg::parser! {
                     ParserState::for_inline_parsing(substituted, state, state.inline_ctx);
 
                 match document_parser::revision(substituted, &mut temp_state) {
-                    Ok(()) => {
+                    Ok(spans) => {
                         for key in ["revnumber", "revdate", "revremark"] {
                             if let Some(value) = temp_state.document_attributes.text(key) {
                                 let value = state.intern_str(value);
@@ -742,20 +713,23 @@ peg::parser! {
                             }
                         }
                         tracing::debug!("Parsed revision from line");
-                        Ok(())
+                        Ok(written_at.map(|base| {
+                            let at = |span: Option<(usize, usize)>| span.map(|(s, e)| state.create_block_location(s, e, base));
+                            RevisionLocations { number: at(spans.number), date: at(spans.date), remark: at(spans.remark) }
+                        }))
                     }
                     Err(_) => Err("line did not parse as revision")
                 }
             }
 
-        rule revision_date() -> &'input str
-            = ", " date:$([^ (':'|'\n')]+) {
-                date
+        rule revision_date() -> (usize, &'input str)
+            = ", " start:position!() date:$([^ (':'|'\n')]+) {
+                (start, date)
             }
 
-        rule revision_remark() -> &'input str
-            = ": " remark:$([^'\n']+) {
-                remark
+        rule revision_remark() -> (usize, &'input str)
+            = ": " start:position!() remark:$([^'\n']+) {
+                (start, remark)
             }
 
         rule document_attribute() -> ()
@@ -783,10 +757,11 @@ peg::parser! {
         rule trailing_block_metadata_match()
         = eol()* &("[" / ".") block_metadata_sequence_match() ![_]
 
-        // Unused block metadata has no inline effects; document attributes still take effect.
+        // Unused block metadata has no inline effects, and its attribute entries
+        // none either (`body_attribute_block`).
         rule trailing_block_metadata(offset: usize) -> Result<Vec<Block<'input>>, Error>
         = &trailing_block_metadata_match() eol()* events:(
-            event:document_attribute_block(offset) (eol() / ![_]) eol()* { Some(event) }
+            event:body_attribute_block(offset) (eol() / ![_]) eol()* { Some(event) }
             / comment:metadata_comment_line(offset) eol()* { Some(metadata_comment(state, comment)) }
             / (attribute_or_anchor_line_match() / title_line_match()) eol()* { None }
         )+
@@ -857,12 +832,13 @@ peg::parser! {
         !same_or_higher_level_section(offset, parent_section_level)
         block:(
             comment_line_block(offset) /
-            document_attribute_block(offset) /
+            body_attribute_block(offset) /
             // A discrete heading is introduced by an attribute line (`[discrete]`,
-            // `[#id,discrete]`, `[float]`, …) or an anchor preceding one, so only
-            // attempt it when the block starts with `[`. The rule itself backtracks
-            // to `section`/`block_generic` when the metadata isn't a discrete marker.
-            &"[" dh:discrete_header(offset) { dh } /
+            // `[#id,discrete]`, `[float]`, …), which an anchor or a dot-title may
+            // precede, so only attempt it when the block starts with `[` or `.`. The
+            // rule itself backtracks to `section`/`block_generic` when the metadata
+            // isn't a discrete marker.
+            &("[" / ".") dh:discrete_header(offset) { dh } /
             section:section(offset, parent_section_level, direct_parent_section_kind) { section } /
             // Legacy underlined sections are recognized in Asciidoctor mode.
             section_setext:section_setext(offset, parent_section_level, direct_parent_section_kind) { section_setext } /
@@ -875,13 +851,11 @@ peg::parser! {
         rule comment_line_block(offset: usize) -> Result<Block<'input>, Error>
         = "//" !("/") content:$([^'\n']*) end:position!() (eol() / ![_])
         {
-            // `end` is captured before consuming the trailing newline so the
-            // comment's location doesn't include it.
             Ok(Block::Comment(Comment {
                 kind: CommentKind::Line,
                 prefix_events: None,
                 content,
-                location: state.create_location(span_start + offset, end + offset),
+                location: state.create_block_location(span_start, end, offset),
             }))
         }
 
@@ -908,7 +882,7 @@ peg::parser! {
                 kind: CommentKind::Line,
                 prefix_events: None,
                 content,
-                location: state.create_location(span_start + offset, end + offset),
+                location: state.create_block_location(span_start, end, offset),
             }))
         }
 
@@ -1008,10 +982,12 @@ peg::parser! {
             }
             Ok(bm)
         })
-        section_level:section_level(offset, None) whitespace()
-        title_start:position!() title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_])
+        section_level:section_level(offset, None) whitespace()+
+        title_start:position!() title:section_title(offset, &block_metadata, section_level.0) title_end:position!() &(eol()*<1,2> / ![_])
         {
-            let (title, _) = title?;
+            let (title, _, trailing_anchor) = title?;
+            let mut metadata = block_metadata.metadata;
+            metadata.anchors.extend(trailing_anchor);
             tracing::debug!(title_start, title_end, "parsing discrete header block");
 
             let level = section_level.1;
@@ -1022,7 +998,7 @@ peg::parser! {
             // `float` is a legacy alias for the `discrete` block style (older
             // AsciiDoc called these "floating titles"). Surface its use so authors
             // can migrate to `discrete`. Only the style form reaches this rule.
-            if block_metadata.metadata.style == Some("float") {
+            if metadata.style == Some("float") {
                 let warning_location = state.create_error_source_location(
                     state.create_block_location(span_start, span_end, offset),
                 );
@@ -1033,12 +1009,32 @@ peg::parser! {
             }
 
             Ok(Block::DiscreteHeading(DiscreteHeading {
-                metadata: block_metadata.metadata,
+                metadata,
                 title,
                 level,
+                id: None,
+                id_generated: false,
+                id_settings: crate::model::section::SectionIdSettings::from_attributes(state.arena, &state.document_attributes),
                 location,
             }))
         }
+
+        // A body attribute entry takes effect as the next block converts
+        // (`Document#playback_attributes`). With no block after it in a
+        // compound block's lines, Asciidoctor attaches it to none, and the
+        // content after that block never sees it. (At the end of the document
+        // nothing follows to see it.)
+        rule body_attribute_block(offset: usize) -> Result<Block<'input>, Error>
+        = ({? (state.block_context == BlockContext::Compound && state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor).then_some(()).ok_or("document content") })
+          &(document_attribute_match() (eol() / ![_]) no_block_follows()) att:document_attribute_match()
+        {
+            let location = state.create_block_location(span_start, span_end, offset);
+            Ok(Block::DocumentAttribute(DocumentAttribute::rejected(Cow::Borrowed(att.name), location)))
+        }
+        / document_attribute_block(offset)
+
+        rule no_block_follows()
+        = (eol() / block_metadata_line_match() / metadata_comment_match() (eol() / ![_]))* ![_]
 
         rule document_attribute_block(offset: usize) -> Result<Block<'input>, Error>
         = att:document_attribute_match()
@@ -1053,21 +1049,26 @@ peg::parser! {
 
         rule section(offset: usize, parent_section_level: Option<SectionLevel>, direct_parent_section_kind: Option<SectionKind>) -> Result<Block<'input>, Error>
         = check_section_blocks() &atx_heading_match()
-        block_metadata:(bm:heading_metadata(offset, parent_section_level) {?
-            bm.map_err(|_| {
+        block_metadata:(bm:section_metadata(offset, parent_section_level) {?
+            let bm = bm.map_err(|_| {
                 tracing::error!("error parsing block metadata in section");
                 "block metadata parse error"
-            })
+            })?;
+            // A heading the metadata marks discrete is `discrete_header`'s, never a section.
+            if bm.discrete {
+                return Err("a discrete heading is no section");
+            }
+            Ok(bm)
         })
         section_level_start:position!()
         section_level:section_level(offset, parent_section_level)
         section_level_end:position!()
-        whitespace()
+        whitespace()+
         title_start:position!()
-        section_header:(title:section_title(offset, &block_metadata) title_end:position!() &(eol()*<1,2> / ![_]) {
-            let (title, natural_title) = title?;
+        section_header:(title:section_title(offset, &block_metadata, section_level.0) title_end:position!() &(eol()*<1,2> / ![_]) {
+            let (title, natural_title, trailing_anchor) = title?;
             let location = state.create_block_location(section_level_start, title_end, offset);
-            Ok::<ParsedSectionHeader<'input>, Error>(register_section_header(
+            let mut header = register_section_header(
                 state,
                 &block_metadata,
                 title,
@@ -1075,15 +1076,16 @@ peg::parser! {
                 section_level.1,
                 location,
                 direct_parent_section_kind,
-            ))
+            );
+            header.trailing_anchor = trailing_anchor;
+            Ok::<ParsedSectionHeader<'input>, Error>(header)
         })
         content:section_content(offset, Some(expected_child_level(
             section_level.1,
             SectionKind::from_style(block_metadata.metadata.style),
-            is_book_doctype(&state.document_attributes),
         )), Some(SectionKind::from_style(block_metadata.metadata.style)))?
         {
-            let ParsedSectionHeader { title, numbering, reference_text, id_settings, heading_location } = section_header?;
+            let ParsedSectionHeader { title, numbering, reference_text, id_settings, heading_location, trailing_anchor } = section_header?;
             tracing::debug!(offset, "parsing section block");
 
             if let Some(parent_level) = parent_section_level {
@@ -1111,18 +1113,22 @@ peg::parser! {
                 }
             }
 
-            let level = section_level.1;
-            let location = state.create_block_location(span_start, span_end, offset);
+            let blocks = content.unwrap_or(Ok(Vec::new()))?;
+            let location = state.create_block_location(span_start, state.end_before_line_breaks(span_start, span_end, offset), offset);
+            let carried_title = block_metadata.title;
 
             // Classify the section before the post-parse numbering pass applies
             // special-section rules to the complete section tree.
             let kind = SectionKind::from_style(block_metadata.metadata.style);
+            let level = section_level.1;
+            let mut metadata = block_metadata.metadata;
+            metadata.anchors.extend(trailing_anchor);
 
             let mut section = Section::parsed(
-                block_metadata.metadata,
+                metadata,
                 title,
                 level,
-                content.unwrap_or(Ok(Vec::new()))?,
+                blocks,
                 kind,
                 numbering,
                 location,
@@ -1130,6 +1136,7 @@ peg::parser! {
             section.reference_text = Some(reference_text);
             section.id_settings = id_settings;
             section.heading_location = heading_location;
+            section.carried_title = carried_title;
             Ok(Block::Section(section))
         }
 
@@ -1191,7 +1198,7 @@ peg::parser! {
         rule section_setext(offset: usize, parent_section_level: Option<SectionLevel>, direct_parent_section_kind: Option<SectionKind>) -> Result<Block<'input>, Error>
         = check_section_blocks() !check_line_is_description_list(offset)
         &setext_section_match(parent_section_level)
-        block_metadata:(bm:heading_metadata(offset, parent_section_level) {?
+        block_metadata:(bm:section_metadata(offset, parent_section_level) {?
             bm.map_err(|_| {
                 tracing::error!("error parsing block metadata in section_setext");
                 "block metadata parse error"
@@ -1200,11 +1207,10 @@ peg::parser! {
         title_start:position!() title:setext_title_text() title_end:position!() eol()
         setext_level:setext_section_level(title.trim().chars().count(), parent_section_level)
         section_header:({
-            let (processed_title, natural_title) =
-                process_inlines(state, &block_metadata, title_start, title_end, offset, title)?;
-            let title = Title::new(processed_title);
+            let (title, natural_title, trailing_anchor) =
+                heading_title(state, &block_metadata, title_start, offset, title, "")?;
             let location = state.create_block_location(title_start, title_end, offset);
-            Ok::<ParsedSectionHeader<'input>, Error>(register_section_header(
+            let mut header = register_section_header(
                 state,
                 &block_metadata,
                 title,
@@ -1212,25 +1218,30 @@ peg::parser! {
                 setext_level,
                 location,
                 direct_parent_section_kind,
-            ))
+            );
+            header.trailing_anchor = trailing_anchor;
+            Ok::<ParsedSectionHeader<'input>, Error>(header)
         })
         content:section_content(offset, Some(expected_child_level(
             setext_level,
             SectionKind::from_style(block_metadata.metadata.style),
-            is_book_doctype(&state.document_attributes),
         )), Some(SectionKind::from_style(block_metadata.metadata.style)))?
         {
-            let ParsedSectionHeader { title, numbering, reference_text, id_settings, heading_location } = section_header?;
-            let location = state.create_block_location(span_start, span_end, offset);
+            let ParsedSectionHeader { title, numbering, reference_text, id_settings, heading_location, trailing_anchor } = section_header?;
+            let blocks = content.unwrap_or(Ok(Vec::new()))?;
+            let location = state.create_block_location(span_start, state.end_before_line_breaks(span_start, span_end, offset), offset);
+            let carried_title = block_metadata.title;
 
             // Classify the section by its style (see the ATX section rule).
             let kind = SectionKind::from_style(block_metadata.metadata.style);
+            let mut metadata = block_metadata.metadata;
+            metadata.anchors.extend(trailing_anchor);
 
             let mut section = Section::parsed(
-                block_metadata.metadata,
+                metadata,
                 title,
                 setext_level,
-                content.unwrap_or(Ok(Vec::new()))?,
+                blocks,
                 kind,
                 numbering,
                 location,
@@ -1238,17 +1249,23 @@ peg::parser! {
             section.reference_text = Some(reference_text);
             section.id_settings = id_settings;
             section.heading_location = heading_location;
+            section.carried_title = carried_title;
             Ok(Block::Section(section))
         }
 
         rule block_metadata(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<BlockParsingMetadata<'input>, Error>
-        = metadata:block_metadata_with_title(offset, parent_section_level, true) { metadata }
+        = metadata:block_metadata_with_title(offset, parent_section_level, true, false) { metadata }
 
         // Headings display their own text, so ignore macros in preceding dot-titles.
         rule heading_metadata(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<BlockParsingMetadata<'input>, Error>
-        = metadata:block_metadata_with_title(offset, parent_section_level, false) { metadata }
+        = metadata:block_metadata_with_title(offset, parent_section_level, false, false) { metadata }
 
-        rule block_metadata_with_title(offset: usize, parent_section_level: Option<SectionLevel>, parse_title: bool) -> Result<BlockParsingMetadata<'input>, Error>
+        // In Asciidoctor mode a section's dot-title is the next content block's
+        // (`Block::deliver_carried_titles`); Draft mode drops it unparsed.
+        rule section_metadata(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<BlockParsingMetadata<'input>, Error>
+        = metadata:block_metadata_with_title(offset, parent_section_level, false, state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor) { metadata }
+
+        rule block_metadata_with_title(offset: usize, parent_section_level: Option<SectionLevel>, parse_title: bool, keep_title: bool) -> Result<BlockParsingMetadata<'input>, Error>
         = meta_start:position!() lines:block_metadata_lines(offset)
           block_start:position!() media_ahead:media_block_ahead() form:attribute_block_form(offset)
         {
@@ -1307,8 +1324,19 @@ peg::parser! {
             let image_alt = resolve_block_content_attributes(state, &mut attributes, media_attributes.as_deref(), image_ahead)?;
             // Titles use the completed metadata attributes, including entries
             // after the title line. Only the last authored title is displayed.
-            let title = if let Some(source) = attributes.title.take().filter(|_| parse_title) {
-                match resolve_title(state, source, offset) {
+            let title = if let Some(source) = attributes.title.take().filter(|_| parse_title || keep_title) {
+                // A section's title is the next block's and asciidoctor numbers its notes when
+                // that block draws it, after the heading's: it takes no number here, and the
+                // document numbers it once delivered (`Block::deliver_carried_titles`).
+                let carried = (!parse_title).then(|| std::mem::replace(
+                    &mut state.footnote_tracker,
+                    Rc::new(std::cell::RefCell::new(crate::grammar::state::FootnoteTracker::provisional())),
+                ));
+                let resolved = resolve_title(state, source, offset);
+                if let Some(tracker) = carried {
+                    state.footnote_tracker = tracker;
+                }
+                match resolved {
                     Ok(title) => title,
                     Err(error) => {
                         state.add_warning(crate::Warning::new(
@@ -1353,7 +1381,7 @@ peg::parser! {
 
         rule metadata_comment_line(offset: usize) -> MetadataComment<'input>
         = start:position!() "//" !"/" content:$([^'\n']*) end:position!() (eol() / ![_]) {
-            MetadataComment::Line(Comment { kind: CommentKind::Line, prefix_events: None, content, location: state.create_location(start + offset, end + offset) })
+            MetadataComment::Line(Comment { kind: CommentKind::Line, prefix_events: None, content, location: state.create_block_location(start, end, offset) })
         }
         / start:position!() params:comment_block_params(start, offset) { MetadataComment::Delimited(params) }
 
@@ -1440,19 +1468,11 @@ peg::parser! {
             Ok(())
         }
 
-        rule section_title(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<(Title<'input>, &'input str), Error>
+        rule section_title(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &str) -> Result<(Title<'input>, &'input str, Option<Anchor<'input>>), Error>
         = title:$([^'\n']*)
         {
             tracing::debug!(title_start = span_start, title_end = span_end, "Found section title");
-            let (content, natural_title) = process_inlines(
-                state,
-                block_metadata,
-                span_start,
-                span_end,
-                offset,
-                title,
-            )?;
-            Ok((Title::new(content), natural_title))
+            heading_title(state, block_metadata, span_start, offset, title, marker)
         }
 
         rule section_content(offset: usize, parent_section_level: Option<SectionLevel>, direct_parent_section_kind: Option<SectionKind>) -> Result<Vec<Block<'input>>, Error>
@@ -1490,12 +1510,12 @@ peg::parser! {
         // further continuations (those belong to the parent item that started the continuation)
         // Comments before attached content do not consume its continuation.
         // Keep comment-only and next-item cases on the existing path.
-        rule block_in_continuation(offset: usize, parent_section_level: Option<SectionLevel>, parent_marker: Option<ListMarker<'input>>) -> Result<Block<'input>, Error>
+        rule block_in_continuation(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Block<'input>, Error>
         = continuation_comments() !eol() !at_list_item_start()
           !at_callout_list_item() !check_line_is_description_list(offset)
           !("+" whitespace()* (eol() / ![_]))
-          block:continuation_block(offset, parent_section_level, parent_marker) { block }
-        / block:continuation_block(offset, parent_section_level, parent_marker) { block }
+          block:continuation_block(offset, parent_section_level) { block }
+        / block:continuation_block(offset, parent_section_level) { block }
 
         rule continuation_comments()
         = eol()* (
@@ -1504,7 +1524,7 @@ peg::parser! {
               until_block_close(delimiter) eol()? block_close_delim(delimiter) eol()?
         )
 
-        rule continuation_block(offset: usize, parent_section_level: Option<SectionLevel>, parent_marker: Option<ListMarker<'input>>) -> Result<Block<'input>, Error>
+        rule continuation_block(offset: usize, parent_section_level: Option<SectionLevel>) -> Result<Block<'input>, Error>
         = !trailing_block_metadata_match() start:position!()
         block_metadata:(bm:block_metadata(offset, parent_section_level) {?
             bm.map_err(|_| {
@@ -1533,12 +1553,11 @@ peg::parser! {
             / excessive_list_item(start, offset, &block_metadata)
             / thematic_break:thematic_break(start, offset, &block_metadata) { thematic_break }
             / page_break:page_break(start, offset, &block_metadata) { page_break }
-            // Lists in continuation context cannot consume further continuations
-            / list:list_with_continuation(start, offset, &block_metadata, false) { list }
+            / list:list(start, offset, &block_metadata) { list }
             / quoted_paragraph:quoted_paragraph(start, offset, &block_metadata) { quoted_paragraph }
             / markdown_blockquote:markdown_blockquote(start, offset, &block_metadata) { markdown_blockquote }
-            / !(eol()+ attached_list_marker())
-              paragraph:paragraph_with_list_boundary(start, offset, &block_metadata, parent_marker) { paragraph }
+            / !(eol()+ (whitespace()* ordinary_list_marker() whitespace() / check_line_is_description_list(offset)))
+              paragraph:paragraph(start, offset, &block_metadata) { paragraph }
         ) {
             let mut block = block?;
             assign_block_caption(state, &mut block);
@@ -1833,8 +1852,9 @@ peg::parser! {
             metadata.move_positional_attributes_to_attributes();
             tracing::debug!("Found Table of Contents block");
             Ok(Block::TableOfContents(TableOfContents {
+                title: block_metadata.title.clone(),
                 metadata,
-                location: state.create_location(start+offset, end+offset),
+                location: state.create_block_location(start, end, offset),
             }))
         }
 
@@ -1918,14 +1938,18 @@ peg::parser! {
             }))
         }
 
+        // A whole line (`ExtLayoutBreakRx`, `MarkdownThematicBreakRx`): `'''` and
+        // longer, or one of `-*_` three times with equal runs of spaces between.
         rule thematic_break_marker()
-        = ("'''"
-               // Below are the markdown-style thematic breaks
-               / "---"
-               / "- - -"
-               / "***"
-               / "* * *"
-            )
+        = ("'''" "'"* / " "*<,3> markdown_thematic_break()) &(whitespace()* (eol() / ![_]))
+
+        rule markdown_thematic_break()
+        = line:$(['-' | '*' | '_'] " "* ['-' | '*' | '_'] " "* ['-' | '*' | '_']) {?
+            let bytes = line.as_bytes();
+            let gap = (bytes.len() - 3) / 2;
+            (bytes.len() == 3 + 2 * gap && bytes[1 + gap] == bytes[0] && bytes[2 + 2 * gap] == bytes[0])
+                .then_some(()).ok_or("not a uniform thematic break")
+        }
 
         rule thematic_break(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
             = thematic_break_marker()
@@ -1953,26 +1977,16 @@ peg::parser! {
         }
 
         rule list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = list_with_continuation(start, offset, block_metadata, true)
-
-        // Reject disabled alternatives before they can register inline macros;
-        // PEG backtracking does not undo those registrations.
-        rule list_continuation_allowed(allow: bool)
-        = {? allow.then_some(()).ok_or("continuation belongs to parent") }
-
-        // Parameterized list rule - allow_continuation controls whether list items can consume
-        // explicit continuations. Set to false when parsing lists inside continuation blocks
-        // to prevent nested lists from consuming parent-level continuations.
-        rule list_with_continuation(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, allow_continuation: bool) -> Result<Block<'input>, Error>
         = excessive_list_item(start, offset, block_metadata)
         / callout_list(start, offset, block_metadata)
-        / unordered_list(start, offset, block_metadata, None, allow_continuation, false)
-        / ordered_list(start, offset, block_metadata, None, allow_continuation, false)
+        / ordinary_list(start, offset, block_metadata, false)
         / description_list(start, offset, block_metadata)
 
         rule raw_unordered_list_marker() -> &'input str = $("*"+ / "-")
 
-        rule raw_ordered_list_marker() -> &'input str = $(digits()? "."+)
+        // `OrderedListRx`: `\.\.*|\d+\.|[a-zA-Z]\.|[IVXivx]+\)`.
+        rule raw_ordered_list_marker() -> &'input str
+        = $("."+ / digits() "." / ['a'..='z' | 'A'..='Z'] "." / ['I' | 'V' | 'X' | 'i' | 'v' | 'x']+ ")")
 
         rule unordered_list_marker() -> &'input str
         = marker:raw_unordered_list_marker() {?
@@ -2057,7 +2071,7 @@ peg::parser! {
         }
 
         rule attributes_line_match()
-        = !empty_list_separator() block_attribute_start()
+        = block_attribute_start()
           open_square_bracket() attribute_list_content(BlockAttributeMode::Block) (eol() / ![_])
 
         rule anchor_line_match()
@@ -2070,108 +2084,12 @@ peg::parser! {
         rule nested_list_metadata_gap()
         = eol() / comment_line()
 
-        rule nested_unordered_child_after_metadata(offset: usize, current_marker: &str, parent_ordered_marker: Option<&'input str>)
-        = (attribute_or_anchor_line_match() eol()*)+ nested_list_metadata_gap()* (
-            !at_ancestor_ordered_marker(parent_ordered_marker)
-            &(whitespace()* ordered_list_marker() whitespace())
-            / &at_deeper_unordered_marker(current_marker)
-            / !at_callout_parent_item(offset) at_callout_list_item()
-            / !at_list_item_start() !at_callout_list_item() check_line_is_description_list(offset)
-        )
-
-        rule nested_ordered_child_after_metadata(offset: usize, current_marker: &str, parent_unordered_marker: Option<&'input str>)
-        = (attribute_or_anchor_line_match() eol()*)+ nested_list_metadata_gap()* (
-            !at_ancestor_unordered_marker(parent_unordered_marker)
-            &(whitespace()* unordered_list_marker() whitespace())
-            / &at_deeper_ordered_marker(current_marker)
-            / !at_callout_parent_item(offset) at_callout_list_item()
-            / !at_list_item_start() !at_callout_list_item() check_line_is_description_list(offset)
-        )
-
         // Helper rule to check if we're at the start of a new list item (lookahead)
-        rule at_list_item_start() = excessive_list_marker() / whitespace()* (unordered_list_marker() / ordered_list_marker()) whitespace()
+        rule at_list_item_start() = excessive_list_marker() / whitespace()* ordinary_list_marker() whitespace()
 
-        rule enter_ordinary_list(offset: usize, unordered: Option<&'input str>, ordered: Option<&'input str>) -> Option<OrdinaryListScope<'input>>
-        = {
-            let parent = state.ordinary_list_scope;
-            let mut scope = parent.filter(|scope| scope.offset == offset)
-                .unwrap_or(OrdinaryListScope { offset, ..OrdinaryListScope::default() });
-            scope.unordered = unordered.or(scope.unordered);
-            scope.ordered = ordered.or(scope.ordered);
-            state.ordinary_list_scope = Some(scope);
-            parent
-        }
-
-        rule ordinary_list_scope(offset: usize) -> OrdinaryListScope<'input>
-        = { state.ordinary_list_scope.filter(|scope| scope.offset == offset).unwrap_or_default() }
-
-        rule at_ordinary_parent_item(offset: usize)
-        = candidate:(
-            whitespace()* marker:unordered_list_marker() whitespace() { ListMarker::Unordered(marker) }
-            / whitespace()* marker:ordered_list_marker() whitespace() { ListMarker::Ordered(marker) }
-          ) scope:ordinary_list_scope(offset) {?
-            let matches = scope.unordered.is_some_and(|parent| ListMarker::Unordered(parent).is_sibling_or_ancestor(candidate))
-                || scope.ordered.is_some_and(|parent| ListMarker::Ordered(parent).is_sibling_or_ancestor(candidate));
-            matches.then_some(()).ok_or("not an ordinary parent item")
-        }
-
-        // Helper rule to check if we're at an ordered list marker ahead (after newlines)
-        rule at_ordered_marker_ahead() = eol()+ whitespace()* ordered_list_marker()
-
-        // Helper rule to check if we're at an unordered list marker ahead (after newlines)
-        rule at_unordered_marker_ahead() = eol()+ whitespace()* unordered_list_marker()
-
-        // Helper rule to check if we're at an ancestor-level ordered marker
-        // Used in cross-type nesting to prevent consuming sibling ordered markers
-        // that belong to a parent ordered list context
-        rule at_ancestor_ordered_marker(ancestor: Option<&'input str>)
-        = whitespace()* marker:ordered_list_marker() whitespace() {?
-            match ancestor {
-                Some(m) if marker.len() <= m.len() => Ok(()),
-                _ => Err("not ancestor")
-            }
-        }
-
-        // Helper rule to check if we're at an ancestor-level unordered marker
-        // Used in cross-type nesting to prevent consuming sibling unordered markers
-        // that belong to a parent unordered list context
-        rule at_ancestor_unordered_marker(ancestor: Option<&'input str>)
-        = whitespace()* marker:unordered_list_marker() whitespace() {?
-            match ancestor {
-                Some(m) if marker.len() <= m.len() => Ok(()),
-                _ => Err("not ancestor")
-            }
-        }
-
-        // Helper rule to check if we're at a shallower unordered marker
-        // Used to terminate nested lists when a blank line precedes a shallower item
-        // Same-level markers continue the list as siblings; only shallower markers end it
-        rule at_shallower_unordered_marker(base_marker: &str)
-        = whitespace()* marker:unordered_list_marker() whitespace() {?
-            if marker.len() < base_marker.len() { Ok(()) } else { Err("same-or-deeper") }
-        }
-
-        // Helper rule to check if we're at a shallower ordered marker
-        // Used to terminate nested lists when a blank line precedes a shallower item
-        // Same-level markers continue the list as siblings; only shallower markers end it
-        rule at_shallower_ordered_marker(base_marker: &str)
-        = whitespace()* marker:ordered_list_marker() whitespace() {?
-            if marker.len() < base_marker.len() { Ok(()) } else { Err("same-or-deeper") }
-        }
-
-        // Helper rule to check if we're at a deeper unordered marker (for nested same-type lists)
-        // Used by unordered_list_item_nested_content to detect nested unordered lists
-        rule at_deeper_unordered_marker(base_marker: &str)
-        = whitespace()* marker:unordered_list_marker() whitespace() {?
-            if marker.len() > base_marker.len() { Ok(()) } else { Err("same-or-shallower") }
-        }
-
-        // Helper rule to check if we're at a deeper ordered marker (for nested same-type lists)
-        // Used by ordered_list_item_nested_content to detect nested ordered lists
-        rule at_deeper_ordered_marker(base_marker: &str)
-        = whitespace()* marker:ordered_list_marker() whitespace() {?
-            if marker.len() > base_marker.len() { Ok(()) } else { Err("same-or-shallower") }
-        }
+        rule ordinary_list_marker() -> ListMarker<'input>
+        = marker:unordered_list_marker() { ListMarker::Unordered(marker) }
+        / marker:ordered_list_marker() { ListMarker::Ordered(marker) }
 
         // Helper rule to check if we're at a list separator (forces list termination)
         // Matches either a line comment (//) or empty block attributes ([]) on their own line
@@ -2186,741 +2104,69 @@ peg::parser! {
         = "//" [^'\n']* (&eol() / ![_])  // Line comment separator
         / whitespace()* "[" whitespace()* "]" whitespace()* (&eol() / ![_])  // Empty block attributes
 
-        rule unordered_list_principal_continuation(offset: usize, current_marker: &str, parent_ordered_marker: Option<&'input str>) -> &'input str
+        rule ordinary_list_principal_continuation(offset: usize) -> (usize, &'input str)
         = eol()
           !(
               &eol()
+              / ![_]
               / &at_list_item_start()
               / &("+" whitespace()* (eol() / ![_]))
               / &at_list_separator_content()
-              / &nested_unordered_child_after_metadata(offset, current_marker, parent_ordered_marker)
+              / &block_delimiter_line()
+              // A block attribute line starts the next block
+              // (`StartOfBlockOrListProc`); Asciidoctor folds that block back
+              // into the text only when it is an adjacent paragraph
+              // (`ListItem#fold_first`).
+              / &attribute_or_anchor_line_match() !folded_paragraph_metadata(offset)
               / at_callout_list_item()
               / check_line_is_description_list(offset)
           )
-          line:$((!eol() [_])*) { line }
+          start:position!() line:$((!eol() [_])*) { (start, line) }
 
-        rule ordered_list_principal_continuation(offset: usize, current_marker: &str, parent_unordered_marker: Option<&'input str>) -> &'input str
-        = eol()
-          !(
-              &eol()
-              / &at_list_item_start()
-              / &("+" whitespace()* (eol() / ![_]))
-              / &at_list_separator_content()
-              / &nested_ordered_child_after_metadata(offset, current_marker, parent_unordered_marker)
-              / at_callout_list_item()
-              / check_line_is_description_list(offset)
-          )
-          line:$((!eol() [_])*) { line }
+        // An unordered or ordered list (`Parser.parse_list`): Asciidoctor's
+        // reader decides which lines each item holds (`lists::ordinary_list`).
+        rule ordinary_list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, is_nested: bool) -> Result<Block<'input>, Error>
+        = &(whitespace()* ordinary_list_marker() whitespace())
+          list:#{|input, pos| {
+              let (list, end) = crate::grammar::document::lists::ordinary_list(state, input.len(), start, pos, offset, block_metadata, is_nested);
+              peg::RuleResult::Matched(end, list)
+          }}
+        { list }
 
-        // Block metadata in column one after a blank line starts a new description list.
-        // Indented metadata-like text remains part of the current item.
-        rule at_dlist_block_boundary()
-        = eol()*<2,> &(
-            ("[" ![']' | '['] [^']' | '\n']+ "]" whitespace()* eol())
-            / ("[[" [^']']+ "]]" whitespace()* eol())
-            / ("." ![' ' | '\t' | '\n' | '\r' | '.'] [^'\n']* eol())
-        )
+        rule unordered_marker(marker: ListMarker<'input>)
+        = {? matches!(marker, ListMarker::Unordered(_)).then_some(()).ok_or("ordered marker") }
 
-        rule unordered_list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_ordered_marker: Option<&'input str>, allow_continuation: bool, is_nested: bool) -> Result<Block<'input>, Error>
-        // Parse whitespace + marker first to capture base_marker for rest items
-        // marker_start captures position before marker for correct first item location
-        = whitespace()* marker_start:position!() base_marker:$(unordered_list_marker()) &whitespace()
-        parent_scope:enter_ordinary_list(offset, Some(base_marker), None)
-        first:unordered_list_item_after_marker(offset, block_metadata, allow_continuation, base_marker, marker_start, parent_ordered_marker)
-        rest:(unordered_list_rest_item(offset, block_metadata, parent_ordered_marker, allow_continuation, base_marker))*
+        // Metadata lines followed directly by paragraph text: Asciidoctor reads
+        // them as that paragraph's, then folds the paragraph into the item.
+        rule folded_paragraph_metadata(offset: usize)
+        = (anchor_line_match() / !non_paragraph_style_line() attributes_line_match())+
+          !(eol() / ![_] / at_list_item_start() / block_delimiter_line()
+            / "+" whitespace()* (eol() / ![_]) / at_callout_list_item()
+            / check_line_is_description_list(offset) / attribute_or_anchor_line_match()
+            / ("image" / "video" / "audio" / "toc") "::" / thematic_break_marker())
+
+        // `PARAGRAPH_STYLES` besides `normal`, the admonitions and the stem
+        // styles: each turns the paragraph after it into another block.
+        rule non_paragraph_style_line()
+        = "[" style:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-']+) &[',' | ']' | '#' | '.' | '%'] {?
+            matches!(style, "comment" | "example" | "literal" | "listing" | "open" | "pass" | "quote"
+                | "sidebar" | "source" | "verse" | "abstract" | "partintro" | "stem" | "latexmath"
+                | "asciimath" | "NOTE" | "TIP" | "IMPORTANT" | "WARNING" | "CAUTION")
+                .then_some(()).ok_or("paragraph style")
+        }
+
+        // An item's marker line and the paragraph lines adjacent to it, which
+        // Asciidoctor folds into the item's text (`ListItem#fold_first`).
+        pub(in crate::grammar::document) rule ordinary_item_head(offset: usize) -> ItemHead<'input>
+        = whitespace()* marker_start:position!() marker:ordinary_list_marker() after_marker:position!() whitespace()
+          checked:(unordered_marker(marker) checked:checklist_item() { checked })?
+          first_start:position!()
+          first:$((!(eol()) [_])*)
+          rest:ordinary_list_principal_continuation(offset)*
+          end:position!()
+          [_]*
         {
-            tracing::debug!("Found unordered list block");
-            state.ordinary_list_scope = parent_scope;
-            let mut content = vec![first?];
-            for item in rest {
-                content.push(item?);
-            }
-            let end = content.last().map_or(span_end, |(_, item_end)| *item_end);
-            let items: Vec<ListItem<'input>> = content.into_iter().map(|(item, _)| item).collect();
-            let marker = items.first().map_or("", |item| item.marker);
-
-            Ok(Block::UnorderedList(UnorderedList {
-                title: if is_nested { Title::default() } else { block_metadata.title.clone() },
-                metadata: if is_nested { BlockMetadata::default() } else { block_metadata.metadata.clone() },
-                items,
-                marker,
-                location: state.create_location(start+offset, end+offset),
-            }))
-        }
-
-        // Parse first item content after marker has been consumed by unordered_list
-        // marker_start is the position where the marker began, for correct location tracking
-        rule unordered_list_item_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, allow_continuation: bool, marker: &'input str, marker_start: usize, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = list_continuation_allowed(allow_continuation)
-          item:unordered_list_item_with_continuation_after_marker(offset, block_metadata, marker, marker_start, parent_ordered_marker) { item }
-        / item:unordered_list_item_no_continuation_after_marker(offset, block_metadata, marker, marker_start, parent_ordered_marker) { item }
-
-        // Zero-cost guards for the front-of-alternative branch selector in
-        // `*_list_rest_item`. Keeps the expensive item parse out of the branch
-        // whose trailing semantic action would have just discarded it.
-        rule parent_is_some(parent: Option<&'input str>) -> ()
-        = {? if parent.is_some() { Ok(()) } else { Err("parent_is_none") } }
-
-        rule parent_is_none(parent: Option<&'input str>) -> ()
-        = {? if parent.is_none() { Ok(()) } else { Err("parent_is_some") } }
-
-        rule unordered_list_rest_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_ordered_marker: Option<&'input str>, allow_continuation: bool, base_marker: &str) -> Result<(ListItem<'input>, usize), Error>
-        // `parent_ordered_marker` is fixed for the whole `unordered_list` call, so
-        // rather than parse the (expensive) item first and reject via a trailing
-        // `{? }` action on three of four alternatives, guard each alternative at
-        // the front with a zero-cost check and only parse when the branch applies.
-        // The `!at_ordered_marker_ahead()` lookahead is kept only in the
-        // `parent_ordered_marker.is_some()` branch where it actually pays off.
-        // See fixtures: nested_unordered_in_ordered.adoc, nested_ordered_in_unordered.adoc
-        //
-        // Branch: parent is ordered
-        = parent_is_some(parent_ordered_marker) !at_list_separator() !eol() comment_line()* !at_ordered_marker_ahead() item:unordered_list_item(offset, block_metadata, allow_continuation, parent_ordered_marker)
-          { item }
-        / parent_is_some(parent_ordered_marker) !at_list_separator() eol()+ comment_line()* !at_shallower_unordered_marker(base_marker) !at_ordered_marker_ahead() item:unordered_list_item(offset, block_metadata, allow_continuation, parent_ordered_marker)
-          { item }
-        // Branch: no ordered parent
-        / parent_is_none(parent_ordered_marker) !at_list_separator() !eol() comment_line()* item:unordered_list_item(offset, block_metadata, allow_continuation, parent_ordered_marker)
-          { item }
-        / parent_is_none(parent_ordered_marker) !at_list_separator() eol()+ comment_line()* !at_shallower_unordered_marker(base_marker) item:unordered_list_item(offset, block_metadata, allow_continuation, parent_ordered_marker)
-          { item }
-
-        rule ordered_list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_unordered_marker: Option<&'input str>, allow_continuation: bool, is_nested: bool) -> Result<Block<'input>, Error>
-        // Parse whitespace + marker first to capture base_marker for rest items
-        // marker_start captures position before marker for correct first item location
-        = whitespace()* marker_start:position!() base_marker:$(ordered_list_marker()) &whitespace()
-        parent_scope:enter_ordinary_list(offset, None, Some(base_marker))
-        first:ordered_list_item_after_marker(offset, block_metadata, allow_continuation, base_marker, marker_start, parent_unordered_marker)
-        rest:(ordered_list_rest_item(offset, block_metadata, parent_unordered_marker, allow_continuation, base_marker))*
-        {
-            tracing::debug!("Found ordered list block");
-            state.ordinary_list_scope = parent_scope;
-            let mut content = vec![first?];
-            for item in rest {
-                content.push(item?);
-            }
-            let end = content.last().map_or(span_end, |(_, item_end)| *item_end);
-            let items: Vec<ListItem<'input>> = content.into_iter().map(|(item, _)| item).collect();
-            let marker = items.first().map_or("", |item| item.marker);
-
-            Ok(Block::OrderedList(OrderedList {
-                title: if is_nested { Title::default() } else { block_metadata.title.clone() },
-                metadata: if is_nested { BlockMetadata::default() } else { block_metadata.metadata.clone() },
-                items,
-                marker,
-                location: state.create_location(start+offset, end+offset),
-            }))
-        }
-
-        // Parse first item content after marker has been consumed by ordered_list
-        // marker_start is the position where the marker began, for correct location tracking
-        rule ordered_list_item_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, allow_continuation: bool, marker: &'input str, marker_start: usize, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = list_continuation_allowed(allow_continuation)
-          item:ordered_list_item_with_continuation_after_marker(offset, block_metadata, marker, marker_start, parent_unordered_marker) { item }
-        / item:ordered_list_item_no_continuation_after_marker(offset, block_metadata, marker, marker_start, parent_unordered_marker) { item }
-
-        rule ordered_list_rest_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_unordered_marker: Option<&'input str>, allow_continuation: bool, base_marker: &str) -> Result<(ListItem<'input>, usize), Error>
-        // Mirror of `unordered_list_rest_item`'s front-guard structure. See that
-        // rule's comment for the rationale.
-        //
-        // Branch: parent is unordered
-        = parent_is_some(parent_unordered_marker) !at_list_separator() !eol() comment_line()* !at_unordered_marker_ahead() item:ordered_list_item(offset, block_metadata, allow_continuation, parent_unordered_marker)
-          { item }
-        / parent_is_some(parent_unordered_marker) !at_list_separator() eol()+ comment_line()* !at_shallower_ordered_marker(base_marker) !at_unordered_marker_ahead() item:ordered_list_item(offset, block_metadata, allow_continuation, parent_unordered_marker)
-          { item }
-        // Branch: no unordered parent
-        / parent_is_none(parent_unordered_marker) !at_list_separator() !eol() comment_line()* item:ordered_list_item(offset, block_metadata, allow_continuation, parent_unordered_marker)
-          { item }
-        / parent_is_none(parent_unordered_marker) !at_list_separator() eol()+ comment_line()* !at_shallower_ordered_marker(base_marker) item:ordered_list_item(offset, block_metadata, allow_continuation, parent_unordered_marker)
-          { item }
-
-        // Note: The `*_with_continuation` and `*_no_continuation` variants exist because
-        // PEG parsers are greedy - nested items must NOT consume explicit continuations
-        // that belong to their parent. Attempting to handle this in semantic actions
-        // (by always parsing continuations then discarding them) would consume input
-        // needed by the parent rule. This structural duplication is intentional.
-        rule unordered_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, allow_continuation: bool, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = list_continuation_allowed(allow_continuation)
-          item:unordered_list_item_with_continuation(offset, block_metadata, parent_ordered_marker) { item }
-        / item:unordered_list_item_no_continuation(offset, block_metadata, parent_ordered_marker) { item }
-
-        rule unordered_list_item_with_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()*
-        marker:unordered_list_marker()
-        whitespace()
-        checked:checklist_item()?
-        first_line_start:position!()
-        // Parse first line (principal text)
-        first_line:$((!(eol()) [_])*)
-        // Parse continuation lines that are part of the same paragraph
-        // Stop at: blank line, list item start, explicit continuation marker, or list separator
-        continuation_lines:unordered_list_principal_continuation(offset, marker, parent_ordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        // Try to parse nested list (ordered, or unordered with deeper markers)
-        // Don't consume newlines if we're at a list separator (comment or [])
-        // Nested items cannot consume parent-level continuations (allow_continuation: false)
-        // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
-        // alternative fails and backtracks, leaving eol() unconsumed for explicit_continuation
-        nested:(!at_list_separator() nested_content:unordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
-        // Try to parse explicit continuations (+ marker)
-        // Don't consume newlines if we're at a list separator (comment or [])
-        // Parent items accept both:
-        // - Immediate continuations (0 empty lines) for content directly after principal text
-        // - Ancestor continuations (1+ empty lines) for content that bubbles up from nested items
-        // Use * to match a mixed sequence of immediate and ancestor continuations
-        explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Unordered(marker)))
-            / list_explicit_continuation_ancestor(offset, block_metadata, Some(ListMarker::Unordered(marker)))
-            / unordered_list_nested_after_attachment(offset, block_metadata, marker, parent_ordered_marker)
-        ) { cont })*
-        list_dangling_continuation()?
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found unordered list item");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(explicit_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked,
-                location: state.create_location(span_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        // Version with immediate continuations only (for nested items)
-        // Nested items consume continuations with 0 empty lines (immediate attachment).
-        // Continuations with 1+ empty lines bubble up to ancestor items.
-        rule unordered_list_item_no_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()*
-        marker:unordered_list_marker()
-        whitespace()
-        checked:checklist_item()?
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:unordered_list_principal_continuation(offset, marker, parent_ordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        // Nested items can still have nested lists, but those also cannot consume parent continuations
-        // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
-        // alternative fails and backtracks, leaving eol() unconsumed for immediate_continuation
-        nested:(!at_list_separator() nested_content:unordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
-        // Parse immediate continuations (0 empty lines) - these attach to this item
-        // Ancestor continuations (1+ empty lines) bubble up to parent items
-        immediate_continuations:(!at_list_separator() cont:(list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Unordered(marker))) / unordered_list_nested_after_attachment(offset, block_metadata, marker, parent_ordered_marker)) { cont })*
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found unordered list item (immediate continuation only)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(immediate_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked,
-                location: state.create_location(span_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        // After-marker variants: used when marker has already been consumed by parent rule
-        // These are identical to the regular variants except they take marker as a parameter
-        // instead of parsing it, and start after the marker position
-        rule unordered_list_item_with_continuation_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, marker_start: usize, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()
-        checked:checklist_item()?
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:unordered_list_principal_continuation(offset, marker, parent_ordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        nested:(!at_list_separator() nested_content:unordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
-        explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Unordered(marker)))
-            / list_explicit_continuation_ancestor(offset, block_metadata, Some(ListMarker::Unordered(marker)))
-            / unordered_list_nested_after_attachment(offset, block_metadata, marker, parent_ordered_marker)
-        ) { cont })*
-        list_dangling_continuation()?
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found unordered list item (after marker)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(explicit_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked,
-                location: state.create_location(marker_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        rule unordered_list_item_no_continuation_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, marker_start: usize, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()
-        checked:checklist_item()?
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:unordered_list_principal_continuation(offset, marker, parent_ordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        nested:(!at_list_separator() nested_content:unordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_ordered_marker) { nested_content })?
-        immediate_continuations:(!at_list_separator() cont:(list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Unordered(marker))) / unordered_list_nested_after_attachment(offset, block_metadata, marker, parent_ordered_marker)) { cont })*
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found unordered list item (after marker, immediate only)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(immediate_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked,
-                location: state.create_location(marker_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        /// Parse nested content within an unordered list item (e.g., nested ordered or unordered list)
-        /// Note: allow_continuation is false to prevent nested items from consuming parent-level continuations
-        /// current_marker: the marker of the parent unordered list item (e.g., "*" or "**")
-        /// parent_ordered_marker: the marker of an ancestor ordered list (if any), to prevent
-        /// consuming sibling ordered markers that belong to a parent ordered list context
-        rule unordered_list_item_nested_after_principal(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_ordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        = eol() comment_line()* nested:(
-            unordered_list_item_nested_content_with_metadata(offset, block_metadata, current_marker, parent_ordered_marker)
-            / unordered_list_item_nested_content(offset, block_metadata, current_marker, parent_ordered_marker)
-          ) { nested }
-        / eol()+ !at_callout_list_item() nested:unordered_list_item_nested_content(offset, block_metadata, current_marker, parent_ordered_marker) { nested }
-
-        rule unordered_list_nested_after_attachment(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, parent_ordered_marker: Option<&'input str>) -> Result<Block<'input>, Error>
-        = eol() &nested_unordered_child_after_metadata(offset, marker, parent_ordered_marker)
-          nested:unordered_list_item_nested_content_with_metadata(offset, block_metadata, marker, parent_ordered_marker) {?
-              nested.ok_or("no nested list after attached content")
-          }
-
-        rule unordered_list_item_nested_content_with_metadata(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_ordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        = nested_start:position!()
-          metadata:parsed_nested_list_metadata(offset, block_metadata.parent_section_level)
-          nested_list_metadata_gap()*
-          list:(
-              !at_ancestor_ordered_marker(parent_ordered_marker)
-              list:ordered_list(nested_start, offset, &metadata, Some(current_marker), false, false) { list }
-              / &at_deeper_unordered_marker(current_marker)
-                list:unordered_list_nested(nested_start, offset, &metadata, current_marker, parent_ordered_marker, true) { list }
-              / !at_callout_parent_item(offset)
-                list:callout_list(nested_start, offset, &metadata) { list }
-              / list:description_list(nested_start, offset, &metadata) { list }
-          )
-        {
-            Some(list)
-        }
-
-        rule unordered_list_item_nested_content(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_ordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        // !at_ancestor_ordered_marker() prevents sibling ordered markers from a parent
-        // ordered list context from being consumed by this nested unordered item.
-        = !at_ancestor_ordered_marker(parent_ordered_marker) nested_start:position!() list:ordered_list(nested_start, offset, block_metadata, Some(current_marker), false, true) {
-            Some(list)
-        }
-        // Nested unordered list with deeper markers (e.g., ** inside *)
-        // Uses unordered_list_nested which only parses items deeper than current_marker
-        / &at_deeper_unordered_marker(current_marker)
-          nested_start:position!()
-          list:unordered_list_nested(nested_start, offset, block_metadata, current_marker, parent_ordered_marker, false)
-        {
-            Some(list)
-        }
-        / list:nested_callout_list(offset, block_metadata) { Some(list) }
-        / start:position!() metadata:nested_list_content_metadata(block_metadata)
-          list:description_list(start, offset, &metadata) { Some(list) }
-
-        /// Parse a nested unordered list where all items have markers deeper than parent_marker.
-        /// This is used to parse same-type nesting (e.g., ** inside *) as hierarchical content
-        /// rather than flat siblings, enabling proper ancestor continuation handling.
-        /// Uses allow_continuation=false to prevent nested items from consuming parent continuations.
-        rule unordered_list_nested(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: &str, parent_ordered_marker: Option<&'input str>, has_own_metadata: bool) -> Result<Block<'input>, Error>
-        // Parse first item - must have a deeper marker than parent_marker
-        = &at_deeper_unordered_marker(parent_marker)
-          whitespace()* marker_start:position!() base_marker:$(unordered_list_marker()) &whitespace()
-          parent_scope:enter_ordinary_list(offset, Some(base_marker), None)
-          first:unordered_list_item_after_marker(offset, block_metadata, false, base_marker, marker_start, parent_ordered_marker)
-          // Parse rest items - only those at same level as base_marker (not deeper, not shallower than parent)
-          rest:(unordered_list_nested_rest_item(offset, block_metadata, parent_marker, base_marker, parent_ordered_marker))*
-        {
-            tracing::debug!("Found nested unordered list block");
-            state.ordinary_list_scope = parent_scope;
-            let mut content = vec![first?];
-            for item in rest {
-                content.push(item?);
-            }
-            let end = content.last().map_or(span_end, |(_, item_end)| *item_end);
-            let items: Vec<ListItem<'input>> = content.into_iter().map(|(item, _)| item).collect();
-            let marker = items.first().map_or("", |item| item.marker);
-
-            Ok(Block::UnorderedList(UnorderedList {
-                title: if has_own_metadata { block_metadata.title.clone() } else { Title::default() },
-                metadata: if has_own_metadata { block_metadata.metadata.clone() } else { BlockMetadata::default() },
-                items,
-                marker,
-                location: state.create_location(start+offset, end+offset),
-            }))
-        }
-
-        /// Parse rest items in a nested unordered list.
-        /// Items must be deeper than parent_marker and at same-or-deeper level as base_marker.
-        /// Stops when we encounter a marker at or shallower than parent_marker.
-        rule unordered_list_nested_rest_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: &str, base_marker: &str, parent_ordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        // Case 1: No blank lines - accept same-level or deeper items
-        = !at_list_separator() !eol() comment_line()*
-          // Must not be at shallower-or-equal to parent (that would end the nested list)
-          !at_shallower_or_equal_unordered_marker(parent_marker)
-          item:unordered_list_item(offset, block_metadata, false, parent_ordered_marker)
-        { item }
-        // Case 2: Blank lines present - only accept same-level items (deeper would be its own nesting)
-        / !at_list_separator() eol()+ comment_line()*
-          // Must not be at shallower-or-equal to parent
-          !at_shallower_or_equal_unordered_marker(parent_marker)
-          // Must not be deeper than base (that would be nested inside this item)
-          !at_deeper_unordered_marker(base_marker)
-          item:unordered_list_item(offset, block_metadata, false, parent_ordered_marker)
-        { item }
-
-        // Helper rule to check if we're at a marker that's shallower than or equal to parent_marker
-        // Used to terminate nested lists when encountering parent-level or ancestor-level items
-        rule at_shallower_or_equal_unordered_marker(parent_marker: &str)
-        = whitespace()* marker:unordered_list_marker() whitespace() {?
-            if marker.len() <= parent_marker.len() { Ok(()) } else { Err("deeper") }
-        }
-
-        // See comment on unordered_list_item for why *_with/without_continuation variants exist.
-        rule ordered_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, allow_continuation: bool, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = list_continuation_allowed(allow_continuation)
-          item:ordered_list_item_with_continuation(offset, block_metadata, parent_unordered_marker) { item }
-        / item:ordered_list_item_no_continuation(offset, block_metadata, parent_unordered_marker) { item }
-
-        rule ordered_list_item_with_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()*
-        marker:ordered_list_marker()
-        whitespace()
-        first_line_start:position!()
-        // Parse first line (principal text)
-        first_line:$((!(eol()) [_])*)
-        // Parse continuation lines that are part of the same paragraph
-        // Stop at: blank line, list item start, explicit continuation marker, or list separator
-        continuation_lines:ordered_list_principal_continuation(offset, marker, parent_unordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        // Try to parse nested list (unordered, or ordered with deeper markers)
-        // Don't consume newlines if we're at a list separator (comment or [])
-        // Nested items cannot consume parent-level continuations (allow_continuation: false)
-        // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
-        // alternative fails and backtracks, leaving eol() unconsumed for explicit_continuation
-        nested:(!at_list_separator() nested_content:ordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
-        // Try to parse explicit continuations (+ marker)
-        // Don't consume newlines if we're at a list separator (comment or [])
-        // Parent items accept both:
-        // - Immediate continuations (0 empty lines) for content directly after principal text
-        // - Ancestor continuations (1+ empty lines) for content that bubbles up from nested items
-        // Use * to match a mixed sequence of immediate and ancestor continuations
-        explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Ordered(marker)))
-            / list_explicit_continuation_ancestor(offset, block_metadata, Some(ListMarker::Ordered(marker)))
-            / ordered_list_nested_after_attachment(offset, block_metadata, marker, parent_unordered_marker)
-        ) { cont })*
-        list_dangling_continuation()?
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found ordered list item");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(explicit_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked: None,
-                location: state.create_location(span_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        // Version with immediate continuations only (for nested items)
-        // Nested items consume continuations with 0 empty lines (immediate attachment).
-        // Continuations with 1+ empty lines bubble up to ancestor items.
-        rule ordered_list_item_no_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()*
-        marker:ordered_list_marker()
-        whitespace()
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:ordered_list_principal_continuation(offset, marker, parent_unordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        // Nested items can still have nested lists, but those also cannot consume parent continuations
-        // NOTE: nested_content is NOT optional here - if no nested content matches, the entire
-        // alternative fails and backtracks, leaving eol() unconsumed for immediate_continuation
-        nested:(!at_list_separator() nested_content:ordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
-        // Parse immediate continuations (0 empty lines) - these attach to this item
-        // Ancestor continuations (1+ empty lines) bubble up to parent items
-        immediate_continuations:(!at_list_separator() cont:(list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Ordered(marker))) / ordered_list_nested_after_attachment(offset, block_metadata, marker, parent_unordered_marker)) { cont })*
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found ordered list item (immediate continuation only)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(immediate_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked: None,
-                location: state.create_location(span_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        // After-marker variants for ordered lists: used when marker has already been consumed by parent rule
-        rule ordered_list_item_with_continuation_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, marker_start: usize, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:ordered_list_principal_continuation(offset, marker, parent_unordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        nested:(!at_list_separator() nested_content:ordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
-        explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Ordered(marker)))
-            / list_explicit_continuation_ancestor(offset, block_metadata, Some(ListMarker::Ordered(marker)))
-            / ordered_list_nested_after_attachment(offset, block_metadata, marker, parent_unordered_marker)
-        ) { cont })*
-        list_dangling_continuation()?
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found ordered list item (after marker)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(explicit_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked: None,
-                location: state.create_location(marker_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        rule ordered_list_item_no_continuation_after_marker(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, marker_start: usize, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        = whitespace()
-        first_line_start:position!()
-        first_line:$((!(eol()) [_])*)
-        continuation_lines:ordered_list_principal_continuation(offset, marker, parent_unordered_marker)*
-        first_line_end:position!()
-        principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
-        nested:(!at_list_separator() nested_content:ordered_list_item_nested_after_principal(offset, block_metadata, marker, parent_unordered_marker) { nested_content })?
-        immediate_continuations:(!at_list_separator() cont:(list_explicit_continuation_immediate(offset, block_metadata, Some(ListMarker::Ordered(marker))) / ordered_list_nested_after_attachment(offset, block_metadata, marker, parent_unordered_marker)) { cont })*
-        description_parent_continuation(offset)?
-        {
-            tracing::debug!(first_line_len = first_line.len(), continuation_count = continuation_lines.len(), "found ordered list item (after marker, immediate only)");
-            let level = ListLevel::try_from(ListItem::parse_depth_from_marker(marker).unwrap_or(1))?;
-            let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
-            let principal = principal?;
-
-            let mut blocks = Vec::new();
-            if let Some(Some(Ok(nested_list))) = nested {
-                blocks.push(nested_list);
-            }
-            blocks.extend(immediate_continuations.into_iter().flatten());
-
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
-
-            Ok((ListItem {
-                principal,
-                blocks: order_block_prefix_events(blocks),
-                level,
-                marker,
-                checked: None,
-                location: state.create_location(marker_start+offset, actual_end+offset),
-            }, actual_end))
-        }
-
-        /// Parse nested content within an ordered list item (e.g., nested unordered or ordered list)
-        /// Note: allow_continuation is false to prevent nested items from consuming parent-level continuations
-        /// current_marker: the marker of the parent ordered list item (e.g., "." or "..")
-        /// parent_unordered_marker: the marker of an ancestor unordered list (if any), to prevent
-        /// consuming sibling unordered markers that belong to a parent unordered list context
-        rule ordered_list_item_nested_after_principal(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_unordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        = eol() comment_line()* nested:(
-            ordered_list_item_nested_content_with_metadata(offset, block_metadata, current_marker, parent_unordered_marker)
-            / ordered_list_item_nested_content(offset, block_metadata, current_marker, parent_unordered_marker)
-          ) { nested }
-        / eol()+ !at_callout_list_item() nested:ordered_list_item_nested_content(offset, block_metadata, current_marker, parent_unordered_marker) { nested }
-
-        rule ordered_list_nested_after_attachment(offset: usize, block_metadata: &BlockParsingMetadata<'input>, marker: &'input str, parent_unordered_marker: Option<&'input str>) -> Result<Block<'input>, Error>
-        = eol() &nested_ordered_child_after_metadata(offset, marker, parent_unordered_marker)
-          nested:ordered_list_item_nested_content_with_metadata(offset, block_metadata, marker, parent_unordered_marker) {?
-              nested.ok_or("no nested list after attached content")
-          }
-
-        rule ordered_list_item_nested_content_with_metadata(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_unordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        = nested_start:position!()
-          metadata:parsed_nested_list_metadata(offset, block_metadata.parent_section_level)
-          nested_list_metadata_gap()*
-          list:(
-              !at_ancestor_unordered_marker(parent_unordered_marker)
-              list:unordered_list(nested_start, offset, &metadata, Some(current_marker), false, false) { list }
-              / &at_deeper_ordered_marker(current_marker)
-                list:ordered_list_nested(nested_start, offset, &metadata, current_marker, parent_unordered_marker, true) { list }
-              / !at_callout_parent_item(offset)
-                list:callout_list(nested_start, offset, &metadata) { list }
-              / list:description_list(nested_start, offset, &metadata) { list }
-          )
-        {
-            Some(list)
-        }
-
-        rule ordered_list_item_nested_content(offset: usize, block_metadata: &BlockParsingMetadata<'input>, current_marker: &'input str, parent_unordered_marker: Option<&'input str>) -> Option<Result<Block<'input>, Error>>
-        // !at_ancestor_unordered_marker() prevents sibling unordered markers from a parent
-        // unordered list context from being consumed by this nested ordered item.
-        = !at_ancestor_unordered_marker(parent_unordered_marker) nested_start:position!() list:unordered_list(nested_start, offset, block_metadata, Some(current_marker), false, true) {
-            Some(list)
-        }
-        // Nested ordered list with deeper markers (e.g., .. inside .)
-        // Uses ordered_list_nested which only parses items deeper than current_marker
-        / &at_deeper_ordered_marker(current_marker)
-          nested_start:position!()
-          list:ordered_list_nested(nested_start, offset, block_metadata, current_marker, parent_unordered_marker, false)
-        {
-            Some(list)
-        }
-        / list:nested_callout_list(offset, block_metadata) { Some(list) }
-        / start:position!() metadata:nested_list_content_metadata(block_metadata)
-          list:description_list(start, offset, &metadata) { Some(list) }
-
-        /// Parse a nested ordered list where all items have markers deeper than parent_marker.
-        /// This is used to parse same-type nesting (e.g., .. inside .) as hierarchical content
-        /// rather than flat siblings, enabling proper ancestor continuation handling.
-        /// Uses allow_continuation=false to prevent nested items from consuming parent continuations.
-        rule ordered_list_nested(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: &str, parent_unordered_marker: Option<&'input str>, has_own_metadata: bool) -> Result<Block<'input>, Error>
-        // Parse first item - must have a deeper marker than parent_marker
-        = &at_deeper_ordered_marker(parent_marker)
-          whitespace()* marker_start:position!() base_marker:$(ordered_list_marker()) &whitespace()
-          parent_scope:enter_ordinary_list(offset, None, Some(base_marker))
-          first:ordered_list_item_after_marker(offset, block_metadata, false, base_marker, marker_start, parent_unordered_marker)
-          // Parse rest items - only those at same level as base_marker (not deeper, not shallower than parent)
-          rest:(ordered_list_nested_rest_item(offset, block_metadata, parent_marker, base_marker, parent_unordered_marker))*
-        {
-            tracing::debug!("Found nested ordered list block");
-            state.ordinary_list_scope = parent_scope;
-            let mut content = vec![first?];
-            for item in rest {
-                content.push(item?);
-            }
-            let end = content.last().map_or(span_end, |(_, item_end)| *item_end);
-            let items: Vec<ListItem<'input>> = content.into_iter().map(|(item, _)| item).collect();
-            let marker = items.first().map_or("", |item| item.marker);
-
-            Ok(Block::OrderedList(OrderedList {
-                title: if has_own_metadata { block_metadata.title.clone() } else { Title::default() },
-                metadata: if has_own_metadata { block_metadata.metadata.clone() } else { BlockMetadata::default() },
-                items,
-                marker,
-                location: state.create_location(start+offset, end+offset),
-            }))
-        }
-
-        /// Parse rest items in a nested ordered list.
-        /// Items must be deeper than parent_marker and at same-or-deeper level as base_marker.
-        /// Stops when we encounter a marker at or shallower than parent_marker.
-        rule ordered_list_nested_rest_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: &str, base_marker: &str, parent_unordered_marker: Option<&'input str>) -> Result<(ListItem<'input>, usize), Error>
-        // Case 1: No blank lines - accept same-level or deeper items
-        = !at_list_separator() !eol() comment_line()*
-          // Must not be at shallower-or-equal to parent (that would end the nested list)
-          !at_shallower_or_equal_ordered_marker(parent_marker)
-          item:ordered_list_item(offset, block_metadata, false, parent_unordered_marker)
-        { item }
-        // Case 2: Blank lines present - only accept same-level items (deeper would be its own nesting)
-        / !at_list_separator() eol()+ comment_line()*
-          // Must not be at shallower-or-equal to parent
-          !at_shallower_or_equal_ordered_marker(parent_marker)
-          // Must not be deeper than base (that would be nested inside this item)
-          !at_deeper_ordered_marker(base_marker)
-          item:ordered_list_item(offset, block_metadata, false, parent_unordered_marker)
-        { item }
-
-        // Helper rule to check if we're at a marker that's shallower than or equal to parent_marker
-        // Used to terminate nested lists when encountering parent-level or ancestor-level items
-        rule at_shallower_or_equal_ordered_marker(parent_marker: &str)
-        = whitespace()* marker:ordered_list_marker() whitespace() {?
-            if marker.len() <= parent_marker.len() { Ok(()) } else { Err("deeper") }
+            ItemHead { checked, marker: marker.text(), marker_start, after_marker, first: (first_start, first), rest, end }
         }
 
         // Only a column-one marker with nonempty text starts a callout item.
@@ -3054,8 +2300,7 @@ peg::parser! {
 
         // Disable child continuations so `+` blocks remain for the owning callout item.
         rule callout_child_list(start: usize, offset: usize, metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = unordered_list(start, offset, metadata, None, false, false)
-        / ordered_list(start, offset, metadata, None, false, false)
+        = ordinary_list(start, offset, metadata, false)
         / description_list(start, offset, metadata)
 
         rule callout_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<(CalloutListItem<'input>, String, usize), Error>
@@ -3079,11 +2324,10 @@ peg::parser! {
         principal:list_item_principal(offset, block_metadata, first_line_start, first_line_end, first_line, &continuation_lines)
         nested:(!at_list_separator() child:callout_list_nested(offset, block_metadata) { child })?
         explicit_continuations:(!at_list_separator() cont:(
-            list_explicit_continuation_immediate(offset, block_metadata, None)
-            / list_explicit_continuation_ancestor(offset, block_metadata, None)
+            list_explicit_continuation_immediate(offset, block_metadata)
+            / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
         list_dangling_continuation()?
-        description_parent_continuation(offset)?
         {
             let principal = principal?;
             let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
@@ -3103,7 +2347,7 @@ peg::parser! {
                 CalloutMarker::explicit(0, location.clone())
             };
 
-            let actual_end = if blocks.is_empty() { item_end } else { span_end.saturating_sub(1) };
+            let actual_end = if blocks.is_empty() { item_end } else { state.end_before_line_breaks(item_end, span_end, offset) - 1 };
 
             Ok((CalloutListItem {
                 callout,
@@ -3126,10 +2370,14 @@ peg::parser! {
         }
 
         rule checklist_item() -> ListItemCheckedStatus
-            = checked:(("[x]" / "[X]" / "[*]") { ListItemCheckedStatus::Checked } / "[ ]" { ListItemCheckedStatus::Unchecked }) whitespace()
+            = checked:(("[x]" / "[*]" / draft_uppercase_check()) { ListItemCheckedStatus::Checked } / "[ ]" { ListItemCheckedStatus::Unchecked }) whitespace()
         {
             checked
         }
+
+        // Asciidoctor's markers are `[ ]`, `[x]` and `[*]` (`Parser.parse_list_item`).
+        rule draft_uppercase_check()
+        = "[X]" {? if state.options.compatibility_mode == CompatibilityMode::Asciidoctor { Err("uppercase check") } else { Ok(()) } }
 
         rule check_line_is_description_list(offset: usize)
         = pos:position!() {?
@@ -3140,288 +2388,29 @@ peg::parser! {
             }
         }
 
-        rule at_description_parent_item(offset: usize)
-        = at_description_scope_item(offset, state.description_list_scope)
-
-        rule at_description_scope_item(offset: usize, parent: Option<DescriptionListScope<'input>>)
-        = scope:({? parent.filter(|scope| scope.offset == offset).ok_or("no description parent") })
-          (!(description_list_marker() (eol() / " " / ![_]) / eol()) [_])+
-          marker:description_list_marker() &(eol() / " " / ![_]) {?
-              scope.contains(marker).then_some(()).ok_or("not a description parent item")
-          }
-
-        rule enter_description_list(offset: usize) -> Option<DescriptionListScope<'input>>
-        = {
-            let parent = state.description_list_scope;
-            state.description_list_scope = Some(parent.filter(|scope| scope.offset == offset)
-                .unwrap_or_else(|| DescriptionListScope::new(offset)));
-            parent
-        }
-
-        rule select_description_marker(marker: &'input str)
-        = {
-            if let Some(scope) = state.description_list_scope.as_mut() {
-                scope.select(marker);
-            }
-        }
-
+        // A description list (`Parser.parse_description_list`): Asciidoctor's
+        // reader decides which lines each item holds (`lists::description_list`).
         rule description_list(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = !at_list_item_start() !at_callout_list_item() !at_description_parent_item(offset)
-          check_line_is_description_list(offset)
-        parent_scope:enter_description_list(offset)
-        first_item:description_list_item(offset, block_metadata)
-        additional_items:description_list_additional_items(offset, block_metadata, parent_scope)*
-        {
-            state.description_list_scope = parent_scope;
-            tracing::debug!("Found description list block with auto-attachment support");
-            let mut items = vec![first_item?];
+        = !at_list_item_start() !at_callout_list_item()
+          list:#{|input, pos| match crate::grammar::document::lists::description_list(state, input.len(), start, pos, offset, block_metadata) {
+              Some((list, end)) => peg::RuleResult::Matched(end, list),
+              None => peg::RuleResult::Failed,
+          }}
+        { list }
 
-            for additional in additional_items {
-                items.push(additional?);
-            }
-
-            let actual_end = items.last().map_or(span_end, |item| {
-                let loc_end = item.location.absolute_end;
-                loc_end - offset
-            });
-
-            Ok(Block::DescriptionList(DescriptionList {
-                title: block_metadata.title.clone(),
-                metadata: block_metadata.metadata.clone(),
-                items: build_description_list_topology(items),
-                location: state.create_location(start+offset, actual_end+offset),
-            }))
-        }
-
-        // Parse additional description list items (after potential auto-attached content)
-        //
-        // !at_dlist_block_boundary() prevents continuing the list when a blank line is
-        // followed by block attributes. This allows attributes to apply to a new list.
-        rule description_list_additional_items(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_scope: Option<DescriptionListScope<'input>>) -> Result<DescriptionListItem<'input>, Error>
-        = !at_dlist_block_boundary()
-        eol()*
-        !at_description_scope_item(offset, parent_scope)
-        !attribute_or_anchor_line_match()
-        !at_callout_list_item()
-        !at_list_item_start()
-        check_line_is_description_list(offset)
-        item:description_list_item(offset, block_metadata)
-        {
-            tracing::debug!("Found additional description list item");
-            item
-        }
-
-        // A missing principal can start after blank lines, with the same list boundaries.
-        rule description_list_principal_line(offset: usize)
-        = !eol()
-        !at_callout_list_item()
-        !check_line_is_description_list(offset)
-        !(whitespace()* (unordered_list_marker() / ordered_list_marker()) whitespace())
-        !("+" whitespace()* (eol() / ![_]))
-        !(example_delimiter() (eol() / ![_]))
-        !listing_delimiter()
-        !literal_delimiter()
-        !sidebar_delimiter()
-        !quote_delimiter()
-        !pass_delimiter()
-        !comment_delimiter()
-        !table_delimiter()
-        !(open_delimiter() (whitespace()* eol()))
-        !markdown_code_delimiter()
-        !attribute_or_anchor_line_match()
-
-        rule description_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<DescriptionListItem<'input>, Error>
-        = term_start:position!()
-        term:$((!(description_list_marker() (eol() / " " / ![_]) / eol()) [_])+)
-        term_end:position!()
-        delim_start:position!() delimiter:description_list_marker() delim_end:position!()
-        select_description_marker(delimiter)
-        whitespace()*
-        principal_start:position!()
-        principal_content:$(
-            (eol()+ &description_list_principal_line(offset))?
-            (!eol() [_])*
-            // Implicit text continuation: consume subsequent non-blank lines that
-            // aren't new dlist entries, list items, continuation markers, or block
-            // delimiters. This mirrors paragraph multi-line handling but with
-            // dlist-specific stop conditions.
-            (eol() description_list_principal_line(offset)
-             (!eol() [_])+                             // continuation line content
-            )*
-        )
-        principal:description_list_principal(offset, block_metadata, term, term_start, term_end, principal_content, principal_start)
-        // Now handle auto-attachment and explicit continuation
-        attached_content:description_list_attached_content(offset, block_metadata, delimiter)*
-        {
-            tracing::debug!("parsing description list item with auto-attachment");
-
-            let (term, principal_text) = principal?;
-
-            // Collect all attached blocks (auto-attached and explicitly continued)
-            let mut description = Vec::with_capacity(attached_content.len());
-            for content in attached_content {
-                match content {
-                    Ok(blocks) => description.extend(blocks),
-                    Err(e) => {
-                        state.add_warning(Warning::new(
-                            WarningKind::ContentRecovery {
-                                message: format!("discarded attached content: {e}").into(),
-                            },
-                            e.source_location().cloned(),
-                        ));
-                        tracing::error!("Error processing attached content");
-                    }
-                }
-            }
-
-            let principal_end = principal_start + principal_content.trim_end().len();
-            let actual_end = description.last().map_or_else(
-                || state.create_block_location(term_start, principal_end.max(delim_end), offset).absolute_end - offset,
-                |block| block.location().absolute_end - offset,
-            );
-
-            let delimiter_location = state.create_block_location(delim_start, delim_end, offset);
-            let term = DescriptionListTerm {
-                anchors: Vec::new(),
-                content: term,
-                delimiter,
-                delimiter_location: Some(delimiter_location),
-                location: state.create_block_location(term_start, delim_end, offset),
-            };
-            let principal = (!principal_content.trim().is_empty()).then_some(principal_text);
-            let blocks = order_block_prefix_events(description);
-            let definition = if principal.is_some() || !blocks.is_empty() {
-                let location = if principal.is_some() {
-                    let start = principal_start + principal_content.len() - principal_content.trim_start().len();
-                    state.create_location(start + offset, actual_end + offset)
-                } else {
-                    let mut location = blocks.first().map_or_else(Location::default, |block| block.location().clone());
-                    if let Some(last) = blocks.last() {
-                        location.absolute_end = last.location().absolute_end;
-                        location.end = last.location().end.clone();
-                    }
-                    location
-                };
-                Some(DescriptionListDefinition { principal, blocks, location })
-            } else {
-                None
-            };
-            let mut location = state.create_location(span_start + offset, actual_end + offset);
-            if definition.is_none() {
-                location.absolute_end = term.location.absolute_end;
-                location.end = term.location.end.clone();
-            }
-            Ok(DescriptionListItem { terms: vec![term], definition, location })
-        }
-
-        // As with list_item_principal, process parent macros before attachments.
-        rule description_list_principal(offset: usize, block_metadata: &BlockParsingMetadata<'input>, term: &'input str, term_start: usize, term_end: usize, principal_content: &'input str, principal_start: usize) -> Result<(Vec<InlineNode<'input>>, Vec<InlineNode<'input>>), Error>
-        = {
-            let trimmed_term = term.trim();
-            let leading_whitespace = term.len() - term.trim_start().len();
-            let term_start = term_start + leading_whitespace;
-            let term_end = term_end - (term.len() - term.trim_end().len());
-            let (term, _) = process_inlines(
-                state,
-                block_metadata,
-                term_start,
-                term_end,
-                offset,
-                trimmed_term,
-            )?;
-
-            let trimmed_principal = principal_content.trim();
-            let principal_text = if trimmed_principal.is_empty() {
-                Vec::new()
-            } else {
-                let content_start = principal_start + principal_content.len()
-                    - principal_content.trim_start().len();
-                let (principal, _) = process_inlines(
-                    state,
-                    block_metadata,
-                    content_start,
-                    content_start + trimmed_principal.len(),
-                    offset,
-                    trimmed_principal,
-                )?;
-                principal
-            };
-
-            Ok((term, principal_text))
-        }
-
-        rule description_list_attached_content(offset: usize, block_metadata: &BlockParsingMetadata<'input>, delimiter: &'input str) -> Result<Vec<Block<'input>>, Error>
-        = eol() content:(
-            // Explicit continuation - this uses +, allows any content including delimited
-            // blocks
-            description_list_explicit_continuation(offset, block_metadata, delimiter)
-            // Auto-attach lists (even with blank lines before them)
-            / description_list_auto_attached_list(offset, block_metadata)
-        )
-        {
-            content
-        }
-
-        rule description_list_auto_attached_list(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Vec<Block<'input>>, Error>
-        = eol()* list:description_list_auto_attached_list_with_metadata(offset, block_metadata) { list }
-        / eol()* !at_ordinary_parent_item(offset)
-          list_start:position!()
-          list:description_list_ordinary_child(list_start, offset, block_metadata, false) { Ok(vec![list?]) }
-        / list:nested_callout_list(offset, block_metadata) { Ok(vec![list?]) }
-
-        // Preserve both ordinary ancestors while parsing a description's child list.
-        rule description_list_ordinary_child(start: usize, offset: usize, metadata: &BlockParsingMetadata<'input>, has_own_metadata: bool) -> Result<Block<'input>, Error>
-        = scope:ordinary_list_scope(offset) list:(
-            parent_is_some(scope.unordered)
-            list:unordered_list_nested(start, offset, metadata, scope.unordered.unwrap_or_default(), scope.ordered, has_own_metadata) { list }
-            / parent_is_none(scope.unordered)
-            list:unordered_list(start, offset, metadata, scope.ordered, true, !has_own_metadata) { list }
-            / parent_is_some(scope.ordered)
-            list:ordered_list_nested(start, offset, metadata, scope.ordered.unwrap_or_default(), scope.unordered, has_own_metadata) { list }
-            / parent_is_none(scope.ordered)
-            list:ordered_list(start, offset, metadata, scope.unordered, true, !has_own_metadata) { list }
-        ) { list }
-
-        // Metadata belongs to a nested list only when a child marker follows it.
-        rule description_list_auto_attached_list_with_metadata(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Vec<Block<'input>>, Error>
-        = &((attribute_or_anchor_line_match() eol()*)+ !at_ordinary_parent_item(offset)
-            (at_list_item_start() / !at_callout_parent_item(offset) at_callout_list_item()))
-          list_start:position!()
-          metadata:parsed_nested_list_metadata(offset, block_metadata.parent_section_level)
-          list:(callout_list(list_start, offset, &metadata)
-            / description_list_ordinary_child(list_start, offset, &metadata, true))
-        { Ok(vec![list?]) }
-
-        // A blank line before `+` returns from a nested description to its ordinary parent.
-        rule description_continuation_gap(offset: usize)
-        = gap:$(eol()*) {?
-            (gap.is_empty() || state.ordinary_list_scope.is_none_or(|scope| scope.offset != offset))
-                .then_some(()).ok_or("continuation belongs to ordinary parent")
-        }
-
-        // Parse one or more explicit continuations for description lists
-        // Same pattern as list_explicit_continuation: + marker followed by a single block
-        // Uses block_in_continuation to prevent lists inside continuations from consuming
-        // further continuations that belong to the parent item
-        rule description_list_explicit_continuation(offset: usize, block_metadata: &BlockParsingMetadata<'input>, delimiter: &'input str) -> Result<Vec<Block<'input>>, Error>
-        = continuations:(
-            description_continuation_gap(offset) "+" eol()
-            block:block_in_continuation(offset, block_metadata.parent_section_level, Some(ListMarker::Description(delimiter)))
-            { block }
-          )+
-        {
-            tracing::debug!(count = continuations.len(), "Description list explicit continuation blocks");
-            Ok(continuations.into_iter().filter_map(Result::ok).collect())
-        }
+        // The paragraph lines adjacent to an item's first line, which
+        // Asciidoctor folds into its text (`ListItem#fold_first`).
+        pub(in crate::grammar::document) rule folded_lines(offset: usize) -> (Vec<(usize, &'input str)>, usize)
+        = lines:ordinary_list_principal_continuation(offset)* end:position!() [_]* { (lines, end) }
 
         // Parse a single immediate continuation (0 empty lines before +)
         // These attach to the current (most recent) list item per AsciiDoc spec.
         // Uses block_in_continuation to prevent lists inside continuations from consuming
         // further continuations that belong to the parent item.
         // Pattern: exactly one newline before + (content\n+\nblock)
-        rule list_explicit_continuation_immediate(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: Option<ListMarker<'input>>) -> Result<Block<'input>, Error>
-        = eol() !eol() "+" eol() !at_description_parent_item(offset)
-          block:block_in_continuation(offset, block_metadata.parent_section_level, parent_marker)
+        rule list_explicit_continuation_immediate(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+        = eol() !eol() "+" eol()
+          block:block_in_continuation(offset, block_metadata.parent_section_level)
         {
             tracing::debug!("List immediate continuation block (0 empty lines)");
             block
@@ -3433,16 +2422,13 @@ peg::parser! {
         // Uses block_in_continuation to prevent lists inside continuations from consuming
         // further continuations that belong to the parent item.
         // Pattern: two or more newlines before + (content\n\n+\nblock)
-        rule list_explicit_continuation_ancestor(offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: Option<ListMarker<'input>>) -> Result<Block<'input>, Error>
-        = eol() eol()+ "+" eol() !at_description_parent_item(offset)
-          block:block_in_continuation(offset, block_metadata.parent_section_level, parent_marker)
+        rule list_explicit_continuation_ancestor(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
+        = eol() eol()+ "+" eol()
+          block:block_in_continuation(offset, block_metadata.parent_section_level)
         {
             tracing::debug!("List ancestor continuation block (1+ empty lines)");
             block
         }
-
-        rule description_parent_continuation(offset: usize)
-        = eol()+ "+" whitespace()* eol() &at_description_parent_item(offset)
 
         // Asciidoctor drops a continuation with no attachable block, including one
         // followed only by unused metadata. Leave that metadata for the block sequence
@@ -3461,8 +2447,7 @@ peg::parser! {
         // -- Thomas Jefferson, Papers of Thomas Jefferson
         // ```
         rule quoted_paragraph(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = content_start:position!()
-          "\"" quoted_content:$((!"\"" [_])+) "\""
+        = "\"" content_start:position!() quoted_content:$((!"\"" [_])+) "\""
           eol()
           "-- " attr_start:position!() attribution_line:$([^'\n']+)
         {
@@ -3542,12 +2527,12 @@ peg::parser! {
         /// The content after `> ` on each line is joined and parsed as blocks.
         /// Attribution is extracted from a line matching `> -- Author[, Citation]`.
         rule markdown_blockquote(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = lines:markdown_blockquote_content_line()+ attribution:markdown_blockquote_attribution()?
+        = content_start:position!() lines:markdown_blockquote_content_line()+ attribution:markdown_blockquote_attribution()?
         {
             tracing::debug!("found markdown blockquote");
 
-            let content: &'input str = state.intern_join(lines.iter(), "\n");
-            let content_start = start;
+            // `start` is before the block's metadata lines; the content counts from the first `>`.
+            let content: &'input str = state.intern_join(lines.iter().map(|(_, line)| line), "\n");
 
             let mut metadata = block_metadata.metadata.clone();
             metadata.style = Some("quote");
@@ -3586,14 +2571,17 @@ peg::parser! {
                 }
             }
 
-            let location = state.create_block_location(start, span_end, offset);
+            let location = state.create_block_location(start, state.end_before_line_breaks(start, span_end, offset), offset);
 
             let blocks = if content.trim().is_empty() {
                 Vec::new()
             } else {
-                document_parser::blocks(content, state, content_start + offset, block_metadata.parent_section_level, None).unwrap_or_else(|e| {
-                    adjust_and_log_parse_error(&e, content, content_start + offset, state, "Error parsing content as blocks in markdown blockquote");
-                    Ok(Vec::new())
+                let origin = crate::grammar::document::content_origin::ContentOrigin::quote(&lines, content_start + offset);
+                origin.parse_blocks(content, state, |state| {
+                    document_parser::blocks(content, state, 0, block_metadata.parent_section_level, None).unwrap_or_else(|e| {
+                        adjust_and_log_parse_error(&e, content, 0, state, "Error parsing content as blocks in markdown blockquote");
+                        Ok(Vec::new())
+                    })
                 })?
             };
 
@@ -3613,12 +2601,12 @@ peg::parser! {
         /// A line is content if:
         /// 1. It's followed by another `>` line (so `> -- ...` mid-blockquote is content)
         /// 2. OR it doesn't start with `-- ` (so it can't be attribution)
-        rule markdown_blockquote_content_line() -> &'input str
-        = "> " content:$([^'\n']*) eol() &">" { content }
-        / "> " !("-- ") content:$([^'\n']*) (eol() / ![_]) { content }
-        / ">" eol() &">" { "" }
-        / ">" eol() { "" }
-        / ">" ![_] { "" }
+        rule markdown_blockquote_content_line() -> (usize, &'input str)
+        = "> " content:$([^'\n']*) eol() &">" { (2, content) }
+        / "> " !("-- ") content:$([^'\n']*) (eol() / ![_]) { (2, content) }
+        / ">" eol() &">" { (1, "") }
+        / ">" eol() { (1, "") }
+        / ">" ![_] { (1, "") }
 
         /// Match an attribution line: `> -- Author[, Citation]`
         /// Only matches at the END of a blockquote (not followed by more `>` lines)
@@ -3645,32 +2633,19 @@ peg::parser! {
             / eol() "+" whitespace()* (eol() / ![_])
         ) [_])+) { content }
 
-        rule paragraph(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = block:paragraph_with_list_boundary(start, offset, block_metadata, None) { block }
-
-        // Only Asciidoctor lets a sibling/ancestor interrupt an attached paragraph.
-        // Draft uses the same paragraph boundaries inside and outside a list.
-        rule attached_list_boundary(offset: usize, parent_marker: Option<ListMarker<'input>>)
-        = parent:({?
-            if state.options.compatibility_mode == CompatibilityMode::Asciidoctor {
-                parent_marker.ok_or("no parent list")
-            } else {
-                Err("list items do not interrupt attached Draft paragraphs")
-            }
-        }) candidate:attached_list_marker() {?
-            let ordinary_ancestor = matches!(parent, ListMarker::Description(_))
-                && state.ordinary_list_scope.filter(|scope| scope.offset == offset).is_some_and(|scope| {
-                    scope.unordered.is_some_and(|marker| ListMarker::Unordered(marker).is_sibling_or_ancestor(candidate))
-                        || scope.ordered.is_some_and(|marker| ListMarker::Ordered(marker).is_sibling_or_ancestor(candidate))
-                });
-            (parent.is_sibling_or_ancestor(candidate) || ordinary_ancestor).then_some(()).ok_or("not a sibling list item")
-        }
-
-        rule attached_list_marker() -> ListMarker<'input>
-        = whitespace()* marker:unordered_list_marker() whitespace() { ListMarker::Unordered(marker) }
-        / whitespace()* marker:ordered_list_marker() whitespace() { ListMarker::Ordered(marker) }
-        / (!(description_list_marker() (whitespace() / eol() / ![_])) [^'\n'])+
-          marker:description_list_marker() &(whitespace() / eol() / ![_]) { ListMarker::Description(marker) }
+        // A line opening a delimited block ends a paragraph and, without a list
+        // continuation, a list item (`Parser.read_lines_for_list_item`).
+        rule block_delimiter_line()
+        = example_delimiter() &(eol() / ![_])
+        / listing_delimiter()
+        / literal_delimiter()
+        / sidebar_delimiter()
+        / quote_delimiter()
+        / pass_delimiter()
+        / table_delimiter()
+        / markdown_code_delimiter()
+        / comment_delimiter()
+        / open_delimiter() &(whitespace()* eol())
 
         rule paragraph_text_run(offset: usize)
         = !at_line_start(offset) #{|input, start| {
@@ -3682,7 +2657,7 @@ peg::parser! {
             }
         }}
 
-        rule paragraph_with_list_boundary(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>, parent_marker: Option<ListMarker<'input>>) -> Result<Block<'input>, Error>
+        rule paragraph(start: usize, offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
         = admonition:(structural_block_boundaries(block_metadata) value:admonition() { value })?
         content_start:position!()
         content:(
@@ -3697,19 +2672,10 @@ peg::parser! {
             / eol()* ![_]
             / eol() &attributes_line()
             / eol() &anchor_line_match()
-            / eol() example_delimiter() &(eol() / ![_])
-            / eol() listing_delimiter()
-            / eol() literal_delimiter()
-            / eol() sidebar_delimiter()
-            / eol() quote_delimiter()
-            / eol() pass_delimiter()
-            / eol() table_delimiter()
-            / eol() markdown_code_delimiter()
-            / eol() comment_delimiter()
-            / eol() open_delimiter() &(whitespace()* eol())
+            / eol() block_delimiter_line()
             / eol() excessive_list_marker()
             / eol() at_callout_parent_item(offset)
-            / eol() attached_list_boundary(offset, parent_marker)
+            / eol() list_item_paragraph_boundary(start, offset)
             / eol() &("+" whitespace()* (eol() / ![_]))  // Only a standalone plus continues a list.
             ) [_]
         )+))
@@ -3718,6 +2684,18 @@ peg::parser! {
                 start, content_start, end: span_end, offset, content, admonition,
             })
         }
+
+        // In a list item's own lines, a paragraph no blank line precedes ends at
+        // any list item line (`read_paragraph_lines` with `break_at_list`).
+        rule list_item_paragraph_boundary(start: usize, offset: usize)
+        = ({?
+            let at = start + offset;
+            let after_blank = state.input.as_bytes().get(at.wrapping_sub(2)..at) == Some(b"\n\n");
+            (state.list_item_offset == Some(offset) && !after_blank).then_some(()).ok_or("not adjacent list item content")
+          })
+          (whitespace()* ordinary_list_marker() whitespace()
+           / "<" (digits() / ".") ">" whitespace()
+           / check_line_is_description_list(offset))
 
         rule admonition() -> (String, usize, usize)
             = variant:$("NOTE" / "WARNING" / "TIP" / "IMPORTANT" / "CAUTION") ": "
@@ -3734,7 +2712,7 @@ peg::parser! {
             id:$([^'\'' | ',' | ']' | '.' | '#']+)
             {?
                 if id.chars().any(char::is_whitespace) {
-                    let location = state.create_location(span_start, span_end);
+                    let location = state.create_block_location(span_start, span_end, 0);
                     state.add_generic_warning_at(
                         format!("anchor id '{id}' contains whitespace which is not allowed, treating as literal text"),
                         location,
@@ -3779,12 +2757,10 @@ peg::parser! {
         {
             let (id, reftext) = result;
             let substituted_id = state.intern_cow(apply_attribute_substitutions(id, HEADER, &state.document_attributes));
-            // `end` is captured before the trailing eol() so the anchor's
-            // location doesn't include the newline.
             Anchor {
                 id: substituted_id,
                 xreflabel: None,
-                location: state.create_location(span_start + offset, end + offset),
+                location: state.create_block_location(span_start, end, offset),
                 reftext_source: reftext,
                 bibliography_label: None,
                 bibliography: false,
@@ -3855,24 +2831,18 @@ peg::parser! {
             }
         }
 
+        // `BlockAttributeLineRx` takes `[]` too: an empty attribute list.
         rule attributes_line() -> ParsedAttributeList<'input>
-            // Don't match empty [] followed by blank line - that's a list separator, not
-            // block attributes. Without this, `[]\n\n` would be parsed as an empty
-            // attributes line, breaking list separation
-            = !empty_list_separator() attributes:attributes() eol() {
+            = attributes:attributes() eol() {
                 attributes
             }
 
         rule raw_attributes_line() -> RawAttributeList<'input>
-            = !empty_list_separator() block_attribute_start() attributes:raw_attribute_list(BlockAttributeMode::Block) eol() { attributes }
+            = block_attribute_start() attributes:raw_attribute_list(BlockAttributeMode::Block) eol() { attributes }
 
         rule raw_attribute_list(context: BlockAttributeMode) -> RawAttributeList<'input>
             = open_square_bracket() start:position!() source:attribute_list_content(context)
             { RawAttributeList { source, start } }
-
-        // Empty brackets followed by a blank line is a list separator
-        rule empty_list_separator()
-            = whitespace()* "[" whitespace()* "]" whitespace()* eol() eol()
 
         pub(in crate::grammar::document) rule attributes() -> ParsedAttributeList<'input>
             = block_attribute_start()

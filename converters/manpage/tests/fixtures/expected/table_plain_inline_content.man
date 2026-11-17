@@ -55,7 +55,7 @@ T{
 [role=example]
 I03 Visible metadata\-looking text.
 :value: cell
-I03 value=outer.
+I03 value=outer\&.
 T}:T{
 .sp
 A04 Paragraph with \c

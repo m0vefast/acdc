@@ -58,6 +58,7 @@
         }
       ],
       "level": 1,
+      "id": "doc-intro",
       "metadata": {
         "anchors": [
           {
@@ -66,11 +67,26 @@
               {
                 "name": "text",
                 "type": "string",
-                "value": "Introduction Section",
+                "value": "Introduction",
                 "location": [
                   {
                     "line": 7,
                     "col": 18
+                  },
+                  {
+                    "line": 7,
+                    "col": 31
+                  }
+                ]
+              },
+              {
+                "name": "text",
+                "type": "string",
+                "value": " Section",
+                "location": [
+                  {
+                    "line": 7,
+                    "col": 32
                   },
                   {
                     "line": 7,
@@ -86,7 +102,7 @@
               },
               {
                 "line": 7,
-                "col": 42
+                "col": 41
               }
             ]
           }
@@ -157,6 +173,7 @@
         }
       ],
       "level": 1,
+      "id": "doc-details",
       "metadata": {
         "anchors": [
           {
@@ -168,7 +185,7 @@
               },
               {
                 "line": 12,
-                "col": 21
+                "col": 20
               }
             ]
           }
@@ -239,6 +256,7 @@
         }
       ],
       "level": 1,
+      "id": "_inline_anchors",
       "blocks": [
         {
           "name": "paragraph",
@@ -412,6 +430,7 @@
         }
       ],
       "level": 1,
+      "id": "_cross_references",
       "blocks": [
         {
           "name": "paragraph",
@@ -587,6 +606,7 @@
         }
       ],
       "level": 1,
+      "id": "_bibliography",
       "metadata": {
         "style": "bibliography"
       },
@@ -679,11 +699,26 @@
                     {
                       "name": "text",
                       "type": "string",
-                      "value": "Introduction Reference",
+                      "value": "Introduction",
                       "location": [
                         {
                           "line": 33,
                           "col": 21
+                        },
+                        {
+                          "line": 33,
+                          "col": 34
+                        }
+                      ]
+                    },
+                    {
+                      "name": "text",
+                      "type": "string",
+                      "value": " Reference",
+                      "location": [
+                        {
+                          "line": 33,
+                          "col": 35
                         },
                         {
                           "line": 33,

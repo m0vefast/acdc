@@ -2,33 +2,44 @@ use acdc_parser::{CompatibilityMode, Options, Substitution, SymbolKind, ast::Inl
 
 type Error = Box<dyn std::error::Error>;
 
+// Asciidoctor column: asciidoctor 2.0.26, measured 2026-11-16 in all four contexts. Replacements
+// run before macros, so a macro or anchor is still its source (`]`, `a`, `i`, `l`) to its words.
+const APOS: Option<SymbolKind> = Some(SymbolKind::CurvedApostrophe);
+const DASH: Option<SymbolKind> = Some(SymbolKind::WordBoundedEmDash);
+
 #[rstest::rstest]
-#[case("Sam'anchor:x[]s", Some(SymbolKind::CurvedApostrophe))]
-#[case("Sam'indexterm:[hidden]s", Some(SymbolKind::CurvedApostrophe))]
-#[case("Saindexterm2:[m]'s", Some(SymbolKind::CurvedApostrophe))]
-#[case("indexterm2:[Sam]'s", Some(SymbolKind::CurvedApostrophe))]
-#[case("Samindexterm2:['s]", Some(SymbolKind::CurvedApostrophe))]
-#[case("Sam'indexterm2:[s]", Some(SymbolKind::CurvedApostrophe))]
-#[case("left--anchor:x[]right", Some(SymbolKind::WordBoundedEmDash))]
-#[case("left--indexterm:[hidden]right", Some(SymbolKind::WordBoundedEmDash))]
-#[case("leftindexterm2:[--right]", Some(SymbolKind::WordBoundedEmDash))]
-#[case("indexterm2:[left--]right", Some(SymbolKind::WordBoundedEmDash))]
-#[case("leftindexterm2:[--]right", Some(SymbolKind::WordBoundedEmDash))]
-#[case("Sam'indexterm2:[*s*]", None)]
-#[case("Saindexterm2:[*m*]'s", None)]
-#[case("Sam'link:guide.html[s]", None)]
-#[case("*Sam*'s", None)]
-#[case("Sam'anchor:x[]123", None)]
-#[case("Sam'anchor:x[]_s", None)]
-#[case("Sam'anchor:x[]", None)]
-#[case("left--anchor:x[]!", None)]
-#[case(r"Sam\'anchor:x[]s", None)]
+#[case("Sam'anchor:x[]s", APOS, APOS)]
+#[case("Sam'indexterm:[hidden]s", APOS, APOS)]
+#[case("Saindexterm2:[m]'s", None, APOS)]
+#[case("indexterm2:[Sam]'s", None, APOS)]
+#[case("Samindexterm2:['s]", None, APOS)]
+#[case("Sam'indexterm2:[s]", APOS, APOS)]
+#[case("left--anchor:x[]right", DASH, DASH)]
+#[case("left--indexterm:[hidden]right", DASH, DASH)]
+#[case("leftindexterm2:[--right]", None, DASH)]
+#[case("indexterm2:[left--]right", None, DASH)]
+#[case("leftindexterm2:[--]right", None, DASH)]
+#[case("Sam'indexterm2:[*s*]", APOS, None)]
+#[case("Saindexterm2:[*m*]'s", None, None)]
+#[case("Sam'link:guide.html[s]", APOS, None)]
+#[case("*Sam*'s", None, None)]
+#[case("Sam'anchor:x[]123", APOS, None)]
+#[case("Sam'anchor:x[]_s", APOS, None)]
+#[case("Sam'anchor:x[]", APOS, None)]
+#[case("left--anchor:x[]!", DASH, None)]
+#[case(r"Sam\'anchor:x[]s", None, None)]
 fn neighbors_supply_word_context_without_moving_owned_text(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[values("{}", "**{}**", "footnote:n[{}]", "link:outer.html[{}]")] context: &str,
     #[case] body: &str,
-    #[case] kind: Option<SymbolKind>,
+    #[case] asciidoctor: Option<SymbolKind>,
+    #[case] draft: Option<SymbolKind>,
 ) -> Result<(), Error> {
+    let kind = if mode == CompatibilityMode::Asciidoctor {
+        asciidoctor
+    } else {
+        draft
+    };
     let source = format!("Earlier.\n\nα🚀 {}.", context.replace("{}", body));
     let parsed = parse(
         &source,
@@ -95,10 +106,14 @@ fn resolved_visible_labels_preserve_the_registration_snapshot(
             }
         })
         .ok_or("index occurrence")?;
-    assert!(
+    // asciidoctor 2.0.26 (measured 2026-11-16): replacements first leave the bracketed `--` alone
+    // (`left--right`); macros first register `--` and the later replacements join it into a dash.
+    let asciidoctor_first = mode == CompatibilityMode::Asciidoctor && subs == "replacements,macros";
+    assert_eq!(
         term.term()
             .inlines()
-            .any(|node| matches!(node.kind(), InlineKind::Symbol(_)))
+            .any(|node| matches!(node.kind(), InlineKind::Symbol(_))),
+        !asciidoctor_first
     );
     assert_eq!(
         term.catalog()
@@ -112,7 +127,7 @@ fn resolved_visible_labels_preserve_the_registration_snapshot(
                 }
             })
             .collect::<Vec<_>>(),
-        if subs == "replacements,macros" {
+        if subs == "replacements,macros" && mode == CompatibilityMode::Draft {
             vec![SymbolKind::SpacedEmDash]
         } else {
             vec![]
@@ -122,17 +137,20 @@ fn resolved_visible_labels_preserve_the_registration_snapshot(
     Ok(())
 }
 
+// Asciidoctor column: asciidoctor 2.0.26, measured 2026-11-16, the same in both orders. The anchor
+// is still its source (`a`, `]`) when replacements run.
 #[rstest::rstest]
-#[case("Sam'anchor:x[]{tail}", SymbolKind::CurvedApostrophe, "'")]
-#[case("{head}anchor:x[]'s", SymbolKind::CurvedApostrophe, "'")]
-#[case("left--anchor:x[]{tail}", SymbolKind::WordBoundedEmDash, "--")]
-#[case("{head}anchor:x[]--right", SymbolKind::WordBoundedEmDash, "--")]
+#[case("Sam'anchor:x[]{tail}", SymbolKind::CurvedApostrophe, "'", true)]
+#[case("{head}anchor:x[]'s", SymbolKind::CurvedApostrophe, "'", false)]
+#[case("left--anchor:x[]{tail}", SymbolKind::WordBoundedEmDash, "--", true)]
+#[case("{head}anchor:x[]--right", SymbolKind::WordBoundedEmDash, "--", false)]
 fn neighboring_attribute_values_obey_the_parent_stage_order(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
     #[values("attributes,replacements,macros", "replacements,attributes,macros")] subs: &str,
     #[case] body: &str,
     #[case] kind: SymbolKind,
     #[case] token: &str,
+    #[case] asciidoctor: bool,
 ) -> Result<(), Error> {
     let source = format!(":head: Sam\n:tail: s\n\n[subs=\"{subs}\"]\nα🚀 {body}.");
     let parsed = parse(
@@ -151,7 +169,10 @@ fn neighboring_attribute_values_obey_the_parent_stage_order(
             }
         })
         .collect::<Vec<_>>();
-    if subs.starts_with("attributes") {
+    if mode == CompatibilityMode::Asciidoctor {
+        let expected: &[SymbolKind] = if asciidoctor { &[kind] } else { &[] };
+        assert_eq!(kinds, expected, "{source}");
+    } else if subs.starts_with("attributes") {
         assert_eq!(kinds, [kind], "{source}");
     } else {
         assert_eq!(kinds, [], "{source}");

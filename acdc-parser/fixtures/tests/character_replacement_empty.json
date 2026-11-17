@@ -145,11 +145,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Inline empty: beforeafter",
+          "value": "Inline empty: before",
           "location": [
             {
               "line": 7,
               "col": 1
+            },
+            {
+              "line": 7,
+              "col": 20
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "after",
+          "location": [
+            {
+              "line": 7,
+              "col": 28
             },
             {
               "line": 7,

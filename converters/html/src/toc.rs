@@ -234,17 +234,29 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
             let title = config
                 .title_value()
                 .map(crate::inlines::render_attribute_text);
+            // A `.Title` above `toc::[]` is the TOC's title (html5.rb `convert_toc`).
+            let block_title = toc_macro.and_then(TableOfContentsRef::title);
             if semantic {
                 writeln!(
                     self.writer_mut(),
                     "<nav id=\"toc\" class=\"{toc_class}\" role=\"doc-toc\">"
                 )?;
-                let title = title.as_deref().unwrap_or("Table of Contents");
-                writeln!(self.writer_mut(), "<h2 id=\"toc-title\">{title}</h2>")?;
+                if let Some(content) = block_title {
+                    write!(self.writer_mut(), "<h2 id=\"toc-title\">")?;
+                    self.visit_content(traversal, content)?;
+                    writeln!(self.writer_mut(), "</h2>")?;
+                } else {
+                    let title = title.as_deref().unwrap_or("Table of Contents");
+                    writeln!(self.writer_mut(), "<h2 id=\"toc-title\">{title}</h2>")?;
+                }
             } else {
                 writeln!(self.writer_mut(), "<div id=\"toc\" class=\"{toc_class}\">")?;
                 let title_class = if is_macro { " class=\"title\"" } else { "" };
-                if let Some(title) = title {
+                if let Some(content) = block_title {
+                    write!(self.writer_mut(), "<div id=\"toctitle\"{title_class}>")?;
+                    self.visit_content(traversal, content)?;
+                    writeln!(self.writer_mut(), "</div>")?;
+                } else if let Some(title) = title {
                     writeln!(
                         self.writer_mut(),
                         "<div id=\"toctitle\"{title_class}>{title}</div>"

@@ -85,6 +85,6 @@
 
 #heading(level: 1)[#text("Synopsis")] <id-5f73796e6f70736973>
 
-#text("H11 chain=root-next; authorcount=0.")
+#text("H11 chain=")#text("root-next")#text("; authorcount=")#text("0")#text(".")
 
 #text("H12 author={author}; revision={revnumber}.")

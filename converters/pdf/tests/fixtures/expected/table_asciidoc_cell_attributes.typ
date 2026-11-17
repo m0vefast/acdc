@@ -79,7 +79,7 @@
 ]
 #v(1em)
 
-#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Cell sees local and inherited.")
+#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Cell sees ")#text("local")#text(" and ")#text("inherited")#text(".")
 
 #heading(level: 1, outlined: false, bookmarked: false)[#text("Before enabling numbers")] <id-5f6265666f72655f656e61626c696e675f6e756d62657273>
 
@@ -93,8 +93,8 @@
 
 #text("Child text.")
 
-], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Sibling sees {cell-local} and inherited.")
+], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("Sibling sees {cell-local} and ")#text("inherited")#text(".")
 
 ])
 
-#text("Outer content sees {cell-local} and inherited.")
+#text("Outer content sees {cell-local} and ")#text("inherited")#text(".")

@@ -15,24 +15,33 @@ type Error = Box<dyn std::error::Error>;
 fn text_policy_preserves_content_and_fragment_context() -> Result<(), Error> {
     for mode in [CompatibilityMode::Asciidoctor, CompatibilityMode::Draft] {
         let options = Options::builder().with_compatibility_mode(mode).build()?;
-        for (source, semantic, rendered) in [
+        // asciidoctor 2.0.26 (measured 2026-11-16): replacements run before macros, so a label's
+        // `--` stays between its brackets.
+        let asciidoctor = mode == CompatibilityMode::Asciidoctor;
+        for (source, text) in [
             (
                 "A *bold* image:bird.svg[Bird] indexterm2:[--] end.",
-                "A bold [Bird]\u{2009}—\u{2009}end.",
-                "A bold [Bird]\u{2009}—\u{2009}end.",
+                if asciidoctor {
+                    "A bold [Bird] -- end."
+                } else {
+                    "A bold [Bird]\u{2009}—\u{2009}end."
+                },
             ),
             (
                 "prefixindexterm2:[--]tail",
-                "prefix—\u{200b}tail",
-                "prefix—\u{200b}tail",
+                if asciidoctor {
+                    "prefix--tail"
+                } else {
+                    "prefix—\u{200b}tail"
+                },
             ),
             (
                 r"pass:r[(C) \(R) \*literal\* \->]",
                 r"© (R) \*literal\* \->",
-                r"© (R) \*literal\* \->",
             ),
-            ("First +\nsecond.", "First\nsecond.", "First\nsecond."),
+            ("First +\nsecond.", "First\nsecond."),
         ] {
+            let (semantic, rendered) = (text, text);
             let parsed = parse(source, &options)?;
             let parsed_blocks: Vec<_> = parsed
                 .document()

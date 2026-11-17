@@ -79,7 +79,7 @@ B23 \f(CRcafé`X | [red]\fRcafé`.
 .sp
 B24 \fBA`café`B\fR | \fIA`café`B\fR\&.
 .sp
-B25 A`café`B | \f(CRcafé ` | `café\fR\&.
+B25 A`café`B | \f(CRcafé ` | \e`café\fR\&.
 .sp
 B26 A`café`B | \f(CRcafé ` | \e\fRcafé`.
 .sp
@@ -90,7 +90,7 @@ B28 A`café`B.
 B29 A`café
 more`B.
 .sp
-B30 <tag>\f(CRcafé\fR | «\f(CRcafé\fR» | (\f(CRcafé\fR).
+B30 <tag>`{word}` | «\f(CRcafé\fR» | (\f(CRcafé\fR).
 .sp
 B31 \fB\f(CRcafé\fB\fR | \fI`café`\fR | \f(CRcafé\fR\&.
 .sp

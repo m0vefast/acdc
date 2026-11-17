@@ -61,7 +61,7 @@ fn video_source_variants_preserve_original_target_text() -> Result<(), Error> {
         Source::Path("movie.mp4".into()),
         Source::Url(SourceUrl::new(
             "HTTPS://Example.org/Video%20A.mp4?x=1,2#t=3",
-        )?),
+        )),
     ] {
         let expected = source.to_string();
         let mut document = Document::default();

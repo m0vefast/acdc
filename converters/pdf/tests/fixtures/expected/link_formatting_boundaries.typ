@@ -113,7 +113,7 @@
 
 #text("L14 ")#strong[#text("Before ")#link("https://example.org/quoted")[#strong[#text("Quoted")]#text(" after")]#text(" end")]#text(".")
 
-#text("L15 ")#strong[#text("Before ")#link("https://example.org/attribute")[#text("*Expanded* after")]#text(" end")]#text(".")
+#text("L15 ")#strong[#text("Before ")#link("https://example.org/attribute")[#text("*Expanded*")#text(" after")]#text(" end")]#text(".")
 
 #text("L16 ")#emph[#link("https://example.org/edge")[#emph[#text("Edge")]]]#text(".")
 
@@ -125,7 +125,7 @@
 
 #text("L20 ")#strong[#text("Éva ")#link("https://example.org/unicode")[#strong[#text("café")]#text(" after")]#text(" τέλος")]#text(".")
 
-#text("L21 ")#strong[#text("Before ")#link("https://example.org/escaped")[#text("*")#text("Literal")#text("*")#text(" after")]#text(" end")]#text(".")
+#text("L21 ")#strong[#text("Before ")#link("https://example.org/escaped")[#text("*")#text("Literal\\* after")]#text(" end")]#text(".")
 
 #text("L22 ")#strong[#text("Before ")#link("https://example.org/multiline")[#strong[#text("Multiline label")]#text(" after")]#text(" end")]#text(".")
 

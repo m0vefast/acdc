@@ -22,7 +22,7 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "cell with | pipe",
+                        "value": "cell with ",
                         "location": [
                           {
                             "line": 2,
@@ -30,7 +30,22 @@
                           },
                           {
                             "line": 2,
-                            "col": 18
+                            "col": 12
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "| pipe",
+                        "location": [
+                          {
+                            "line": 2,
+                            "col": 14
+                          },
+                          {
+                            "line": 2,
+                            "col": 19
                           }
                         ]
                       }
@@ -42,7 +57,7 @@
                       },
                       {
                         "line": 2,
-                        "col": 18
+                        "col": 19
                       }
                     ]
                   }
@@ -96,7 +111,7 @@
                       {
                         "name": "text",
                         "type": "string",
-                        "value": "another | escaped",
+                        "value": "another ",
                         "location": [
                           {
                             "line": 3,
@@ -104,7 +119,22 @@
                           },
                           {
                             "line": 3,
-                            "col": 19
+                            "col": 10
+                          }
+                        ]
+                      },
+                      {
+                        "name": "text",
+                        "type": "string",
+                        "value": "| escaped",
+                        "location": [
+                          {
+                            "line": 3,
+                            "col": 12
+                          },
+                          {
+                            "line": 3,
+                            "col": 20
                           }
                         ]
                       }
@@ -116,7 +146,7 @@
                       },
                       {
                         "line": 3,
-                        "col": 19
+                        "col": 20
                       }
                     ]
                   }

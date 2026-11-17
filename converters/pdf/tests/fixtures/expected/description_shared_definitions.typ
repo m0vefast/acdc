@@ -134,4 +134,4 @@ grid(columns: (term-width, 1fr), column-gutter: 20pt, row-gutter: 0.5em, align: 
   - #block(width: 100%)[#strong[#text("Unordered one")#text(":")]#linebreak()#strong[#text("Unordered two")#text(":")] #text("Shared unordered body.")]
 ]
 
-#text("See ")#context link(query(<id-66697273742d7465726d>).first().location())[#text("[first-term]")]#text(" and ")#context link(query(<id-7365636f6e642d7465726d>).first().location())[#text("[second-term]")]#text(".")
+#text("See ")#context link(query(<id-66697273742d7465726d>).first().location())[#text("First")]#text(" and ")#context link(query(<id-7365636f6e642d7465726d>).first().location())[#text("Second")]#text(".")

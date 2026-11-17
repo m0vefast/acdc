@@ -62,6 +62,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -127,6 +128,7 @@
         }
       ],
       "level": 1,
+      "id": "_checks",
       "blocks": [
         {
           "name": "paragraph",
@@ -135,11 +137,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D01 kept=original; hidden={hidden}.",
+              "value": "D01 kept=",
               "location": [
                 {
                   "line": 24,
                   "col": 1
+                },
+                {
+                  "line": 24,
+                  "col": 9
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "original",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 10
+                },
+                {
+                  "line": 24,
+                  "col": 15
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "; hidden={hidden}.",
+              "location": [
+                {
+                  "line": 24,
+                  "col": 16
                 },
                 {
                   "line": 24,
@@ -230,11 +262,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D04 After different-length delimiters: original.",
+              "value": "D04 After different-length delimiters: ",
               "location": [
                 {
                   "line": 40,
                   "col": 1
+                },
+                {
+                  "line": 40,
+                  "col": 39
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "original",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 40
+                },
+                {
+                  "line": 40,
+                  "col": 45
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 40,
+                  "col": 46
                 },
                 {
                   "line": 40,
@@ -294,11 +356,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "D05 After an apparent attribute continuation: original.",
+              "value": "D05 After an apparent attribute continuation: ",
               "location": [
                 {
                   "line": 48,
                   "col": 1
+                },
+                {
+                  "line": 48,
+                  "col": 46
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "original",
+              "location": [
+                {
+                  "line": 48,
+                  "col": 47
+                },
+                {
+                  "line": 48,
+                  "col": 52
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 48,
+                  "col": 53
                 },
                 {
                   "line": 48,

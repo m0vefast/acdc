@@ -36,20 +36,20 @@ split
 .sp
 Earlier paragraph.
 .sp
-α🚀 prefix\(emtail; left\(emright; left\(emright.
+α🚀 prefix\-\-tail; left\-\-right; left\-\-right.
 .sp
-α🚀 left \(em right; left \(em right.
+α🚀 left \-\- right; left \-\- right.
 .sp
- \(em right
+\-\- right
 .sp
-left \(em \&
+left \-\-
 .sp
  \(em \-\- \(em \&
 .sp
 left \-\- \(em \-\- right
 .sp
-Protected: left\(emright; left\-\-right; left  \(em  right; left\-\fBtwo\fR\-right.
+Protected: left\-\-right; left\-\-right; left  \(em  right; left\-\fBtwo\fR\-right.
 .sp
-Early: left\(emright; left\(emright; left\(emright.
+Early: left\-\-right; left\-\-right; left\-\-right\&.
 .sp
-Late: left\-\-right; left\-\-right; left\-\-right.
+Late: left\-\-right; left\-\-right; left\-\-right\&.

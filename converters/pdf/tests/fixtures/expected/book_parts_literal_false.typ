@@ -81,7 +81,7 @@
 
 #set page(numbering: "1")
 #counter(page).update(1)
-#text(size: 1.25em)[#text("The part number value is false.")]
+#text(size: 1.25em)[#text("The part number value is ")#text("false")#text(".")]
 
 #pagebreak(weak: true)
 

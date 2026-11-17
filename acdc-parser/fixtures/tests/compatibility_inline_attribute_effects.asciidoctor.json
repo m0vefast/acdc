@@ -45,11 +45,26 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Before. *",
+          "value": "Before. ",
           "location": [
             {
               "line": 8,
               "col": 1
+            },
+            {
+              "line": 8,
+              "col": 8
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*",
+          "location": [
+            {
+              "line": 8,
+              "col": 9
             },
             {
               "line": 8,
@@ -92,11 +107,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "* After. *",
+          "value": "*",
           "location": [
             {
               "line": 8,
               "col": 9
+            },
+            {
+              "line": 8,
+              "col": 17
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " After. ",
+          "location": [
+            {
+              "line": 8,
+              "col": 18
+            },
+            {
+              "line": 8,
+              "col": 25
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "*",
+          "location": [
+            {
+              "line": 8,
+              "col": 26
             },
             {
               "line": 8,

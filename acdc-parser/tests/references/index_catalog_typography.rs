@@ -50,7 +50,13 @@ fn catalog_typography_has_its_own_boundaries_and_registration_order(
         &Options::builder().with_compatibility_mode(mode).build()?,
     )?;
     let term = index(&parsed)?;
-    assert_eq!(symbols(term.term()), [SymbolKind::WordBoundedEmDash]);
+    // asciidoctor 2.0.26 (measured 2026-11-16): replacements first leave the bracketed `--` alone
+    // (`left--right`) in the text and the catalog; macros first join it into a dash in the text.
+    let (shown, expected) = match (mode, subs) {
+        (CompatibilityMode::Asciidoctor, "replacements,macros") => (vec![], vec![]),
+        _ => (vec![SymbolKind::WordBoundedEmDash], expected),
+    };
+    assert_eq!(symbols(term.term()), shown);
     assert_eq!(symbols(term.catalog().term()), expected);
     for node in term.catalog().term().inlines() {
         if let InlineKind::Symbol(symbol) = node.kind() {

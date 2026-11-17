@@ -582,13 +582,28 @@
                   "line": 15
                 },
                 {
+                  "col": 19,
+                  "line": 15
+                }
+              ],
+              "name": "text",
+              "type": "string",
+              "value": "Expanded"
+            },
+            {
+              "location": [
+                {
+                  "col": 20,
+                  "line": 15
+                },
+                {
                   "col": 20,
                   "line": 15
                 }
               ],
               "name": "text",
               "type": "string",
-              "value": "Expanded "
+              "value": " "
             },
             {
               "form": "constrained",

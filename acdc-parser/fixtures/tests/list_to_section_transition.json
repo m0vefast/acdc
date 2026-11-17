@@ -23,6 +23,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_one",
       "blocks": [
         {
           "name": "list",
@@ -139,6 +140,7 @@
         }
       ],
       "level": 1,
+      "id": "_section_two",
       "blocks": [
         {
           "name": "paragraph",

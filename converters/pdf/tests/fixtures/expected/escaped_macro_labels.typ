@@ -103,7 +103,7 @@
 
 #text("E09 ")#text("indexterm2:[Open \\[ text]")
 
-#text("E10 ")#text("indexterm2:[")#strong[#text("Bold")]#text(" — ")#text("Attribute \\] text]")
+#text("E10 ")#text("indexterm2:[")#strong[#text("Bold")]#text(" — ")#text("Attribute \\] text")#text("]")
 
 #text("E11 ")#text("indexterm2:[Repeated \\\\\\] term]")
 

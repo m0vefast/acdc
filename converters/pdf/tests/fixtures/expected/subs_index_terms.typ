@@ -101,7 +101,7 @@
 
 #text("Direct formatting: ")#metadata(none)<__indexterm-12>#text("bold ")#strong[#text("primary")]#text(", ")#metadata(none)<__indexterm-13>#text("italic ")#emph[#text("primary")]#text(", and ")#metadata(none)<__indexterm-14>#text("mono ")#raw("primary")#text(".")
 
-#text("Attributes: ")#metadata(none)<__indexterm-15>#text("plain Ada")#text(", ")#metadata(none)<__indexterm-16>#text("literal *attribute bold*")#text(", and ")#metadata(none)<__indexterm-17>#text("linked ")#link("https://example.com")[#text("Ada")]#text(".")
+#text("Attributes: ")#metadata(none)<__indexterm-15>#text("plain ")#text("Ada")#text(", ")#metadata(none)<__indexterm-16>#text("literal ")#text("*attribute bold*")#text(", and ")#metadata(none)<__indexterm-17>#text("linked ")#link("https://example.com")[#text("Ada")]#text(".")
 
 #text("Direct link: ")#metadata(none)<__indexterm-18>#text("direct ")#link("https://example.com")[#text("Ada")]#text(".")
 
@@ -113,7 +113,7 @@
 
 #text("Ordered substitutions: ")#metadata(none)<__indexterm-24>#text("ordered ")#strong[#text("attribute bold")]#text(".")
 
-#text("Late substitutions: ")#metadata(none)<__indexterm-25>#text("late Ada and ")#strong[#text("attribute bold")]#text(".")
+#text("Late substitutions: ")#metadata(none)<__indexterm-25>#text("late ")#text("Ada")#text(" and ")#strong[#text("attribute bold")]#text(".")
 
 #text("Disabled quotes: ")#metadata(none)<__indexterm-26>#text("literal *markers*")#text(".")
 
@@ -196,7 +196,7 @@
 #v(0.25em)
 #par(hanging-indent: 1em)[#text("late {name} and {styled}")#_acdc_index_pages((<__indexterm-25>,), "term")]
 #par(hanging-indent: 1em)[#text("linked https://example.com[Ada]")#_acdc_index_pages((<__indexterm-17>,), "term")]
-#par(hanging-indent: 1em)[#text("literal *attribute bold*")#_acdc_index_pages((<__indexterm-16>,), "term")]
+#par(hanging-indent: 1em)[#text("literal ")#text("*attribute bold*")#_acdc_index_pages((<__indexterm-16>,), "term")]
 #par(hanging-indent: 1em)[#text("literal *markers*")#_acdc_index_pages((<__indexterm-26>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("M")]
@@ -209,7 +209,7 @@
 #v(0.75em)
 #text(weight: "bold")[#text("P")]
 #v(0.25em)
-#par(hanging-indent: 1em)[#text("plain Ada")#_acdc_index_pages((<__indexterm-15>,), "term")]
+#par(hanging-indent: 1em)[#text("plain ")#text("Ada")#_acdc_index_pages((<__indexterm-15>,), "term")]
 #v(0.75em)
 #text(weight: "bold")[#text("Z")]
 #v(0.25em)

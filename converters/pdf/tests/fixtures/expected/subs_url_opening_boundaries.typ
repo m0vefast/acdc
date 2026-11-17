@@ -145,15 +145,15 @@
 
 #text("U30 prefix\\https://example.org/u30[Site]")
 
-#text("U31 Label:https://example.org/u31")
+#text("U31 ")#text("Label:")#text("https://example.org/u31")
 
-#text("U32 prefix ")#link("https://example.org/u32")[#text("https://example.org/u32")]
+#text("U32 prefix")#text(" ")#link("https://example.org/u32")[#text("https://example.org/u32")]
 
-#text("U33 \"https://example.org/u34\"")
+#text("U33 \"")#text("https://example.org/u34")#text("\"")
 
 #text("U34 ")#link("https://example.org/u34")[#text("Site")]
 
-#text("U35 https://example.org/u35[Site]")
+#text("U35 ")#text("https://example.org/u35[Site]")
 
 #text("U36 ")#link("https://example.org/u36")[#text("Site")]
 

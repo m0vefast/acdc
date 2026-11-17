@@ -92,9 +92,9 @@
 }
 #text("Escaped ")#metadata(none)<__indexterm-4>#text("*")#text("Literal*")#text(" and ")#metadata(none)<__indexterm-5>#text("Start ")#text("{name}")#text(" ")#strong[#text("bold")]#text(".")
 
-#text("Literal ")#text("((Start Expanded ")#strong[#text("bold")]#text("))")#text(" and ")#text("indexterm2:[Named ")#strong[#text("bold")]#text("]")#text(".")
+#text("Literal ")#text("((Start ")#text("Expanded")#text(" ")#strong[#text("bold")]#text("))")#text(" and ")#text("indexterm2:[Named ")#strong[#text("bold")]#text("]")#text(".")
 
-#text("Early literal ")#text("((Start Expanded ")#strong[#text("bold")]#text("))")#text(".")
+#text("Early literal ")#text("((Start ")#text("Expanded")#text(" ")#strong[#text("bold")]#text("))")#text(".")
 
 #text("Link ")#metadata(none)<__indexterm-6>#text("Link ")#link("https://example.org")[#text("Caption")]#text(" and ")#metadata(none)<__indexterm-7>#text("Cross ")#context link(query(<id-746172676574>).first().location())[#text("Target")]#text(".")
 

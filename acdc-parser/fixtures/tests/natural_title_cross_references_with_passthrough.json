@@ -301,6 +301,7 @@
         }
       ],
       "level": 1,
+      "id": "_pass_raw_title",
       "location": [
         {
           "line": 9,
@@ -366,6 +367,7 @@
         }
       ],
       "level": 1,
+      "id": "_plus_raw_title",
       "location": [
         {
           "line": 11,
@@ -398,6 +400,7 @@
         }
       ],
       "level": 1,
+      "id": "_target_raw_title",
       "location": [
         {
           "line": 13,
@@ -430,6 +433,7 @@
         }
       ],
       "level": 1,
+      "id": "_control_title",
       "location": [
         {
           "line": 15,

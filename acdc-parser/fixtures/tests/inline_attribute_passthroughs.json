@@ -140,11 +140,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Escaped: key=+hot+.",
+          "value": "Escaped: key=+",
           "location": [
             {
               "line": 8,
               "col": 1
+            },
+            {
+              "line": 8,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "hot",
+          "location": [
+            {
+              "line": 8,
+              "col": 16
+            },
+            {
+              "line": 8,
+              "col": 26
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "+.",
+          "location": [
+            {
+              "line": 8,
+              "col": 27
             },
             {
               "line": 8,
@@ -1863,6 +1893,7 @@
         }
       ],
       "level": 1,
+      "id": "target",
       "metadata": {
         "anchors": [
           {
@@ -1874,7 +1905,7 @@
               },
               {
                 "line": 46,
-                "col": 11
+                "col": 10
               }
             ]
           }

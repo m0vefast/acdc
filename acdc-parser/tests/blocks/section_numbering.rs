@@ -219,3 +219,81 @@ fn caller_created_sections_are_explicit_and_renumberable() -> Result<(), Error> 
     assert_eq!(number(unnumbered), None);
     Ok(())
 }
+
+/// Every section's number, in document order.
+fn all_numbers(source: &str) -> Result<Vec<Option<String>>, Error> {
+    let parsed = parse(source, &Options::default())?;
+    Ok(acdc_parser::ast::StructuralRef::Document(parsed.document())
+        .descendants()
+        .filter_map(|node| match node {
+            acdc_parser::ast::StructuralRef::Block(block) => match block.kind() {
+                BlockKind::Section(section) => Some(section.number().map(str::to_string)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect())
+}
+
+/// asciidoctor 2.0.26's numbers for each source (measured 2026-11-15): a style it does not
+/// name makes a special section of that name (parser.rb `initialize_section`), which takes
+/// no number unless `:sectnums: all`, nor do its children; appendix letters run on past `Z`
+/// as Ruby's `String#succ` does.
+#[rstest::rstest]
+#[case::an_unknown_style(":sectnums:\n\n[foo]\n== Y\n\n=== Y1\n\n== Z\n".to_string(), vec![None, None, Some("1".to_string())])]
+#[case::a_mixed_case_appendix(":sectnums:\n\n[Appendix]\n== X\n\n== Z\n".to_string(), vec![None, Some("1".to_string())])]
+#[case::an_unknown_style_under_sectnums_all(":sectnums: all\n\n[foo]\n== Y\n\n== Z\n".to_string(), vec![Some("1".to_string()), Some("2".to_string())])]
+#[case::the_27th_appendix(
+    format!(":sectnums:\n\n{}", (0..28).map(|i| format!("[appendix]\n== A{i}\n\n")).collect::<String>()),
+    (0..28u8).map(|i| Some(if i < 26 { char::from(b'A' + i).to_string() } else { format!("A{}", char::from(b'A' + i - 26)) })).collect()
+)]
+fn styled_sections_number_as_asciidoctor_does(#[case] source: String, #[case] expected: Vec<Option<String>>) -> Result<(), Error> {
+    assert_eq!(all_numbers(&source)?, expected);
+    Ok(())
+}
+
+/// asciidoctor 2.0.26's levels (measured 2026-11-16, `Section#level`): a section with a
+/// special style written at level 0 stands at level 1 (parser.rb `initialize_section`).
+#[test]
+fn special_sections_at_level_zero_hold_level_two_children() -> Result<(), Error> {
+    // asciidoctor `initialize_section`: the level-0 preface stands at level 1, so `===` nests
+    // under it and the level-0 abstract closes it. The written level is kept in the model.
+    let source = "= Book\n:doctype: book\n\n[preface]\n= Preface\n\n=== Topic\n\n[abstract]\n= Abstract\n\n= Part\n\n== Chapter\n";
+    let parsed = parse(source, &Options::default())?;
+    let title = |section: acdc_parser::ast::SectionRef<'_>| -> String {
+        section
+            .title()
+            .map(|t| t.inlines().filter_map(|i| if let acdc_parser::ast::InlineKind::Plain(p) = i.kind() { Some(p.text()) } else { None }).collect())
+            .unwrap_or_default()
+    };
+    let tree: Vec<(u8, String, Vec<String>)> = parsed
+        .document()
+        .blocks()
+        .filter_map(|block| match block.kind() {
+            BlockKind::Section(section) => Some((
+                section.level(),
+                title(section),
+                section
+                    .blocks()
+                    .filter_map(|child| match child.kind() {
+                        BlockKind::Section(child) => Some(title(child)),
+                        _ => None,
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        })
+        .collect();
+    let expected = [
+        (0, "Preface", vec!["Topic"]),
+        (0, "Abstract", vec![]),
+        (0, "Part", vec!["Chapter"]),
+    ];
+    assert_eq!(
+        tree,
+        expected
+            .map(|(l, t, c)| (l, t.to_string(), c.into_iter().map(str::to_string).collect()))
+            .to_vec()
+    );
+    Ok(())
+}

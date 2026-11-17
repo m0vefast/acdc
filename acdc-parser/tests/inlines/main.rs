@@ -1,5 +1,10 @@
 //! Parser integration tests for inlines.
 
+#[path = "../support/plain_text.rs"]
+mod plain_text;
+mod url_spelling;
+use plain_text::plain_run;
+
 mod attributed_passthroughs;
 mod character_reference;
 mod comment_metadata;
@@ -17,6 +22,7 @@ mod image_link_attributes;
 mod image_titles;
 mod implicit_menus;
 mod incomplete_links;
+mod inline_source_locations;
 mod inline_boundary_policy;
 mod inline_compatibility;
 mod inline_label_policy;
@@ -50,5 +56,6 @@ mod stem_content_policy;
 mod ui_content_policy;
 mod ui_substitution_order;
 mod unicode_macro_paths;
+mod unmatched_formatting_escapes;
 mod url_opening_boundaries;
 mod verbatim_links;

@@ -683,6 +683,22 @@ impl<'doc> AttributesRef<'doc> {
                         )
                     })
                 }),
+            Owner::DiscreteHeading(node) => node
+                .metadata
+                .heading_anchor()
+                .map(ElementIdRef::from)
+                .or_else(|| {
+                    node.id.map(|id| {
+                        ElementIdRef::without_location(
+                            id,
+                            if node.id_generated {
+                                IdOrigin::Generated
+                            } else {
+                                IdOrigin::Explicit
+                            },
+                        )
+                    })
+                }),
             Owner::Header(node) => node.metadata.heading_anchor().map(ElementIdRef::from),
             Owner::ThematicBreak(node) => node.primary_anchor().map(ElementIdRef::from),
             Owner::Paragraph(_)
@@ -696,7 +712,6 @@ impl<'doc> AttributesRef<'doc> {
             | Owner::Audio(_)
             | Owner::Video(_)
             | Owner::TableOfContents(_)
-            | Owner::DiscreteHeading(_)
             | Owner::PageBreak(_) => self
                 .metadata()
                 .and_then(BlockMetadata::id_anchor)

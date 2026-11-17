@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_delimited_listing",
       "blocks": [
         {
           "name": "listing",
@@ -120,6 +121,7 @@
         }
       ],
       "level": 1,
+      "id": "_delimited_literal",
       "blocks": [
         {
           "name": "literal",
@@ -187,6 +189,7 @@
         }
       ],
       "level": 1,
+      "id": "_delimited_source_with_a_callout",
       "blocks": [
         {
           "name": "listing",
@@ -355,6 +358,7 @@
         }
       ],
       "level": 1,
+      "id": "_styled_paragraphs",
       "blocks": [
         {
           "name": "paragraph",
@@ -494,6 +498,7 @@
         }
       ],
       "level": 1,
+      "id": "_long_lines",
       "blocks": [
         {
           "name": "listing",

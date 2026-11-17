@@ -93,6 +93,37 @@ fn media_reads_keep_complete_operands_controls_titles_and_captions(
     Ok(())
 }
 
+/// asciidoctor 2.0.26 (measured 2026-11-16, html5.rb `convert_toc`): a `.Title` above
+/// `toc::[]` is the TOC's title; it used to be dropped.
+#[rstest::rstest]
+fn toc_block_titles_are_kept(
+    #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
+) -> Result<(), Error> {
+    let source = "= Doc\n:toc: macro\n\n== Heading\n\n.Contents *here*\ntoc::[]\n\ntoc::[]\n";
+    let parsed = parse(source, &Options::builder().with_compatibility_mode(mode).build()?)?;
+    let tocs = parsed
+        .document()
+        .blocks()
+        .flat_map(|block| match block.kind() {
+            BlockKind::Section(section) => section.blocks().collect::<Vec<_>>(),
+            _ => vec![block],
+        })
+        .filter_map(|block| match block.kind() {
+            BlockKind::TableOfContents(toc) => Some(toc),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [titled, untitled] = tocs.as_slice() else {
+        return Err("expected two tocs".into());
+    };
+    assert_eq!(text(titled.title().ok_or("toc title")?)?, "Contents here");
+    let title = titled.title().ok_or("toc title")?;
+    let first = title.inlines().next().ok_or("title text")?.location();
+    assert_eq!((first.start().line(), first.start().column()), (6, 2));
+    assert!(untitled.title().is_none());
+    Ok(())
+}
+
 #[rstest::rstest]
 fn toc_discrete_and_page_break_reads_keep_ids_and_aliases(
     #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
@@ -291,7 +322,7 @@ fn included_media_and_cell_blocks_keep_source_scope(
 fn constructed_owners_preserve_empty_content_and_scalar_controls() -> Result<(), Error> {
     fn shared<T: Copy + Send + Sync>(_: T) {}
     let mut audio = Audio::new(
-        Source::Url(SourceUrl::new("https://EXAMPLE.org:443/music")?),
+        Source::Url(SourceUrl::new("https://EXAMPLE.org:443/music")),
         Location::default(),
     );
     audio.set_title(Title::new(Vec::new()));

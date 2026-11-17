@@ -79,6 +79,6 @@
 ]
 #v(1em)
 
-#text("#panic() $ x \\ path")
+#text("#panic() $ x \\\\ path")
 
 #block[#text("#panic() $ [y] \\\\ path")]

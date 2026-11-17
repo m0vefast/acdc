@@ -68,6 +68,7 @@
         }
       ],
       "level": 1,
+      "id": "_introduction",
       "blocks": [
         {
           "name": "paragraph",
@@ -1155,6 +1156,7 @@
         }
       ],
       "level": 1,
+      "id": "_cross_references_and_anchors",
       "blocks": [
         {
           "name": "section",
@@ -1177,6 +1179,7 @@
             }
           ],
           "level": 2,
+          "id": "section-one",
           "metadata": {
             "anchors": [
               {
@@ -1188,7 +1191,7 @@
                   },
                   {
                     "line": 22,
-                    "col": 16
+                    "col": 15
                   }
                 ]
               }
@@ -1434,6 +1437,7 @@
             }
           ],
           "level": 2,
+          "id": "section-two",
           "metadata": {
             "anchors": [
               {
@@ -1445,7 +1449,7 @@
                   },
                   {
                     "line": 28,
-                    "col": 16
+                    "col": 15
                   }
                 ]
               }
@@ -1691,6 +1695,7 @@
             }
           ],
           "level": 2,
+          "id": "section-three",
           "metadata": {
             "anchors": [
               {
@@ -1702,7 +1707,7 @@
                   },
                   {
                     "line": 34,
-                    "col": 18
+                    "col": 17
                   }
                 ]
               }
@@ -1878,6 +1883,7 @@
         }
       ],
       "level": 1,
+      "id": "_index_terms",
       "blocks": [
         {
           "name": "paragraph",
@@ -2460,6 +2466,7 @@
         }
       ],
       "level": 1,
+      "id": "_dense_formatting",
       "blocks": [
         {
           "name": "paragraph",
@@ -4257,6 +4264,7 @@
             }
           ],
           "level": 2,
+          "id": "_escaped_syntax",
           "blocks": [
             {
               "name": "paragraph",
@@ -4574,6 +4582,7 @@
         }
       ],
       "level": 1,
+      "id": "_mixed_inline_constructs",
       "blocks": [
         {
           "name": "paragraph",
@@ -6506,6 +6515,7 @@
         }
       ],
       "level": 1,
+      "id": "_long_plain_text_sections",
       "blocks": [
         {
           "name": "paragraph",
@@ -6664,6 +6674,7 @@
         }
       ],
       "level": 1,
+      "id": "_repeated_patterns",
       "blocks": [
         {
           "name": "paragraph",
@@ -8782,6 +8793,7 @@
         }
       ],
       "level": 1,
+      "id": "_final_section",
       "blocks": [
         {
           "name": "paragraph",

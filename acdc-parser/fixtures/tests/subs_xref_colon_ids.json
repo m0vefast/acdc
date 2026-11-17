@@ -57,6 +57,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -122,6 +123,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -205,6 +207,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -727,7 +730,7 @@
                   },
                   {
                     "line": 30,
-                    "col": 24
+                    "col": 23
                   }
                 ]
               }
@@ -792,7 +795,7 @@
                   },
                   {
                     "line": 33,
-                    "col": 21
+                    "col": 20
                   }
                 ]
               }

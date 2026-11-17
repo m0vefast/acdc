@@ -291,6 +291,14 @@ pub(super) fn process_link_content<'a>(
             }
         }
     }
+    // asciidoctor `extract_attributes_from_text`: a label read as an attribute list folds its
+    // line feeds into spaces (same length, so source offsets stay put).
+    if text.contains('\n')
+        && !std::ptr::eq(text, content.raw)
+        && state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor
+    {
+        text = state.intern_str(&text.replace('\n', " "));
+    }
     if let Some(label) = text.strip_suffix('^') {
         text = label;
         result

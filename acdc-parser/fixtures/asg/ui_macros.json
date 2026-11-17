@@ -558,43 +558,13 @@
               "line": 11
             },
             {
-              "col": 13,
-              "line": 11
-            }
-          ],
-          "name": "text",
-          "type": "string",
-          "value": "Empty button "
-        },
-        {
-          "inlines": [],
-          "location": [
-            {
-              "col": 14,
-              "line": 11
-            },
-            {
-              "col": 19,
-              "line": 11
-            }
-          ],
-          "name": "button",
-          "type": "inline"
-        },
-        {
-          "location": [
-            {
-              "col": 20,
-              "line": 11
-            },
-            {
               "col": 20,
               "line": 11
             }
           ],
           "name": "text",
           "type": "string",
-          "value": "."
+          "value": "Empty button btn:[]."
         }
       ],
       "location": [
@@ -619,43 +589,13 @@
               "line": 13
             },
             {
-              "col": 15,
-              "line": 13
-            }
-          ],
-          "name": "text",
-          "type": "string",
-          "value": "Empty keyboard "
-        },
-        {
-          "keys": [],
-          "location": [
-            {
-              "col": 16,
-              "line": 13
-            },
-            {
-              "col": 21,
-              "line": 13
-            }
-          ],
-          "name": "keyboard",
-          "type": "inline"
-        },
-        {
-          "location": [
-            {
-              "col": 22,
-              "line": 13
-            },
-            {
               "col": 22,
               "line": 13
             }
           ],
           "name": "text",
           "type": "string",
-          "value": "."
+          "value": "Empty keyboard kbd:[]."
         }
       ],
       "location": [

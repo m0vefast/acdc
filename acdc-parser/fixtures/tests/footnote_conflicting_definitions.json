@@ -305,11 +305,41 @@
             {
               "name": "text",
               "type": "string",
-              "value": "Text Alpha.",
+              "value": "Text ",
               "location": [
                 {
                   "line": 11,
                   "col": 29
+                },
+                {
+                  "line": 11,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "Alpha",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 34
+                },
+                {
+                  "line": 11,
+                  "col": 39
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": ".",
+              "location": [
+                {
+                  "line": 11,
+                  "col": 40
                 },
                 {
                   "line": 11,

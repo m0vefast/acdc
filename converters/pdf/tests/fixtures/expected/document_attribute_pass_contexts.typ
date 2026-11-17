@@ -85,24 +85,24 @@
 
 #heading(level: 1)[#text("Description")] <id-5f6465736372697074696f6e>
 
-#text("C01 {name} | *Strong* | ")#link("https://example.org")[#text("Site")]
+#text("C01 ")#text("{name}")#text(" | ")#text("*Strong*")#text(" | ")#link("https://example.org")[#text("Site")]
 
 #text("C02 ")#strong[#text("{name}")]#text(" | ")#emph[#text("{name}")]#text(" | ")#raw("{name}")#text(" | ")#strong[#text("pass:[Nested]")]
 
 #text("C03 ")#link("https://example.net")[#text("{name}")]
 
-#blocktitle[#text("C04 {name}")]
-  - #text("C05 {name}")
+#blocktitle[#text("C04 ")#text("{name}")]
+  - #text("C05 ")#text("{name}")
   - #text("C06 ")#strong[#text("{name}")]
 
-#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("C07 {name}")
+#table(columns: (1fr, 1fr), align: (left + top, left + top), stroke: none, table.cell(x: 0, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("C07 ")#text("{name}")
 
-#text("C08 {name}")
+#text("C08 ")#text("{name}")
 
-], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("C09 {name}")
+], table.cell(x: 1, y: 0, stroke: (left: 0.5pt + rgb("#dddddd"), right: 0.5pt + rgb("#dddddd"), top: 0.5pt + rgb("#dddddd"), bottom: 0.5pt + rgb("#dddddd"), ))[#text("C09 ")#text("{name}")
 
 ])
 
-#text("C10 {name}")
+#text("C10 ")#text("{name}")
 
-#text("C11 Before after.")
+#text("C11 Before ")#text("after.")

@@ -137,6 +137,8 @@
 
 #raw(block: true, "P14 attached (1)")
 
+#text("+")
+
 #grid(columns: (auto, 1fr), column-gutter: 0.5em, row-gutter: 0.5em, align: (x, _) => if x == 0 { right + top } else { left + top },
 [#text("(1)")], [#text("Attached source paragraph.")],
 )
@@ -160,6 +162,8 @@
 #block(above: 0pt, below: 0pt, inset: (left: 1.5em))[#text("Parent description.")
 
 #raw(block: true, "P18 attached to description (1)")
+
+#text("+")
 
 #grid(columns: (auto, 1fr), column-gutter: 0.5em, row-gutter: 0.5em, align: (x, _) => if x == 0 { right + top } else { left + top },
 [#text("(1)")], [#text("Description-list continuation.")],

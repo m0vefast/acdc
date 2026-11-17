@@ -759,8 +759,10 @@ impl<'a> Include<'a> {
         base_dir: &Path,
         target: &Path,
     ) -> Result<PathBuf, Error> {
+        // asciidoctor `PathResolver#system_path` with no jail: `.` and `..` are
+        // collapsed lexically, symlinks are not resolved.
         if self.options.safe_mode < SafeMode::Safe {
-            return Ok(current_parent.join(target));
+            return Ok(super::lexical_path::normalize_lexical(&current_parent.join(target)));
         }
 
         if target.is_absolute() {
@@ -1124,6 +1126,7 @@ impl<'a> Include<'a> {
                     start_line: origin.line,
                     source_start_offset: origin.offset,
                     column_shift: origin.column_shift,
+                    stands_for: None,
                 });
             }
             cursor = end_offset;
@@ -1539,13 +1542,11 @@ impl<'a> Include<'a> {
                         continue;
                     };
 
-                    if start_idx < content_lines_count
-                        && end_idx < content_lines_count
-                        && start_idx <= end_idx
-                    {
-                        for i in start_idx..=end_idx {
-                            indices.insert(i);
-                        }
+                    // asciidoctor expands the range and keeps the lines the source has.
+                    if start_idx <= end_idx {
+                        indices.extend(
+                            (start_idx..=end_idx).take_while(|&i| i < content_lines_count),
+                        );
                     }
                 }
             }

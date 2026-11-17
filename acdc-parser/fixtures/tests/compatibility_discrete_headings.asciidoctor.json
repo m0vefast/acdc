@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_plain_discrete",
       "metadata": {
         "style": "discrete"
       },
@@ -88,6 +89,7 @@
         }
       ],
       "level": 1,
+      "id": "_legacy_float",
       "metadata": {
         "style": "float"
       },
@@ -123,6 +125,7 @@
         }
       ],
       "level": 1,
+      "id": "_positional_before_named",
       "metadata": {
         "style": "discrete"
       },
@@ -158,6 +161,7 @@
         }
       ],
       "level": 1,
+      "id": "_named_before_positional",
       "metadata": {
         "style": "discrete"
       },
@@ -193,6 +197,7 @@
         }
       ],
       "level": 1,
+      "id": "_same_list_named_override",
       "metadata": {
         "style": "discrete"
       },
@@ -228,6 +233,7 @@
         }
       ],
       "level": 1,
+      "id": "_same_list_positional_override",
       "metadata": {
         "style": "normal"
       },
@@ -263,6 +269,7 @@
         }
       ],
       "level": 1,
+      "id": "_named_discrete_only",
       "location": [
         {
           "line": 23,
@@ -295,6 +302,7 @@
         }
       ],
       "level": 1,
+      "id": "_named_float_only",
       "blocks": [
         {
           "name": "heading",
@@ -317,6 +325,7 @@
             }
           ],
           "level": 1,
+          "id": "_later_named_role",
           "metadata": {
             "roles": [
               "example"
@@ -355,6 +364,7 @@
             }
           ],
           "level": 1,
+          "id": "_later_shorthand_role",
           "metadata": {
             "roles": [
               "example"
@@ -393,6 +403,7 @@
             }
           ],
           "level": 1,
+          "id": "_later_empty_list",
           "metadata": {
             "style": "discrete"
           },
@@ -440,6 +451,7 @@
         }
       ],
       "level": 1,
+      "id": "_later_positional_style",
       "metadata": {
         "style": "normal"
       },
@@ -465,6 +477,7 @@
             }
           ],
           "level": 1,
+          "id": "_positional_style_restored",
           "metadata": {
             "roles": [
               "final"
@@ -503,6 +516,7 @@
             }
           ],
           "level": 1,
+          "id": "_role_after_named_style",
           "metadata": {
             "roles": [
               "example"
@@ -553,6 +567,7 @@
         }
       ],
       "level": 1,
+      "id": "_closing_section",
       "blocks": [
         {
           "name": "paragraph",

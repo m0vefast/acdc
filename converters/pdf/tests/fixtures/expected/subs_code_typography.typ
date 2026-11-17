@@ -183,7 +183,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => code-links(line)
-  raw(block: true, "C11 © ® ™\nC12 *literal* ©")
+  raw(block: true, "C11 © ® ™\nC12 *literal\\* ©")
 }
 #{
   // Slice highlighted text without discarding its syntax styles.
@@ -221,7 +221,7 @@
     body + code-slice(line.body, start, line.text.len()).first()
   }
   show raw.line: line => code-links(line)
-  raw(block: true, "C13 (C) *literal*")
+  raw(block: true, "C13 (C) *literal\\*")
 }
 #raw(block: true, "C14 (C) \\*literal\\* pass:r[(R)]")
 

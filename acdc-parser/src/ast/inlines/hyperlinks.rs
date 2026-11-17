@@ -92,6 +92,12 @@ macro_rules! hyperlink_reads {
                 SourceRef::from(&self.node.target)
             }
 
+            /// Where the target is written in the source.
+            #[must_use]
+            pub fn target_location(self) -> LocationRef<'doc> {
+                LocationRef::new(&self.node.target_location.0)
+            }
+
             /// Parsed label content. Empty content uses automatic display text.
             #[must_use]
             pub fn text(self) -> ContentRef<'doc> {

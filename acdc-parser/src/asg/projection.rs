@@ -324,21 +324,25 @@ pub(super) fn document(value: &Document<'_>, profile: Profile) -> Result<Value, 
             header.metadata.heading_anchor(),
             "/header",
         )?;
-        if value.references.contains_key("") {
-            export.insert_target(
-                String::new(),
-                Target {
-                    owner: Some("/header".into()),
-                    title: Some(title),
-                    label: metadata::label(&header.metadata),
-                    section: None,
-                    caption: None,
-                },
-                "/header",
-            )?;
-        }
     }
     result.insert("blocks".into(), export.blocks(&value.blocks, "/blocks")?);
+    // A block whose ID is empty owns `""`; only otherwise is it the document top.
+    if let (Some(header), Some(title)) = (&value.header, &header_target_title)
+        && value.references.contains_key("")
+        && !export.targets.contains_key("")
+    {
+        export.insert_target(
+            String::new(),
+            Target {
+                owner: Some("/header".into()),
+                title: Some(title),
+                label: metadata::label(&header.metadata),
+                section: None,
+                caption: None,
+            },
+            "/header",
+        )?;
+    }
     if profile == Profile::Acdc {
         for field in crate::ast::DocumentRef::from(value).content_occurrences() {
             for inline in field.content().as_inlines() {
@@ -376,6 +380,7 @@ impl<'a, 'doc> Export<'a, 'doc> {
         if self.profile == Profile::Acdc
             && value.header.is_none()
             && value.references.contains_key("")
+            && !self.targets.contains_key("")
         {
             let title = value.blocks.iter().find_map(|block| {
                 if let Block::Section(section) = block {
@@ -500,7 +505,7 @@ impl<'a, 'doc> Export<'a, 'doc> {
                 at,
             )?,
             Block::TableOfContents(toc) => {
-                self.block_macro("toc", None, None, &toc.metadata, at)?
+                self.block_macro("toc", None, Some(&toc.title), &toc.metadata, at)?
             }
             Block::DiscreteHeading(heading) => self.heading(heading, at)?,
             Block::PageBreak(page) => {

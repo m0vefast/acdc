@@ -7,7 +7,6 @@ use crate::{
     InlineMacro, InlineNode, Substitution,
     grammar::{
         ParserState,
-        inline_boundaries::check_constrained_opening_boundary,
         state::{InlineRules, InlineUrlBoundary},
     },
 };
@@ -409,10 +408,5 @@ pub(super) fn check_code_opening_boundary(state: &ParserState<'_>, position: usi
     {
         return false;
     }
-    check_constrained_opening_boundary(
-        position,
-        state.input.as_bytes(),
-        state.outer_constrained_delimiter,
-        b'`',
-    )
+    state.quote_opening(position, b'`')
 }

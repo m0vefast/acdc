@@ -12,11 +12,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Version **1.0** Release Notes",
+          "value": "Version ",
           "location": [
             {
               "line": 3,
               "col": 4
+            },
+            {
+              "line": 3,
+              "col": 11
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "**1.0**",
+          "location": [
+            {
+              "line": 3,
+              "col": 12
+            },
+            {
+              "line": 3,
+              "col": 20
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " Release Notes",
+          "location": [
+            {
+              "line": 3,
+              "col": 21
             },
             {
               "line": 3,
@@ -26,6 +56,7 @@
         }
       ],
       "level": 1,
+      "id": "_version_1_0_release_notes",
       "blocks": [
         {
           "name": "paragraph",

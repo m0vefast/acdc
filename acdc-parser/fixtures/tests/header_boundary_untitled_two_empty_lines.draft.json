@@ -27,11 +27,41 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Body text uses 3.",
+          "value": "Body text uses ",
           "location": [
             {
               "line": 6,
               "col": 1
+            },
+            {
+              "line": 6,
+              "col": 15
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": "3",
+          "location": [
+            {
+              "line": 6,
+              "col": 16
+            },
+            {
+              "line": 6,
+              "col": 18
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": ".",
+          "location": [
+            {
+              "line": 6,
+              "col": 19
             },
             {
               "line": 6,

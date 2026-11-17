@@ -13,9 +13,13 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 #[test]
 fn inline_formulas_keep_placement_notation_and_literal_content() -> Result<(), Error> {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/asg/inline_stem.adoc");
-    let expected: Value =
-        serde_json::from_str(&fs::read_to_string(source.with_extension("json"))?)?;
-    for mode in [CompatibilityMode::Asciidoctor, CompatibilityMode::Draft] {
+    // asciidoctor keeps an empty formula literal; Draft keeps it as an empty stem.
+    for (mode, extension) in [
+        (CompatibilityMode::Asciidoctor, "json"),
+        (CompatibilityMode::Draft, "draft.json"),
+    ] {
+        let expected: Value =
+            serde_json::from_str(&fs::read_to_string(source.with_extension(extension))?)?;
         let parsed = parse_file(
             &source,
             &Options::builder().with_compatibility_mode(mode).build()?,
@@ -52,10 +56,12 @@ fn inline_formulas_keep_placement_notation_and_literal_content() -> Result<(), E
                     .is_none()
             );
         }
-        assert_eq!(
-            value.pointer("/blocks/1/inlines/2/inlines"),
-            Some(&json!([]))
-        );
+        if mode == CompatibilityMode::Draft {
+            assert_eq!(
+                value.pointer("/blocks/1/inlines/2/inlines"),
+                Some(&json!([]))
+            );
+        }
         assert_eq!(serde_json::to_value(parsed.document())?, before);
     }
     Ok(())

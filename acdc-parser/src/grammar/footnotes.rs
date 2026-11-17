@@ -212,8 +212,13 @@ impl<'a, 'work> Rebuilder<'a, 'work> {
                 }
             }
         }
+        // A named reference no definition answers stays unresolved, as the parser left it.
+        let definition = self.definition(key, note);
+        if definition.is_none() && note.is_unresolved() && note.id.is_some() {
+            return Ok(());
+        }
         let mut definition =
-            self.definition(key, note)
+            definition
                 .ok_or_else(|| FootnoteRebuildError::MissingDefinition {
                     id: note.id.map(str::to_owned),
                     number: note.number,

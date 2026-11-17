@@ -91,7 +91,7 @@
 
 #text("Multiple reference two.")#footnote(<id-666f6f746e6f74653a6d756c7469706c65>)
 
-#heading(level: 1)[#text("Heading ")#counter(footnote).update(3)#footnote[#text("Title note.")]<id-666f6f746e6f74653a7469746c65>] <id-5f68656164696e67>
+#heading(level: 1)[#text("Heading ")#counter(footnote).update(3)#footnote[#text("Title note.")]<id-666f6f746e6f74653a7469746c65>] <id-5f68656164696e675f34>
 
 #text("A ")#strong[#text("formatted ")#counter(footnote).update(4)#footnote[#text("Formatted note.")]<id-666f6f746e6f74653a666f726d6174746564>]#text(".")
 

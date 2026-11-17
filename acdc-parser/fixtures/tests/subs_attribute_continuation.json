@@ -59,6 +59,7 @@
         }
       ],
       "level": 1,
+      "id": "_name",
       "blocks": [
         {
           "name": "paragraph",
@@ -124,6 +125,7 @@
         }
       ],
       "level": 1,
+      "id": "_synopsis",
       "blocks": [
         {
           "name": "paragraph",
@@ -207,6 +209,7 @@
         }
       ],
       "level": 1,
+      "id": "_description",
       "blocks": [
         {
           "name": "paragraph",
@@ -234,7 +237,7 @@
               "location": [
                 {
                   "line": 18,
-                  "col": 5
+                  "col": 12
                 },
                 {
                   "line": 18,
@@ -264,7 +267,7 @@
               "location": [
                 {
                   "line": 18,
-                  "col": 35
+                  "col": 42
                 },
                 {
                   "line": 18,
@@ -312,11 +315,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S02 \\",
+              "value": "S02 ",
               "location": [
                 {
                   "line": 21,
                   "col": 1
+                },
+                {
+                  "line": 21,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 5
                 },
                 {
                   "line": 21,
@@ -359,11 +377,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " and \\",
+              "value": " and ",
               "location": [
                 {
                   "line": 21,
                   "col": 29
+                },
+                {
+                  "line": 21,
+                  "col": 33
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 21,
+                  "col": 34
                 },
                 {
                   "line": 21,
@@ -510,7 +543,7 @@
               "location": [
                 {
                   "line": 28,
-                  "col": 5
+                  "col": 12
                 },
                 {
                   "line": 28,
@@ -540,7 +573,7 @@
               "location": [
                 {
                   "line": 28,
-                  "col": 40
+                  "col": 47
                 },
                 {
                   "line": 28,
@@ -595,11 +628,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": "S05 \\",
+              "value": "S05 ",
               "location": [
                 {
                   "line": 33,
                   "col": 1
+                },
+                {
+                  "line": 33,
+                  "col": 4
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 5
                 },
                 {
                   "line": 33,
@@ -642,11 +690,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " and \\",
+              "value": " and ",
               "location": [
                 {
                   "line": 33,
                   "col": 34
+                },
+                {
+                  "line": 33,
+                  "col": 38
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "\\",
+              "location": [
+                {
+                  "line": 33,
+                  "col": 39
                 },
                 {
                   "line": 33,
@@ -790,7 +853,7 @@
               "location": [
                 {
                   "line": 37,
-                  "col": 23
+                  "col": 30
                 },
                 {
                   "line": 37,
@@ -801,11 +864,26 @@
             {
               "name": "text",
               "type": "string",
-              "value": " and [].",
+              "value": " and [",
               "location": [
                 {
                   "line": 37,
                   "col": 49
+                },
+                {
+                  "line": 37,
+                  "col": 54
+                }
+              ]
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "value": "].",
+              "location": [
+                {
+                  "line": 37,
+                  "col": 62
                 },
                 {
                   "line": 37,
@@ -948,7 +1026,7 @@
                   },
                   {
                     "line": 42,
-                    "col": 18
+                    "col": 17
                   }
                 ]
               }

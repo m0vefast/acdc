@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_ordered_parent",
       "blocks": [
         {
           "name": "list",
@@ -253,6 +254,7 @@
         }
       ],
       "level": 1,
+      "id": "_unordered_parent_with_immediate_child_metadata",
       "blocks": [
         {
           "name": "list",
@@ -459,6 +461,7 @@
         }
       ],
       "level": 1,
+      "id": "_metadata_after_a_blank_line",
       "blocks": [
         {
           "name": "list",
@@ -599,6 +602,7 @@
         }
       ],
       "level": 1,
+      "id": "_alternating_levels",
       "blocks": [
         {
           "name": "list",
@@ -851,6 +855,7 @@
         }
       ],
       "level": 1,
+      "id": "_checklist_children",
       "blocks": [
         {
           "name": "list",

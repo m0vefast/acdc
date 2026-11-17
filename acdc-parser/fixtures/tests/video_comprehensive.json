@@ -53,6 +53,7 @@
         }
       ],
       "level": 1,
+      "id": "_basic_local_video",
       "blocks": [
         {
           "name": "video",
@@ -106,6 +107,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_dimensions",
       "blocks": [
         {
           "name": "video",
@@ -165,6 +167,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_time_range",
       "blocks": [
         {
           "name": "video",
@@ -224,6 +227,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_poster",
       "blocks": [
         {
           "name": "video",
@@ -282,6 +286,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_preload",
       "blocks": [
         {
           "name": "video",
@@ -340,6 +345,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_lang_attribute",
       "blocks": [
         {
           "name": "video",
@@ -398,6 +404,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_title",
       "blocks": [
         {
           "name": "video",
@@ -474,6 +481,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_id",
       "blocks": [
         {
           "name": "video",
@@ -490,7 +498,7 @@
                   },
                   {
                     "line": 34,
-                    "col": 12
+                    "col": 11
                   }
                 ]
               }
@@ -544,6 +552,7 @@
         }
       ],
       "level": 1,
+      "id": "_local_video_with_all_attributes_and_options",
       "blocks": [
         {
           "name": "video",
@@ -630,6 +639,7 @@
         }
       ],
       "level": 1,
+      "id": "_youtube_video_basic",
       "blocks": [
         {
           "name": "video",
@@ -688,6 +698,7 @@
         }
       ],
       "level": 1,
+      "id": "_youtube_video_with_dimensions",
       "blocks": [
         {
           "name": "video",
@@ -748,6 +759,7 @@
         }
       ],
       "level": 1,
+      "id": "_youtube_video_with_time_and_theme",
       "blocks": [
         {
           "name": "video",
@@ -809,6 +821,7 @@
         }
       ],
       "level": 1,
+      "id": "_youtube_video_with_options",
       "blocks": [
         {
           "name": "video",
@@ -872,6 +885,7 @@
         }
       ],
       "level": 1,
+      "id": "_vimeo_video_basic",
       "blocks": [
         {
           "name": "video",
@@ -930,6 +944,7 @@
         }
       ],
       "level": 1,
+      "id": "_vimeo_video_with_dimensions",
       "blocks": [
         {
           "name": "video",
@@ -990,6 +1005,7 @@
         }
       ],
       "level": 1,
+      "id": "_vimeo_video_with_options",
       "blocks": [
         {
           "name": "video",

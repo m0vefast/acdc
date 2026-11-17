@@ -158,11 +158,32 @@
         {
           "name": "text",
           "type": "string",
-          "value": "Before  after.",
+          "value": "Before ",
           "location": [
             {
               "line": 5,
               "col": 5,
+              "file": [
+                "includes/compatibility_diagnostic_selected.adoc"
+              ]
+            },
+            {
+              "line": 5,
+              "col": 11,
+              "file": [
+                "includes/compatibility_diagnostic_selected.adoc"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "value": " after.",
+          "location": [
+            {
+              "line": 5,
+              "col": 30,
               "file": [
                 "includes/compatibility_diagnostic_selected.adoc"
               ]
@@ -358,7 +379,7 @@
         },
         {
           "line": 16,
-          "col": 62
+          "col": 61
         }
       ]
     },

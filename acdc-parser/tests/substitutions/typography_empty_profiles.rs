@@ -35,7 +35,10 @@ fn removed_profiles_keep_typography_in_the_parser(
             }
         })
         .collect::<Vec<_>>();
-    let expected = if requires_paragraph && context != "{}" {
+    // asciidoctor 2.0.26 (measured 2026-11-16, all four contexts) draws none: even an empty
+    // passthrough leaves a placeholder between the words when replacements run.
+    let expected = if mode == CompatibilityMode::Asciidoctor || requires_paragraph && context != "{}"
+    {
         vec![]
     } else {
         vec![kind]
@@ -89,6 +92,11 @@ fn symbols_after_empty_profiles_keep_their_source_owner(
             }
         })
         .collect::<Vec<_>>();
+    // asciidoctor 2.0.26 (measured 2026-11-16): the empty passthrough's placeholder parts the words.
+    if mode == CompatibilityMode::Asciidoctor {
+        assert!(symbols.is_empty(), "{source}");
+        return Ok(());
+    }
     let [symbol] = symbols.as_slice() else {
         return Err("expected one symbol".into());
     };

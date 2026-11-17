@@ -105,7 +105,7 @@
 
 #text("E10 ")#strong[#text("Bold")]#link("https://example.org/e10")[#text("Site")]
 
-#text("E11 Xhttps://example.org/e11")
+#text("E11 ")#text("X")#text("https://example.org/e11")
 
 #text("E12 ")#strong[#text("Bold")]#link("https://example.org/e12")[#text("https://example.org/e12")]
 
