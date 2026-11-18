@@ -256,7 +256,6 @@ dependencies = [
  "criterion",
  "csv",
  "encoding_rs",
- "evalexpr",
  "jsonschema",
  "libtest-mimic",
  "peg",
@@ -1731,12 +1730,6 @@ checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
 dependencies = [
  "num-traits",
 ]
-
-[[package]]
-name = "evalexpr"
-version = "11.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6aff27af350e7b53e82aac3e5ab6389abd8f280640ac034508dff0608c4c7e5"
 
 [[package]]
 name = "exr"

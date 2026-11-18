@@ -53,6 +53,9 @@ fn insert_reference<'a>(
 
 pub(super) struct ReferenceCatalog<'a> {
     pub(super) entries: HashMap<&'a str, ReferenceTarget<'a>>,
+    /// Ids asciidoctor has registered by this point of the parse; a generated
+    /// heading id skips them.
+    pub(super) reserved: HashSet<&'a str>,
     pub(super) next_suffix: HashMap<(&'a str, Option<char>), usize>,
     pub(super) natural_targets: HashMap<&'a str, &'a str>,
 }
@@ -87,7 +90,7 @@ impl<'a> ReferenceCatalog<'a> {
             return id;
         }
         let base = id_settings.generate(state.arena, metadata, title.as_inlines(), Some(&self.entries));
-        if !self.entries.contains_key(base) {
+        if !self.reserved.contains(base) {
             return base;
         }
         let separator = id_settings.separator;
@@ -99,7 +102,7 @@ impl<'a> ReferenceCatalog<'a> {
                 format!("{base}{next}")
             };
             *next += 1;
-            if !self.entries.contains_key(candidate.as_str()) {
+            if !self.reserved.contains(candidate.as_str()) {
                 return state.intern_str(&candidate);
             }
         }
@@ -451,6 +454,7 @@ fn register_section_reference<'a>(
 ) {
     mark_references_preceding_targets(&mut section.title, refs);
     let id = refs.heading_id(state, &section.metadata, &section.title, section.id_settings);
+    refs.reserved.insert(id);
     section.id = Some(id);
     section.id_generated = Section::explicit_id(&section.metadata).is_none();
     let reference_text = section.reference_text.take();
@@ -507,6 +511,7 @@ impl<'a> ReferenceVisitor<'a> for ParsingReferences<'_, 'a> {
             &heading.title,
             heading.id_settings,
         );
+        self.references.reserved.insert(id);
         heading.id = Some(id);
         heading.id_generated = Section::explicit_id(&heading.metadata).is_none();
         if heading.id_generated && !self.references.duplicate(self.state, id, &heading.location) {
@@ -556,6 +561,10 @@ impl<'a> ReferenceVisitor<'a> for ParsingReferences<'_, 'a> {
         insert_untitled_reference(self.state, self.references, id, location);
         Ok(())
     }
+
+    fn reserve(&mut self, id: &'a str) {
+        self.references.reserved.insert(id);
+    }
     fn cross_reference(
         &mut self,
         reference: &crate::CrossReference<'a>,
@@ -594,6 +603,7 @@ pub(super) fn collect_header_references<'a>(
             Some(header_reference_title(header)),
             None,
         );
+        references.reserved.insert(anchor.id);
     }
     reference_walk::header(
         &mut ParsingReferences {

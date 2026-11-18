@@ -2677,10 +2677,24 @@ peg::parser! {
 
         // Xref targets are IDs or source paths, not media URLs. Keep their
         // punctuation intact until source syntax selects a local or external link.
-        // asciidoctor `InlineXrefMacroRx`: the target runs to the first `[`, spaces included.
+        // asciidoctor `InlineXrefMacroRx`: the target runs to the first `[`, spaces included,
+        // that is left once the constructs substituted before cross references took theirs.
         rule xref_target() -> &'input str
-            = target:$((passthrough_placeholder() / path_char() / [':' | '#']) (!['['] [_])*)
+            = target:$((passthrough_placeholder() / path_char() / [':' | '#']) (!['['] !substituted_before_xrefs() [_])*)
+              !substituted_before_xrefs()
         { target }
+
+        /// A construct asciidoctor substitutes before cross references, taking the `[` it is
+        /// written with: an inline image or icon, a URL, `link:`, `mailto:`, an inline
+        /// anchor, or quoted text with an attribute list.
+        rule substituted_before_xrefs()
+        = inline_image_match() / inline_icon_match() / url_macro_match(false) / link_macro_match()
+        / mailto_macro_match() / inline_anchor_match()
+        / &"[" (bold_text_unconstrained_match() / bold_text_constrained_match()
+            / italic_text_unconstrained_match() / italic_text_constrained_match()
+            / monospace_text_unconstrained_match() / monospace_text_constrained_match()
+            / highlight_text_unconstrained_match() / highlight_text_constrained_match()
+            / superscript_text_match() / subscript_text_match())
 
         /// Fragment identifier for a `link:` macro.
         rule path_fragment() -> Cow<'input, str>
@@ -2714,7 +2728,7 @@ peg::parser! {
 
         /// Filesystem path for an inline media target.
         /// Existing percent escapes and internal spaces are preserved.
-        rule media_path() -> Cow<'input, str> = path:$(media_path_char() (media_path_char() / internal_media_path_spaces())*)
+        rule media_path() -> Cow<'input, str> = path:$(!":" media_path_char() (media_path_char() / internal_media_path_spaces())*)
         {?
             let inline_state = InlinePreprocessorParserState::new_all_enabled(
                 path,
@@ -2734,7 +2748,9 @@ peg::parser! {
         }
 
         rule path_char() = ['A'..='Z' | 'a'..='z' | '0'..='9' | '{' | '}' | '_' | '-' | '.' | '/' | '\\' | '\u{80}'..='\u{10FFFF}' ]
-        rule media_path_char() = path_char() / ['%' | '\'' | '"']
+        // asciidoctor `InlineImageMacroRx` `[^:\s\[](?:[^\n\[]*[^\s\[])?`: any text up to
+        // the `[`, not starting with `:` and neither starting nor ending with whitespace.
+        rule media_path_char() = !['[' | ' ' | '\t' | '\n' | '\r'] [_]
         rule internal_media_path_spaces() = [' ']+ &media_path_char()
 
         rule source() -> Source<'input>

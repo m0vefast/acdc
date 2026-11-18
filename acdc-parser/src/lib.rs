@@ -200,7 +200,6 @@ pub use model::{
     TablePresentation, TableRow, TableStripes, ThematicBreak, Title, TocEntry, TokenAssignment,
     UNNUMBERED_SECTION_STYLES, UnorderedList, UrlMacro, VERBATIM, Verbatim, VerticalAlignment,
     Video, XrefCaptionLabel, XrefSignifier, XrefStyle, apply_attribute_substitutions,
-    substitute_attributes,
 };
 pub use model::XrefForm;
 pub use xref_target::{ASCIIDOC_EXTENSIONS, XrefTarget, xref_target_kind};

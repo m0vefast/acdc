@@ -13,6 +13,9 @@ pub(super) enum LineKind {
     Source,
     Continuation,
     Placeholder,
+    /// A line the item holds that is not its content: the item's location still
+    /// spans it, its text reads as an empty line.
+    Dropped,
 }
 
 /// A source line, `start..end` without its line break.
@@ -25,11 +28,11 @@ pub(super) struct Line {
 
 impl Line {
     pub(super) fn text<'a>(&self, input: &'a str) -> &'a str {
-        if self.kind == LineKind::Placeholder { "" } else { &input[self.start..self.end] }
+        if matches!(self.kind, LineKind::Placeholder | LineKind::Dropped) { "" } else { &input[self.start..self.end] }
     }
 
     fn continues(&self) -> bool {
-        self.kind != LineKind::Source
+        matches!(self.kind, LineKind::Continuation | LineKind::Placeholder)
     }
 }
 
@@ -364,6 +367,23 @@ fn attribute_entry(line: &str) -> bool {
     after.is_empty() || after.starts_with([' ', '\t'])
 }
 
+/// `CommentLineRx`.
+fn comment_line(line: &str) -> bool {
+    line.strip_prefix("//").is_some_and(|rest| !rest.starts_with('/'))
+}
+
+/// Lines after a `+` that are block metadata for no block: titles, attribute
+/// lines and attribute entries, with comments and empty lines between them. An
+/// entry continued on the next line (` \`) is not metadata a sibling can end.
+fn dangling_metadata(reader: &Reader<'_>, lines: &[Line]) -> bool {
+    let metadata = |text: &str| block_title(text) || block_attribute_line(text) || (attribute_entry(text) && !text.ends_with(" \\"));
+    lines.iter().any(|&line| metadata(reader.text(line)))
+        && lines.iter().all(|&line| {
+            let text = reader.text(line);
+            text.is_empty() || comment_line(text) || metadata(text)
+        })
+}
+
 fn literal_line(line: &str) -> bool {
     line.starts_with([' ', '\t'])
 }
@@ -384,7 +404,13 @@ fn is_sibling(line: &str, kind: Kind, trait_: ListMarker<'_>) -> bool {
     }
 }
 
-fn read_lines_for_list_item(reader: &mut Reader<'_>, kind: Kind, trait_: ListMarker<'_>, mut has_text: bool) -> Vec<Line> {
+fn read_lines_for_list_item(
+    reader: &mut Reader<'_>,
+    kind: Kind,
+    trait_: ListMarker<'_>,
+    mut has_text: bool,
+    drop_dangling: bool,
+) -> Vec<Line> {
     let dlist = kind == Kind::Description;
     let mut buffer: Vec<Line> = Vec::new();
     let mut continuation = Continuation::Inactive;
@@ -531,6 +557,7 @@ fn read_lines_for_list_item(reader: &mut Reader<'_>, kind: Kind, trait_: ListMar
         pending = None;
     }
 
+    let at_sibling = pending.is_some_and(|line| is_sibling(reader.text(line), kind, trait_));
     if let Some(line) = pending {
         reader.unshift(line);
     }
@@ -541,7 +568,9 @@ fn read_lines_for_list_item(reader: &mut Reader<'_>, kind: Kind, trait_: ListMar
     }
     while let Some(last) = buffer.last().copied() {
         if last.continues() {
-            buffer.pop();
+            if let Some(last) = buffer.last_mut() {
+                last.kind = LineKind::Dropped;
+            }
             break;
         } else if reader.text(last).is_empty() {
             buffer.pop();
@@ -549,12 +578,30 @@ fn read_lines_for_list_item(reader: &mut Reader<'_>, kind: Kind, trait_: ListMar
             break;
         }
     }
+    if drop_dangling
+        && at_sibling
+        && let Some(plus) = buffer.iter().rposition(Line::continues)
+        && dangling_metadata(reader, &buffer[plus + 1..])
+    {
+        for line in &mut buffer[plus..] {
+            line.kind = LineKind::Dropped;
+        }
+    }
     buffer
 }
 
 /// The items of the unordered or ordered list whose first marker line starts
 /// at `start`, reading no further than `limit` or a line `stop` claims.
-pub(super) fn read_list(input: &str, start: usize, limit: usize, placeholders: &[usize], stop: &dyn Fn(&str) -> bool) -> ListLines {
+/// `drop_dangling`: a `+` and the block metadata after it, ended by a sibling
+/// item, are held by the item but are not its content (Draft mode only).
+pub(super) fn read_list(
+    input: &str,
+    start: usize,
+    limit: usize,
+    placeholders: &[usize],
+    stop: &dyn Fn(&str) -> bool,
+    drop_dangling: bool,
+) -> ListLines {
     let mut reader = Reader::new(input, start, limit, placeholders, stop);
     let first = reader.peek().map(|line| reader.text(line)).unwrap_or_default();
     let kind = if unordered_item(first).is_some() { Kind::Unordered } else { Kind::Ordered };
@@ -563,7 +610,7 @@ pub(super) fn read_list(input: &str, start: usize, limit: usize, placeholders: &
     while let Some(line) = reader.peek() {
         let Some(marker) = item_marker(reader.text(line), kind) else { break };
         reader.read_line();
-        let buffer = read_lines_for_list_item(&mut reader, kind, marker, true);
+        let buffer = read_lines_for_list_item(&mut reader, kind, marker, true, drop_dangling);
         consumed_end = reader.consumed_end().unwrap_or(consumed_end);
         items.push(ItemLines { marker_line: line, buffer });
         if reader.skip_blank_lines().is_none() {
@@ -582,6 +629,7 @@ pub(super) fn read_description_list<'a>(
     limit: usize,
     placeholders: &[usize],
     stop: &dyn Fn(&str) -> bool,
+    drop_dangling: bool,
 ) -> Option<(&'a str, ListLines)> {
     let first_end = input[start..limit].find('\n').map_or(limit, |n| start + n);
     description_line(&input[start..first_end], None)?;
@@ -592,7 +640,7 @@ pub(super) fn read_description_list<'a>(
     let mut consumed_end = start;
     let mut has_text = first.text.is_some();
     while let Some(line) = reader.read_line() {
-        let buffer = read_lines_for_list_item(&mut reader, Kind::Description, ListMarker::Description(delimiter), has_text);
+        let buffer = read_lines_for_list_item(&mut reader, Kind::Description, ListMarker::Description(delimiter), has_text, drop_dangling);
         consumed_end = reader.consumed_end().unwrap_or(consumed_end);
         items.push(ItemLines { marker_line: line, buffer });
         match reader.peek().and_then(|next| description_line(reader.text(next), Some(delimiter))) {
@@ -608,7 +656,7 @@ mod tests {
     use super::*;
 
     fn shapes(src: &str) -> Vec<(String, Vec<String>)> {
-        read_list(src, 0, src.len(), &[], &|_| false)
+        read_list(src, 0, src.len(), &[], &|_| false, false)
             .items
             .iter()
             .map(|item| {

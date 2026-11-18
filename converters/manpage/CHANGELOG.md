@@ -78,6 +78,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Inline image alternatives preserve literal trailing dashes in fallback text.
 
+- Nested ordered lists without an explicit style use the default style for
+  their level, as in HTML: `a.` at level 2, `i.` at level 3, `A.` at level 4,
+  `I.` at level 5, and arabic numbers deeper. Asciidoctor's manpage output
+  numbers every level `1.`, `2.`.
+
+- Ordered list items are indented past their widest marker, so a marker such as
+  `viii.` or `100.` stays on the same line as the item text. Lists nested in
+  these items line up with the item text.
+
+- Content attached to a list item, both `+` continuation blocks and nested
+  lists, starts at the column where the item text starts, as in Asciidoctor.
+  Continuations in ordered, description, Q&A, bibliography, and callout lists
+  previously started at the marker or term, and lists nested in a bulleted
+  item started 4 ens past its text.
+
 ### Changed
 
 - Block `subs=` settings now work in every build. Literal content, escaped
@@ -98,6 +113,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local reference labels, and portable roff output remain unchanged.
 
 ### Fixed
+
+- A single-name author, such as `Jane`, no longer ends with a space in the
+  comment header and the AUTHOR section, matching Asciidoctor.
 
 - Generated indexes sort and combine entries by their resolved labels. Catalog
   typography uses each label's own boundaries and registration-time substitutions.

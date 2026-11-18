@@ -9,7 +9,9 @@ use crate::{
     Header, Image, InlineNode, RevisionLocations, ListItem, ListItemCheckedStatus, Location, PageBreak,
     Paragraph, Plain, Position, Section, Source, TableOfContents, ThematicBreak, Title,
     Video, Warning, WarningKind,
-    document_attribute::{AttributeDeclaration, RawAttributeValue, join_wrapped_value},
+    document_attribute::{
+        AttributeDeclaration, RawAttributeValue, join_wrapped_value, starts_like_entry_name,
+    },
     grammar::{
         ParserState,
         attributes::{
@@ -61,7 +63,7 @@ use crate::{
         inline_preprocessor::InlinePreprocessorParserState,
         inline_processing::{adjust_and_log_parse_error, process_inlines},
         setext,
-        state::BlockContext,
+        state::{BlockContext, UntitledHeaderEntries},
     },
     model::{
         ListLevel, SectionKind, SectionLevel, Substitution, caption, section, substitution::HEADER,
@@ -70,6 +72,7 @@ use crate::{
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    ops::Range,
     rc::Rc,
 };
 
@@ -86,6 +89,7 @@ peg::parser! {
         pub(crate) rule document() -> Result<Document<'input>, Error>
         = eol()* start:position() comments_before_header:(comment:leading_comment() eol()* { comment })* header_result:header() prepare_manpage_front_matter() header_attributes:header_attribute_snapshot() blocks:blocks(0, None, None) end:position!() (eol()* / ![_]) {
             let ParsedHeader { header, untitled_location: untitled_header_location } = header_result?;
+            let header_attributes = header_attributes.unwrap_or_else(|| state.take_untitled_header_attributes());
             let mut blocks: Vec<Block<'_>> = comments_before_header.into_iter().collect::<Result<Vec<_>, Error>>()?.into_iter().chain(blocks?).collect();
             let carried_titles = Block::deliver_carried_titles(&mut blocks, &mut None);
 
@@ -190,6 +194,7 @@ peg::parser! {
             });
             let mut references = ReferenceCatalog {
                 entries: HashMap::with_capacity(state.toc_entries.len() + usize::from(header_has_anchor)),
+                reserved: HashSet::new(),
                 next_suffix: HashMap::new(),
                 natural_targets: HashMap::new(),
             };
@@ -284,10 +289,17 @@ peg::parser! {
             Ok(document)
         }
 
-        rule header_attribute_snapshot() -> DocumentAttributes<'input>
+        // When the header reads entries among the first block's metadata, the
+        // body applies them, so the snapshot waits for the last one. See
+        // `untitled_header_entries`.
+        rule header_attribute_snapshot() -> Option<DocumentAttributes<'input>>
         = {
-            crate::document_attribute::normalize_toc_attributes(Rc::make_mut(&mut state.document_attributes));
-            DocumentAttributes::clone(&state.document_attributes)
+            if state.untitled_header_entries.is_some() {
+                None
+            } else {
+                crate::document_attribute::normalize_toc_attributes(Rc::make_mut(&mut state.document_attributes));
+                Some(DocumentAttributes::clone(&state.document_attributes))
+            }
         }
 
         rule prepare_manpage_front_matter()
@@ -369,7 +381,8 @@ peg::parser! {
         // After the document title, the first empty line ends the header in
         // both modes. Before the title, Asciidoctor mode ignores empty lines
         // between attribute entries, comments and block metadata, so a document
-        // without a title keeps every leading attribute entry in its header.
+        // without a title keeps every leading attribute entry in its header,
+        // including the entries among the first block's metadata.
         // Draft mode follows the language docs: the first empty line ends the
         // header, with or without a title. Empty lines inside an atomic comment
         // block do not end the surrounding header.
@@ -383,6 +396,7 @@ peg::parser! {
                 end:position!()
                 { (title_authors, end) }
             )?
+            entries:untitled_header_entries(titled.is_none())
             (eol()*<,2> / ![_])
         {
             if let Some((((title_start, title_text), (authors, revision)), end)) = titled {
@@ -428,7 +442,9 @@ peg::parser! {
                 Ok(ParsedHeader { header: Some(header), untitled_location: None })
             } else {
                 tracing::debug!("No document title found in the document header.");
-                let untitled_location = leading_end.map(|end| header_span(state, start, end));
+                let end = entries.as_ref().map(|entries| entries.range.end).or(leading_end);
+                let untitled_location = end.map(|end| header_span(state, start, end));
+                state.untitled_header_entries = entries;
                 Ok(ParsedHeader { header: None, untitled_location })
             }
         }
@@ -451,6 +467,58 @@ peg::parser! {
             (state.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor)
                 .then_some(())
                 .ok_or("draft mode")
+        }
+
+        // In Asciidoctor mode, a document without a title also reads the
+        // attribute entries among the first block's anchors, attribute lists
+        // and block titles into its header, like Asciidoctor. The metadata
+        // still belongs to the first block. This only finds the entries: the
+        // body applies them in source order, so an attribute list before an
+        // entry still sees the earlier value.
+        rule untitled_header_entries(untitled: bool) -> Option<UntitledHeaderEntries<'input>>
+        = untitled_header(untitled) asciidoctor_mode()
+          entries:&(eol()* &block_metadata_line_match() entries:untitled_metadata_line()* { entries })
+        {
+            let mut entries = entries.into_iter().flatten();
+            entries.next().map(|first| {
+                let last = entries.last().unwrap_or_else(|| first.clone());
+                UntitledHeaderEntries {
+                    range: first.start..last.end,
+                    last_start: last.start,
+                    attributes: None,
+                }
+            })
+        }
+        / { None }
+
+        rule untitled_header(untitled: bool)
+        = {? untitled.then_some(()).ok_or("titled document") }
+
+        // One line of the first block's metadata, matched like
+        // `block_metadata_lines` without applying it. Returns an attribute
+        // entry's range.
+        rule untitled_metadata_line() -> Option<Range<usize>>
+        = line:(
+            start:position!() document_attribute_match() end:position!() &(eol() / ![_]) { Some(start..end) }
+            / (attribute_or_anchor_line_match() / title_line_match()) { None }
+            / metadata_comment_match() { None }
+          ) eol()* { line }
+
+        // An entry the header of a document without a title reads, applied as
+        // a header attribute. See `untitled_header_entries`.
+        rule untitled_header_entry(offset: usize)
+        = start:position!() untitled_header_entry_at(start + offset)
+          att:document_attribute_match() end:position!()
+        {
+            let location = state.create_block_location(start, end, offset);
+            state.apply_untitled_header_entry(&att, location);
+        }
+
+        rule untitled_header_entry_at(offset: usize)
+        = {?
+            state.is_untitled_header_entry(offset)
+                .then_some(())
+                .ok_or("not an untitled header entry")
         }
 
         /// Parse block metadata lines (anchors and attributes) that can appear before a document title.
@@ -761,7 +829,8 @@ peg::parser! {
         // none either (`body_attribute_block`).
         rule trailing_block_metadata(offset: usize) -> Result<Vec<Block<'input>>, Error>
         = &trailing_block_metadata_match() eol()* events:(
-            event:body_attribute_block(offset) (eol() / ![_]) eol()* { Some(event) }
+            untitled_header_entry(offset) (eol() / ![_]) eol()* { None }
+            / event:body_attribute_block(offset) (eol() / ![_]) eol()* { Some(event) }
             / comment:metadata_comment_line(offset) eol()* { Some(metadata_comment(state, comment)) }
             / (attribute_or_anchor_line_match() / title_line_match()) eol()* { None }
         )+
@@ -1039,7 +1108,7 @@ peg::parser! {
         rule document_attribute_block(offset: usize) -> Result<Block<'input>, Error>
         = att:document_attribute_match()
         {
-            let name = Cow::Borrowed(att.name);
+            let name = att.attribute_name(state.options.compatibility_mode);
             let location = state.create_block_location(span_start, span_end, offset);
             let event = state
                 .apply_document_attribute(&att, false, location.clone())
@@ -1282,7 +1351,9 @@ peg::parser! {
                         attributes.merge(parsed, state.options.compatibility_mode);
                     },
                     BlockMetadataLine::DocumentAttribute(declaration, location) => {
-                        if let Some(event) = state.apply_document_attribute(
+                        if state.is_untitled_header_entry(location.absolute_start) {
+                            state.apply_untitled_header_entry(&declaration, location);
+                        } else if let Some(event) = state.apply_document_attribute(
                             &declaration,
                             false,
                             location,
@@ -2251,8 +2322,9 @@ peg::parser! {
             }))
         }
 
+        // A dropped `+` before this item leaves no line break to consume.
         rule callout_list_rest_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<(CalloutListItem<'input>, String, usize), Error>
-        = eol()+ item:callout_list_item(offset, block_metadata)
+        = eol()* item:callout_list_item(offset, block_metadata)
         {?
             Ok(item)
         }
@@ -2266,6 +2338,8 @@ peg::parser! {
 
         // Probe for an implicit child without consuming input. A parent marker
         // takes precedence even when its text contains a description delimiter.
+        // An item of an enclosing ordinary list is outside the lines the list
+        // reader gave this item, so it never reaches this rule.
         rule callout_child_marker(offset: usize)
         = !at_callout_parent_item(offset) (
             &(whitespace()* (unordered_list_marker() / ordered_list_marker()) whitespace())
@@ -2305,7 +2379,9 @@ peg::parser! {
 
         rule callout_list_item(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<(CalloutListItem<'input>, String, usize), Error>
         = at_callout_list_item()
+        marker_start:position!()
         marker:callout_list_marker()
+        marker_end:position!()
         whitespace()
         first_line_start:position!()
         // Parse first line (principal text)
@@ -2328,6 +2404,7 @@ peg::parser! {
             / list_explicit_continuation_ancestor(offset, block_metadata)
         ) { cont })*
         list_dangling_continuation()?
+        callout_item_dropped_continuation(offset)?
         {
             let principal = principal?;
             let item_end = calculate_item_end(first_line.is_empty() && continuation_lines.is_empty(), span_start, first_line_end);
@@ -2337,14 +2414,15 @@ peg::parser! {
                 .chain(explicit_continuations)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let location = state.create_location(span_start+offset, item_end+offset);
+            // The marker's location covers `<N>` only; the principal has its own.
+            let location = state.create_location(marker_start+offset, marker_end.saturating_sub(1)+offset);
 
             // Create a placeholder callout - will be resolved in callout_list
             // We pass the marker string to the parent rule for resolution
             let callout = if marker == "<.>" {
-                CalloutMarker::auto(0, location.clone()) // Number will be resolved later
+                CalloutMarker::auto(0, location) // Number will be resolved later
             } else {
-                CalloutMarker::explicit(0, location.clone())
+                CalloutMarker::explicit(0, location)
             };
 
             let actual_end = if blocks.is_empty() { item_end } else { state.end_before_line_breaks(item_end, span_end, offset) - 1 };
@@ -2409,7 +2487,7 @@ peg::parser! {
         // further continuations that belong to the parent item.
         // Pattern: exactly one newline before + (content\n+\nblock)
         rule list_explicit_continuation_immediate(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = eol() !eol() "+" eol()
+        = eol() !eol() "+" eol() !callout_sibling_after_metadata(offset)
           block:block_in_continuation(offset, block_metadata.parent_section_level)
         {
             tracing::debug!("List immediate continuation block (0 empty lines)");
@@ -2423,12 +2501,28 @@ peg::parser! {
         // further continuations that belong to the parent item.
         // Pattern: two or more newlines before + (content\n\n+\nblock)
         rule list_explicit_continuation_ancestor(offset: usize, block_metadata: &BlockParsingMetadata<'input>) -> Result<Block<'input>, Error>
-        = eol() eol()+ "+" eol()
+        = eol() eol()+ "+" eol() !callout_sibling_after_metadata(offset)
           block:block_in_continuation(offset, block_metadata.parent_section_level)
         {
             tracing::debug!("List ancestor continuation block (1+ empty lines)");
             block
         }
+
+        // Asciidoctor drops a `+` that comes before the next item of the callout
+        // list, together with any block metadata between them: the item's lines end
+        // at the sibling (`Parser.read_lines_for_list_item`), and metadata with no
+        // block after it applies to nothing.
+        rule callout_item_dropped_continuation(offset: usize)
+        = eol()+ "+" whitespace()* eol() &callout_sibling_after_metadata(offset)
+          dropped_continuation_metadata()
+
+        rule callout_sibling_after_metadata(offset: usize)
+        = dropped_continuation_metadata() at_callout_parent_item(offset)
+
+        // Block metadata, and comments around it, with no block to apply to.
+        rule dropped_continuation_metadata()
+        = ((metadata_comment_match() eol()*)* block_metadata_line_match() eol()*
+            ((block_metadata_line_match() / metadata_comment_match()) eol()*)*)?
 
         // Asciidoctor drops a continuation with no attachable block, including one
         // followed only by unused metadata. Leave that metadata for the block sequence
@@ -3076,7 +3170,9 @@ peg::parser! {
             Ok(result)
         }
 
-        rule path_char() = ['A'..='Z' | 'a'..='z' | '0'..='9' | '{' | '}' | '_' | '-' | '.' | '/' | '\\' | '%' | '\'' | '"' | '\u{80}'..='\u{10FFFF}' ]
+        // asciidoctor `BlockMediaMacroRx` `(\S|\S.*?\S)\[`: a media target is any text
+        // that neither starts nor ends with whitespace.
+        rule path_char() = !['[' | ' ' | '\t' | '\n' | '\r'] [_]
         rule internal_path_spaces() = [' ']+ &path_char()
         rule path_match() = path_char() (path_char() / internal_path_spaces())*
 
@@ -3144,9 +3240,20 @@ peg::parser! {
         rule document_attribute_match() -> AttributeDeclaration<'input>
         = ":"
         key_entry:(
-            "!" key:$([^':' | '\n']+) { (false, key) }
-            / key:$([^('!' | ':' | '\n')]+) "!" { (false, key) }
-            / key:$([^':' | '\n']+) { (true, key) }
+            entry:(
+                "!" key:$([^':' | '\n']+) { (false, key) }
+                / key:$([^('!' | ':' | '\n')]+) "!" { (false, key) }
+                / key:$([^':' | '\n']+) { (true, key) }
+            ) {?
+                // Asciidoctor reads a line such as `:.name:` as text.
+                if state.options.compatibility_mode == CompatibilityMode::Asciidoctor
+                    && !starts_like_entry_name(entry.1)
+                {
+                    Err("attribute name starting with a word character")
+                } else {
+                    Ok(entry)
+                }
+            }
         )
         ":" &([' ' | '\t' | '\n'] / ![_])
         value:document_attribute_value()?

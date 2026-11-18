@@ -41,6 +41,48 @@ fn block_media_macros_accept_spaced_local_targets() -> TestResult {
     Ok(())
 }
 
+/// asciidoctor's media macros take any target that neither starts nor ends with
+/// whitespace (`BlockMediaMacroRx`, `InlineImageMacroRx`), so common file names with
+/// `@`, parentheses, `+`, `&`, `'`, `,`, `=`, `~`, `!` or `#` are images, not text.
+#[test]
+fn media_macros_accept_the_file_names_asciidoctor_accepts() -> TestResult {
+    let parsed = parse(
+        "image::logo@2x.png[Logo]\n\nimage::diagram (1).png[]\n\nimage::a+b&c'd,e=f~g!h#i.png[]\n\naudio::take (2).mp3[]\n\nInline image:chart(v2).png[] and image:x@2x.png[].\n",
+        &Options::default(),
+    )?;
+    let [
+        BlockKind::Image(at),
+        BlockKind::Image(parens),
+        BlockKind::Image(punctuation),
+        BlockKind::Audio(audio),
+        BlockKind::Paragraph(paragraph),
+    ] = &*parsed
+        .document()
+        .blocks()
+        .map(BlockRef::kind)
+        .collect::<Vec<_>>()
+    else {
+        return Err(unexpected(
+            "expected three images, one audio block and a paragraph",
+            parsed.document().blocks().collect::<Vec<_>>(),
+        ));
+    };
+    assert_eq!(at.source().to_string(), "logo@2x.png");
+    assert_eq!(parens.source().to_string(), "diagram (1).png");
+    assert_eq!(punctuation.source().to_string(), "a+b&c'd,e=f~g!h#i.png");
+    assert_eq!(audio.source().to_string(), "take (2).mp3");
+    let inline = paragraph
+        .content()
+        .inlines()
+        .filter_map(|inline| match inline.kind() {
+            InlineKind::Image(image) => Some(image.source().to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(inline, ["chart(v2).png", "x@2x.png"]);
+    Ok(())
+}
+
 #[test]
 fn inline_images_accept_spaced_encoded_and_attribute_expanded_targets() -> TestResult {
     let parsed = parse(

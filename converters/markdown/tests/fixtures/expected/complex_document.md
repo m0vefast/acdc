@@ -73,7 +73,7 @@ Simple table:
 
 <img src="diagram.png" alt="System Diagram" width="600">
 
-Inline image:![Icon](icon.png) in text.
+Inline ![Icon](image:icon.png) in text.
 
 <a id="_conclusion"></a>
 ## Conclusion

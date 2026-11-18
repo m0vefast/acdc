@@ -165,6 +165,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Inline image alternatives preserve literal trailing dashes in normal images, embedded images, and SVG fallbacks.
 
+- Ordered lists nested deeper than five levels use `arabic` numbering, matching
+  Asciidoctor. Previously the default style kept cycling, so a seventh-level
+  list used `loweralpha`.
+
+- A list renders its items in order, without regrouping them by item level.
+  Parsed documents render as before, because the parser nests lists itself. A
+  list built or edited through the parser API with items at several levels now
+  renders flat, as in the other backends. An item at level 0 no longer drops
+  itself and every item after it.
+
+- `[qanda]` lists render as a numbered list with each question in italics,
+  followed by its answer, matching Asciidoctor's `qlist qanda` markup. They
+  rendered as ordinary description lists before. As in Asciidoctor, `start`
+  and `%reversed` don't apply. The semantic variant keeps its
+  `<dl class="qanda">` markup.
+
 ### Changed
 
 - `pass:r,c[(C)]` now displays © instead of escaped HTML entity text;
@@ -281,6 +297,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in a page.
 
 ### Fixed
+
+- A single-name author, such as `Jane`, no longer ends with a space in the
+  `<meta name="author">` tag and the header, matching Asciidoctor. This also
+  applies to the `html5s` backend.
 
 - Admonition image alternatives now preserve the same resolved caption text as the visible caption.
 

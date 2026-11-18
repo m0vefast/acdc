@@ -16,7 +16,10 @@ use crate::{
     CalloutMarker, CaptionKind, DocumentAttribute, DocumentAttributes, Error, Footnote,
     FootnoteDefinition, Location, Options, Passthrough, SourceLocation, TocEntry, Warning,
     WarningKind, XrefCaptionLabel, XrefSignifier,
-    document_attribute::{AttributeDeclaration, RawAttributeValue, is_header_only},
+    document_attribute::{
+        AttributeDeclaration, RawAttributeValue, is_header_only, normalize_toc_attributes,
+        normalized_entry_name, starts_like_entry_name,
+    },
     grammar::LineMap,
     model::{
         DocumentAttributeStatus, LeveloffsetRange, REFSIG_ATTRIBUTES, SourceRange,
@@ -42,6 +45,20 @@ struct XrefCaptionLabelSnapshots<'a> {
     last: Option<(Weak<DocumentAttributes<'a>>, NonZeroUsize)>,
 }
 
+/// In Asciidoctor mode, a document without a title reads the attribute entries
+/// among the first block's anchors, attribute lists and block titles into its
+/// header. The metadata still belongs to the first block, which applies these
+/// entries in source order.
+#[derive(Debug)]
+pub(super) struct UntitledHeaderEntries<'a> {
+    /// From the first entry's start to the last entry's end.
+    pub(super) range: Range<usize>,
+    /// Where the last entry starts. The header ends once it is applied.
+    pub(super) last_start: usize,
+    /// The header attributes, saved the first time the last entry is applied.
+    pub(super) attributes: Option<Rc<DocumentAttributes<'a>>>,
+}
+
 #[derive(Debug)]
 pub(crate) struct ParserState<'a> {
     pub(super) attribute_sources: Rc<RefCell<Vec<super::attributes::ResolvedContentAttribute<'a>>>>,
@@ -54,6 +71,7 @@ pub(crate) struct ParserState<'a> {
     pub(crate) document_attributes: Rc<DocumentAttributes<'a>>,
     pub(super) header_reftext_source: Option<usize>,
     pub(super) body_reftext_source: Option<usize>,
+    pub(super) untitled_header_entries: Option<UntitledHeaderEntries<'a>>,
     /// Attributes inherited by the current nested document. Asciidoctor-style
     /// table cells may read these values, but attribute entries in the cell
     /// cannot replace or unset them.
@@ -576,6 +594,25 @@ impl<'a> ParserState<'a> {
         }
     }
 
+    /// Warn, in either mode, when Asciidoctor would read an entry's name
+    /// differently: it normalizes the name, or doesn't read the entry at all.
+    fn warn_unnormalized_name(&self, declaration: &AttributeDeclaration<'a>, location: &Location) {
+        let normalized = normalized_entry_name(declaration.name);
+        let starts = starts_like_entry_name(declaration.name);
+        if starts && matches!(normalized, Cow::Borrowed(_)) {
+            return;
+        }
+        let applied = self.options.compatibility_mode == crate::CompatibilityMode::Asciidoctor;
+        self.add_warning(Warning::new(
+            WarningKind::AttributeNameNotNormalized {
+                name: declaration.name.to_owned(),
+                normalized: starts.then(|| normalized.into_owned()),
+                applied,
+            },
+            Some(self.create_error_source_location(location.clone())),
+        ));
+    }
+
     /// Warn when an accepted body entry sets an attribute that only takes
     /// effect in the document header.
     fn warn_header_only_in_body(&self, name: &str, location: &Location) {
@@ -587,6 +624,47 @@ impl<'a> ParserState<'a> {
                 Some(self.create_error_source_location(location.clone())),
             ));
         }
+    }
+
+    /// Whether the attribute entry starting at `offset` belongs to the header
+    /// of a document without a title. See [`UntitledHeaderEntries`].
+    pub(super) fn is_untitled_header_entry(&self, offset: usize) -> bool {
+        self.untitled_header_entries
+            .as_ref()
+            .is_some_and(|entries| entries.range.contains(&offset))
+    }
+
+    /// Apply an entry among the first block's metadata as a header attribute,
+    /// and save the header attributes after the last one.
+    pub(super) fn apply_untitled_header_entry(
+        &mut self,
+        declaration: &AttributeDeclaration<'a>,
+        location: Location,
+    ) {
+        let start = location.absolute_start;
+        self.apply_document_attribute(declaration, true, location);
+        if let Some(entries) = self.untitled_header_entries.as_mut()
+            && entries.last_start == start
+            && entries.attributes.is_none()
+        {
+            normalize_toc_attributes(Rc::make_mut(&mut self.document_attributes));
+            entries.attributes = Some(Rc::clone(&self.document_attributes));
+        }
+    }
+
+    /// The header attributes of a document whose header reads entries among
+    /// the first block's metadata. If the body never applied the last entry,
+    /// this falls back to the current attributes.
+    pub(super) fn take_untitled_header_attributes(&mut self) -> DocumentAttributes<'a> {
+        if let Some(attributes) = self
+            .untitled_header_entries
+            .as_mut()
+            .and_then(|entries| entries.attributes.take())
+        {
+            return Rc::unwrap_or_clone(attributes);
+        }
+        normalize_toc_attributes(Rc::make_mut(&mut self.document_attributes));
+        DocumentAttributes::clone(&self.document_attributes)
     }
 
     /// Apply an attribute entry declared by document content: expand `{attr}`
@@ -601,10 +679,12 @@ impl<'a> ParserState<'a> {
         in_header: bool,
         location: Location,
     ) -> Option<DocumentAttribute<'a>> {
-        let AttributeDeclaration { name, value, .. } = declaration;
+        let AttributeDeclaration { value, .. } = declaration;
         // The text is ignored whether or not policy accepts the unset.
         self.warn_ignored_unset_value(declaration, &location);
-        if *name == "leveloffset"
+        self.warn_unnormalized_name(declaration, &location);
+        let key = declaration.attribute_name(self.options.compatibility_mode);
+        if key == "leveloffset"
             && let Some(scope) = self
                 .leveloffset_scopes
                 .partition_point(|scope| scope.range.start <= location.absolute_start)
@@ -616,7 +696,6 @@ impl<'a> ParserState<'a> {
                 .normalize_assignment("leveloffset".into(), scope.assignment.clone());
             return None;
         }
-        let key = Cow::Borrowed(*name);
         let set = !matches!(value, RawAttributeValue::Unset);
         let previous_attributes = (key == "reftext").then(|| Rc::clone(&self.document_attributes));
         let (value, profile_warning) =
@@ -735,6 +814,7 @@ impl<'a> ParserState<'a> {
             reference_text_context: None,
             header_reftext_source: None,
             body_reftext_source: None,
+            untitled_header_entries: None,
             document_attributes: Rc::new(options.document_attributes.clone()),
             options,
             nested_parent_attributes: None,
@@ -796,6 +876,7 @@ impl<'a> ParserState<'a> {
             reference_text_context: None,
             header_reftext_source: None,
             body_reftext_source: None,
+            untitled_header_entries: None,
             document_attributes: Rc::new(DocumentAttributes::empty()),
             nested_parent_attributes: None,
             hardbreaks: false,
@@ -852,6 +933,7 @@ impl<'a> ParserState<'a> {
             reference_text_context: parent.reference_text_context.clone(),
             header_reftext_source: parent.header_reftext_source,
             body_reftext_source: parent.body_reftext_source,
+            untitled_header_entries: None,
             document_attributes: Rc::clone(&parent.document_attributes),
             nested_parent_attributes: parent.nested_parent_attributes.clone(),
             hardbreaks: parent.hardbreaks,

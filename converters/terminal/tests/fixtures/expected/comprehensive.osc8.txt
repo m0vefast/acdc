@@ -1,5 +1,5 @@
 [1m[4mComprehensive Terminal Test: A Subtitle[0m
-[3mby [0m[3mFirst [0m[3mAuthor[0m[3m <first@example.com>[0m, [3mJane [0m[3mM. [0m[3mDoe[0m[3m <jane@example.com>[0m
+[3mby [0m[3mFirst Author[0m[3m <first@example.com>[0m, [3mJane M. Doe[0m[3m <jane@example.com>[0m
 [2mVersion 1.2[0m[2m, [0m[2m2024-03-15[0m
 [2m[3mSpring release[0m
 
@@ -79,9 +79,9 @@ A pass-through: <raw>content</raw>.
 [38;5;15m[1m3.2. Ordered lists[0m
 
 1. First
-  1. Sub-first
-    1. Sub-sub-first
-  2. Sub-second
+   a. Sub-first
+      i. Sub-sub-first
+   b. Sub-second
 2. Second
 3. Third
 

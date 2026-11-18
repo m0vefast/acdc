@@ -541,6 +541,152 @@ fn trailing_header_comments_outside_the_span_are_highlighted() -> TestResult {
     Ok(())
 }
 
+/// In Asciidoctor mode, the header of a document without a title reads the
+/// entries among the first block's metadata, so its span covers that metadata.
+/// Draft mode leaves those entries in the body. Either way, each entry is
+/// highlighted once.
+#[test]
+fn entries_among_first_block_metadata_are_highlighted_once() -> TestResult {
+    let source =
+        ":a: 1\n\n[[x]]\n// note\n:b: 2 \\\ncontinued\n////\n:x: y\n////\n:c: 3\n[.role]\nPara\n";
+    for mode in MODES {
+        let tokens = decoded_in(source, &options(mode)?)?;
+        let message = format!("{mode:?}: {tokens:?}");
+        assert!(has_token(&tokens, 0, "a", "property"), "{message}");
+        assert!(has_token(&tokens, 2, "[[x]]", "decorator"), "{message}");
+        assert!(has_token(&tokens, 3, "// note", "comment"), "{message}");
+        assert!(has_token(&tokens, 4, ":b: ", "property"), "{message}");
+        assert!(has_token(&tokens, 5, "continued", "string"), "{message}");
+        assert!(has_token(&tokens, 6, "////", "operator"), "{message}");
+        assert!(has_token(&tokens, 7, ":x: y", "comment"), "{message}");
+        assert!(has_token(&tokens, 8, "////", "operator"), "{message}");
+        assert!(has_token(&tokens, 9, ":c: ", "property"), "{message}");
+        assert!(has_token(&tokens, 10, "[.role]", "property"), "{message}");
+        assert!(!has_kind_on_line(&tokens, 11, "property"), "{message}");
+    }
+    assert_eq!(
+        decoded_in(source, &options(CompatibilityMode::Asciidoctor)?)?,
+        decoded_in(source, &options(CompatibilityMode::Draft)?)?
+    );
+    Ok(())
+}
+
+/// The parser drops the comments among a block's metadata, so they are
+/// highlighted from the source, for any block.
+#[test]
+fn comments_among_block_metadata_are_highlighted_as_comments() -> TestResult {
+    let metadata = "[[x]]\n// note\n////\n[.hidden]\n////\n[.role]\nPara\n";
+    for mode in MODES {
+        for (before, after) in [
+            ("", ""),
+            ("= Title\n\n", ""),
+            ("Intro.\n\n", ""),
+            ("= Title\n\nIntro.\n\n", ""),
+            ("= Title\n\n====\n", "====\n"),
+            ("* Item\n+\n", ""),
+        ] {
+            let source = format!("{before}{metadata}{after}");
+            let tokens = decoded_in(&source, &options(mode)?)?;
+            let message = format!("{mode:?} {source:?}: {tokens:?}");
+            let first = u32::try_from(before.lines().count())?;
+            for (offset, spelling, kind) in [
+                (0, "[[x]]", "decorator"),
+                (1, "// note", "comment"),
+                (2, "////", "operator"),
+                (3, "[.hidden]", "comment"),
+                (4, "////", "operator"),
+                (5, "[.role]", "property"),
+            ] {
+                assert!(
+                    has_token(&tokens, first + offset, spelling, kind),
+                    "{message}"
+                );
+            }
+            for line in [first + 1, first + 3, first + 6] {
+                assert!(!has_kind_on_line(&tokens, line, "property"), "{message}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Lines that only look like comments among block metadata keep their tokens:
+/// a wrapped attribute value, and a comment block delimiter that an inactive
+/// conditional removes.
+#[test]
+fn metadata_lines_that_look_like_comments_keep_their_tokens() -> TestResult {
+    for mode in MODES {
+        let source = "Intro.\n\n[[x]]\n:a: one \\\n// two\n[.role]\nPara\n";
+        let tokens = decoded_in(source, &options(mode)?)?;
+        let message = format!("{mode:?} {source:?}: {tokens:?}");
+        assert!(has_token(&tokens, 4, "// two", "string"), "{message}");
+        assert!(has_token(&tokens, 5, "[.role]", "property"), "{message}");
+
+        let source = "Intro.\n\n[[x]]\nifdef::missing[]\n////\nendif::[]\n[.role]\nPara\n";
+        let tokens = decoded_in(source, &options(mode)?)?;
+        let message = format!("{mode:?} {source:?}: {tokens:?}");
+        assert!(has_kind_on_line(&tokens, 3, "keyword"), "{message}");
+        assert!(has_kind_on_line(&tokens, 5, "keyword"), "{message}");
+        assert!(has_token(&tokens, 6, "[.role]", "property"), "{message}");
+    }
+    Ok(())
+}
+
+/// Asciidoctor mode normalizes the name an entry sets, such as `my-attr` for
+/// `:My-Attr:`, but the entry's name is highlighted as written.
+#[test]
+fn entries_with_names_that_are_not_normalized_are_highlighted() -> TestResult {
+    for mode in MODES {
+        for (source, line, name, value) in [
+            (
+                "= Title\n:My-Attr: value\n\nPara\n",
+                1,
+                "My-Attr",
+                Some("value"),
+            ),
+            ("Para\n\n:My-Attr: value\n", 2, "My-Attr", Some("value")),
+            ("Para\n\n:!Other.Name:\n", 2, "Other.Name", None),
+        ] {
+            let tokens = decoded_in(source, &options(mode)?)?;
+            let message = format!("{mode:?} {source:?}: {tokens:?}");
+            assert!(has_token(&tokens, line, name, "property"), "{message}");
+            if let Some(value) = value {
+                assert!(has_token(&tokens, line, value, "string"), "{message}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// References follow the parser's name rule: names may contain any letter,
+/// mark, or decimal digit, and start with a word character. Draft mode also
+/// accepts the join controls U+200C and U+200D.
+#[test]
+fn references_with_unicode_names_are_highlighted() -> TestResult {
+    for (mode, expected) in [
+        (
+            CompatibilityMode::Asciidoctor,
+            &["{café}", "{CAFÉ}", "{b}"][..],
+        ),
+        (
+            CompatibilityMode::Draft,
+            &["{café}", "{CAFÉ}", "{b}", "{a\u{200C}b}"][..],
+        ),
+    ] {
+        let tokens = decoded_in(
+            "{café} {CAFÉ} {-x} {x²} {a {b} {a\u{200C}b}\n",
+            &options(mode)?,
+        )?;
+        let references: Vec<_> = tokens
+            .iter()
+            .filter(|token| token.3 == "property")
+            .map(|token| token.2.as_str())
+            .collect();
+        assert_eq!(references, expected, "{mode:?}: {tokens:?}");
+    }
+    Ok(())
+}
+
 #[test]
 fn wrapped_values_are_highlighted_on_every_line() -> TestResult {
     for mode in MODES {
@@ -675,6 +821,58 @@ fn header_highlighting_stops_at_included_text() -> TestResult {
         );
         assert!(
             has_token(&tokens, 3, "// note", "comment"),
+            "{mode:?}: {tokens:?}"
+        );
+    }
+    Ok(())
+}
+
+// A comment line inside a paragraph is removed before parsing; the callout
+// list marker after it must still be highlighted on its own line.
+#[test]
+fn callout_list_markers_stay_on_their_line_after_removed_lines() -> TestResult {
+    let source = "Text\n// A comment line.\n\n----\nputs 1 # <1>\n----\n<1> First callout\n";
+    for mode in MODES {
+        let tokens = decoded_in(
+            source,
+            &Options::builder().with_compatibility_mode(mode).build()?,
+        )?;
+        assert!(
+            tokens.iter().any(|token| (token.0, token.1) == (6, 0)
+                && token.2.starts_with("<1>")
+                && token.3 == "operator"),
+            "{mode:?}: {tokens:?}"
+        );
+        assert!(
+            tokens
+                .iter()
+                .filter(|token| token.0 == 5)
+                .all(|token| token.2 == "----"),
+            "{mode:?}: {tokens:?}"
+        );
+    }
+    Ok(())
+}
+
+// The marker token covers `<1>` only; the explanation text is not an operator.
+#[test]
+fn callout_list_marker_token_covers_only_the_marker() -> TestResult {
+    let source = "----\nputs 1 # <1>\n----\n<1> A *bold* explanation\n";
+    for mode in MODES {
+        let tokens = decoded_in(
+            source,
+            &Options::builder().with_compatibility_mode(mode).build()?,
+        )?;
+        let line: Vec<_> = tokens.iter().filter(|token| token.0 == 3).collect();
+        let operators: Vec<_> = line
+            .iter()
+            .filter(|token| token.3 == "operator")
+            .map(|token| (token.1, token.2.as_str()))
+            .collect();
+        assert_eq!(operators, [(0, "<1>")], "{mode:?}: {tokens:?}");
+        assert!(
+            line.iter()
+                .any(|token| token.2 == "*bold*" && token.3 == "variable"),
             "{mode:?}: {tokens:?}"
         );
     }

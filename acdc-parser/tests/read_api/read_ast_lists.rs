@@ -186,6 +186,86 @@ fn callout_items_preserve_marker_kinds_numbers_and_continuations(
     Ok(())
 }
 
+// Lines removed before parsing must not move a callout item's marker off its line.
+#[rstest::rstest]
+fn callout_item_markers_stay_on_their_source_line(
+    #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
+    #[values(
+        "Text\n// A comment line.\n\n",
+        "ifdef::missing[]\nHidden\nendif::[]\n\n"
+    )]
+    prefix: &str,
+) -> Result<(), Error> {
+    let source = format!("{prefix}----\nputs 1 # <1>\n----\n<1> First callout\n");
+    let parsed = parse(
+        &source,
+        &Options::builder().with_compatibility_mode(mode).build()?,
+    )?;
+    let item = parsed
+        .document()
+        .blocks()
+        .find_map(|block| {
+            if let BlockKind::CalloutList(list) = block.kind() {
+                list.items().next()
+            } else {
+                None
+            }
+        })
+        .ok_or("callout item")?;
+    let line = source
+        .lines()
+        .position(|line| line.starts_with("<1>"))
+        .ok_or("item line")?
+        + 1;
+    let marker = item.callout().location();
+    assert_eq!(marker.start().line(), u32::try_from(line)?);
+    assert_eq!(marker.absolute_start(), item.location().absolute_start());
+    Ok(())
+}
+
+// A callout list item's marker location covers the marker, not the explanation.
+#[rstest::rstest]
+fn callout_item_marker_locations_cover_only_the_marker(
+    #[values(CompatibilityMode::Asciidoctor, CompatibilityMode::Draft)] mode: CompatibilityMode,
+    #[values(
+        "----\na <1>\nb <2>\n----\n<1> First\n<2> Second *bold*\n",
+        "----\na <.>\nb <.>\n----\n<.> First\n<.> Second *bold*\n"
+    )]
+    source: &str,
+) -> Result<(), Error> {
+    let parsed = parse(
+        source,
+        &Options::builder().with_compatibility_mode(mode).build()?,
+    )?;
+    let list = parsed
+        .document()
+        .blocks()
+        .find_map(|block| {
+            if let BlockKind::CalloutList(list) = block.kind() {
+                Some(list)
+            } else {
+                None
+            }
+        })
+        .ok_or("callout list")?;
+    let mut count = 0;
+    for item in list.items() {
+        let marker = item.callout().location();
+        let line_start = item.location().absolute_start();
+        let expected = source[line_start..]
+            .split_whitespace()
+            .next()
+            .ok_or("marker text")?;
+        assert_eq!(
+            source.get(marker.absolute_start()..=marker.absolute_end()),
+            Some(expected)
+        );
+        count += 1;
+    }
+    assert_eq!(count, 2);
+    Ok(())
+}
+
 #[test]
 fn included_description_delimiters_keep_unicode_source_coordinates() -> Result<(), Error> {
     let directory = tempfile::tempdir()?;

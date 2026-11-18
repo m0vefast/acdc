@@ -394,9 +394,12 @@ fn record_include_directive(
     else {
         return;
     };
-    let resolved_target =
-        crate::substitute_attributes(target, |name| options.document_attributes.get(name))
-            .into_owned();
+    let resolved_target = crate::model::substitution::substitute_attributes(
+        target,
+        options.document_attributes.reference_mode(),
+        |name| options.document_attributes.get(name),
+    )
+    .into_owned();
     let path = lexical_path::normalize_lexical(Path::new(&resolved_target))
         .to_string_lossy()
         .into_owned();
@@ -1063,7 +1066,7 @@ impl Preprocessor {
         source_origin: Option<&SourceOrigin>,
         options: &Options,
         include_context: IncludeContext,
-    ) -> Result<Option<IncludeResult>, Error> {
+    ) -> Result<Option<Box<IncludeResult>>, Error> {
         let Some(source_origin) = source_origin else {
             self.recover_content_at(
                 format!("source origin is missing; include directive cannot be processed: {line}"),
@@ -1196,11 +1199,12 @@ impl Preprocessor {
     /// to be relative to the current output position. This enables proper accumulation
     /// through arbitrarily deep include nesting.
     fn handle_include_result(
-        include_result: IncludeResult,
+        include_result: Box<IncludeResult>,
         state: &mut PreprocessorState<'_>,
         input_line: usize,
         directive: &str,
     ) {
+        let include_result = *include_result;
         if include_result.synthetic {
             let stands_for = StandsFor::new(directive, &include_result.content);
             state.push_chunk(include_result.content, input_line, Some(stands_for));

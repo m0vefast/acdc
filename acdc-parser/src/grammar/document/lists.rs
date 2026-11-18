@@ -39,7 +39,8 @@ pub(super) fn ordinary_list<'a>(
     let callout = state.callout_list_offset == Some(offset);
     let stop = |line: &str| callout && list_reader::callout_parent_line(line);
     let placeholders = state.placeholder_lines.clone();
-    let lines = read_list(source, pos + offset, input_len + offset, &placeholders, &stop);
+    let draft = state.options.compatibility_mode == crate::CompatibilityMode::Draft;
+    let lines = read_list(source, pos + offset, input_len + offset, &placeholders, &stop, draft);
     let consumed = lines.consumed_end - offset;
     let ListContent { text, removals, spans, placeholders } = list_content(source, &lines);
     let base = lines.items.first().map_or(pos + offset, |item| item.marker_line.start);
@@ -62,10 +63,15 @@ pub(super) fn ordinary_list<'a>(
             }
         },
     );
-    let items = match items {
+    let mut items = match items {
         Ok(items) => items,
         Err(error) => return (Err(error), consumed),
     };
+    for (item, read) in items.iter_mut().zip(&lines.items) {
+        if !item.blocks.is_empty() {
+            extend_over_dropped(state, &mut item.location, read);
+        }
+    }
     let end = items.last().map_or(pos + offset, |item| item.location.absolute_end);
     let marker = items.first().map_or("", |item| item.marker);
     let title = if is_nested { Title::default() } else { metadata.title.clone() };
@@ -96,7 +102,8 @@ pub(super) fn description_list<'a>(
     let callout = state.callout_list_offset == Some(offset);
     let stop = |line: &str| callout && list_reader::callout_parent_line(line);
     let placeholders = state.placeholder_lines.clone();
-    let (delimiter, lines) = read_description_list(source, pos + offset, input_len + offset, &placeholders, &stop)?;
+    let draft = state.options.compatibility_mode == crate::CompatibilityMode::Draft;
+    let (delimiter, lines) = read_description_list(source, pos + offset, input_len + offset, &placeholders, &stop, draft)?;
     let consumed = lines.consumed_end - offset;
     let ListContent { text, removals, spans, placeholders } = list_content(source, &lines);
     let base = lines.items.first().map_or(pos + offset, |item| item.marker_line.start);
@@ -148,6 +155,19 @@ pub(super) fn description_list<'a>(
         })
     });
     Some((block, consumed))
+}
+
+/// An item with blocks ends at the last line the reader gave it (`list_item`'s
+/// `to - 1`), a dropped line included: its bytes are not in the content, so
+/// that end cannot be reached through the content.
+fn extend_over_dropped(state: &ParserState<'_>, location: &mut Location, read: &list_reader::ItemLines) {
+    if let Some(last) = read.buffer.last()
+        && last.kind == LineKind::Dropped
+        && last.end > last.start
+        && last.end - 1 > location.absolute_end
+    {
+        *location = state.create_location(location.absolute_start, last.end - 1);
+    }
 }
 
 /// One term and its definition from its span of the list content: the item
@@ -286,9 +306,13 @@ fn list_content(source: &str, lines: &ListLines) -> ListContent {
                 item_start = content.len();
             }
             content.push_str(line.text(source));
-            if line.kind == LineKind::Placeholder {
-                placeholders.push(content.len());
-                remove(content.len(), line.end - line.start, &mut removals);
+            match line.kind {
+                LineKind::Placeholder => {
+                    placeholders.push(content.len());
+                    remove(content.len(), line.end - line.start, &mut removals);
+                }
+                LineKind::Dropped => remove(content.len(), line.end - line.start, &mut removals),
+                LineKind::Source | LineKind::Continuation => {}
             }
             previous_end = Some(line.end);
         }

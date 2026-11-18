@@ -31,10 +31,6 @@ bumpalo = { version = "3", features = ["collections"] }
 chrono.workspace = true
 csv = "1.4"
 encoding_rs = "0.8"
-# Pinned exactly: evalexpr relicensed to AGPL-3.0-only at v12.0.0; 11.3.1 is
-# the last MIT release, and this crate is statically linked into closed-source
-# apps. `eval_float` / `eval_int` behave identically on 11.3.1.
-evalexpr = "=11.3.1"
 jsonschema = { version = "0.59", optional = true, default-features = false }
 peg = "0.8.6"
 regex-syntax = { version = "0.8", default-features = false, features = ["unicode-perl"] }

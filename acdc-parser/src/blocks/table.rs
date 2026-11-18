@@ -587,7 +587,7 @@ impl CellSpecifier {
 /// Recursive parsers consuming the cell content (in particular the
 /// `AsciiDoc`-style `a|` cell) must use `content_start` so that diagnostics
 /// resolve to the line of the offending token, not the cell's style prefix.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ParsedCell {
     pub(crate) content: String,
     pub(crate) start: usize,
@@ -631,14 +631,24 @@ impl TableLimitViolation {
 /// A header is indicated only if the first non-empty line after the blank
 /// contains a separator. If it's a continuation line (no separator), it's content
 /// that attaches to the previous cell, not a header indicator.
-fn detect_header_after_first_row(lines: &[&str], start_idx: usize, separator: &str) -> bool {
+fn detect_header_after_first_row(lines: &[&str], start_idx: usize, format: TableFormat, separator: &str) -> bool {
     for &line in lines.iter().skip(start_idx) {
         let trimmed = line.trim_end();
         if !trimmed.is_empty() {
-            return trimmed.contains(separator);
+            return if format == TableFormat::Psv { opens_cell(trimmed, separator) } else { trimmed.contains(separator) };
         }
     }
     false
+}
+
+/// `Parser.parse_cellspec line, :start`: the line opens a cell when the text
+/// before its first separator is a cell specifier (or blank). Otherwise it
+/// continues the last cell, which cancels the implicit header (`parse_table`).
+fn opens_cell(line: &str, separator: &str) -> bool {
+    line.split_once(separator).is_some_and(|(before, _)| {
+        let spec = before.trim_start_matches([' ', '\t']);
+        spec.is_empty() || CellSpecifier::parse(spec).1 == spec.len()
+    })
 }
 
 /// Split a part's content into `(content_before_spec, trailing_specifier)`.
@@ -723,24 +733,22 @@ fn scan_cells(text: &str, separator: &str, base_offset: usize) -> Vec<ParsedCell
     cells
 }
 
-/// Number of PSV cells on the first non-empty physical line of the body.
-///
-/// Without `cols`, the columns are the first line's column visits: one per
+/// Without `cols`, the columns are the first row's column visits: one per
 /// cell, a colspan's extra columns, one per repeat
-/// (`Table::ParserContext#close_cell` while `@colcount == -1`).
-fn first_line_column_count(cells: &[ParsedCell], text: &str, base_offset: usize) -> usize {
-    let mut line_start = 0;
-    let first_line_end = text
-        .split_inclusive('\n')
-        .find_map(|line| {
-            let start = line_start;
-            line_start += line.len();
-            (!line.trim().is_empty()).then(|| start + line.trim_end_matches(['\n', '\r']).len())
-        })
-        .unwrap_or(0);
-    cells
+/// (`Table::ParserContext#close_cell` while `@colcount == -1`). The first row
+/// closes when a later line opens a cell, which closes the open cell at its end
+/// of line (`close_open_cell`), or at the end of the table.
+fn first_row_column_count(cells: &[ParsedCell], text: &str, base_offset: usize, separator: &str) -> usize {
+    let separator_len = separator.chars().next().map_or(1, char::len_utf8);
+    let opens_line = |cell: &ParsedCell| {
+        let delimiter = cell.start - base_offset - separator_len;
+        let line_start = text[..delimiter].rfind('\n').map_or(0, |n| n + 1);
+        let spec = text[line_start..delimiter].trim_start_matches([' ', '\t']);
+        spec.is_empty() || CellSpecifier::parse(spec).1 == spec.len()
+    };
+    let row_end = cells.iter().skip(1).position(opens_line).map_or(cells.len(), |n| n + 1);
+    cells[..row_end]
         .iter()
-        .take_while(|cell| cell.start <= base_offset + first_line_end)
         .map(|cell| if cell.spec.is_duplication { cell.spec.duplication_count } else { cell.spec.colspan })
         .sum()
 }
@@ -810,15 +818,18 @@ fn validate_row_widths(rows: &[Vec<ParsedCell>]) -> Result<(), TableLimitViolati
     Ok(())
 }
 
-/// Group a flat cell stream into rows of `ncols` columns.
+/// Group a flat cell stream into rows of `ncols` columns, as asciidoctor's
+/// `Table::ParserContext#close_cell` does (`table.rb:617-728`).
 ///
-/// Placement is colspan-, duplication-, and rowspan-aware: a cell spanning
-/// columns occupies them, a `k*` cell occupies `k` columns (and is expanded
-/// downstream), and a `.n+` rowspan reserves its column position in the next
-/// `n - 1` rows so those rows need fewer new cells. A trailing partial row that
-/// cannot be completed is dropped, matching asciidoctor; its inclusive
-/// `(start, end)` document offsets are written to `dropped` so the caller can
-/// warn about it.
+/// Rows are counted, not laid out: each cell adds its colspan to the row's
+/// visits, and a `.n+` rowspan adds its colspan to each of the next `n - 1`
+/// rows (`@active_rowspans`). A row closes once visits plus the rowspans
+/// reaching it equal `ncols`; one that overruns it is dropped whole. A `k*`
+/// cell is placed copy by copy (`repeatcol`), so its copies may wrap onto the
+/// next row. A trailing row left incomplete is dropped too. A row dropped for
+/// overrunning `ncols` stays as an empty row, since the rowspans still pass
+/// over it. The inclusive `(start, end)` document offsets of a dropped row are
+/// written to `dropped` so the caller can warn about it.
 fn group_cells_into_rows(
     cells: Vec<ParsedCell>,
     ncols: usize,
@@ -826,73 +837,85 @@ fn group_cells_into_rows(
 ) -> Result<Vec<Vec<ParsedCell>>, TableLimitViolation> {
     let ncols = ncols.max(1);
     let mut rows = Vec::new();
-    // Columns occupied by rowspans carried down from earlier rows.
-    let mut active: Vec<(usize, usize, usize)> = Vec::new(); // (col, remaining_rows, width)
-    let mut iter = cells.into_iter();
-    let mut next = iter.next();
+    let mut active: std::collections::VecDeque<usize> = std::collections::VecDeque::from([0]);
+    let mut visits = 0;
+    let mut row: Vec<ParsedCell> = Vec::new();
 
-    while next.is_some() {
-        let mut row = Vec::new();
-        let mut new_spans: Vec<(usize, usize, usize)> = Vec::new();
-        let mut col = 0;
-
-        while col < ncols {
-            // Skip columns occupied by an active rowspan from a previous row.
-            if let Some(&(_, _, width)) = active
-                .iter()
-                .find(|(pos, _, width)| col >= *pos && col < pos + width)
-            {
-                col += width;
+    for cell in cells {
+        let copies = if cell.spec.is_duplication {
+            cell.spec.duplication_count.max(1)
+        } else {
+            1
+        };
+        let colspan = cell.spec.colspan.max(1);
+        for _ in 0..copies {
+            if cell.spec.rowspan > 1 {
+                if active.len() < cell.spec.rowspan {
+                    active.resize(cell.spec.rowspan, 0);
+                }
+                for taken in active.iter_mut().skip(1).take(cell.spec.rowspan - 1) {
+                    *taken += colspan;
+                }
+            }
+            visits += colspan;
+            push_cell_copy(&mut row, &cell);
+            let filled = visits + active.front().copied().unwrap_or(0);
+            if filled < ncols {
                 continue;
             }
-            let Some(cell) = next.take() else {
-                break;
-            };
-            next = iter.next();
-
-            let occupied = if cell.spec.is_duplication {
-                cell.spec.duplication_count.max(1) * cell.spec.colspan.max(1)
+            let row_cells = std::mem::take(&mut row);
+            if filled == ncols {
+                if rows.len() == MAX_TABLE_ROWS {
+                    let (start, end) = row_cells
+                        .first()
+                        .zip(row_cells.last())
+                        .map_or((0, 0), |(first, last)| (first.start, last.end));
+                    return Err(TableLimitViolation::new(
+                        "row count",
+                        rows.len() + 1,
+                        MAX_TABLE_ROWS,
+                        start,
+                        end,
+                    ));
+                }
+                rows.push(row_cells);
             } else {
-                cell.spec.colspan.max(1)
-            };
-            if cell.spec.rowspan > 1 {
-                new_spans.push((col, cell.spec.rowspan - 1, occupied));
+                if dropped.is_none()
+                    && let (Some(first), Some(last)) = (row_cells.first(), row_cells.last())
+                {
+                    *dropped = Some((first.start, last.end));
+                }
+                // The dropped row still ages the rowspans; an empty row marks it.
+                rows.push(Vec::new());
             }
-            row.push(cell);
-            col += occupied;
-        }
-
-        if col < ncols {
-            // Incomplete final row — asciidoctor drops it and warns. Capture
-            // the span of the dropped cells for the warning location.
-            if let (Some(first), Some(last)) = (row.first(), row.last()) {
-                *dropped = Some((first.start, last.end));
+            visits = 0;
+            active.pop_front();
+            if active.is_empty() {
+                active.push_back(0);
             }
-            break;
         }
-        if rows.len() == MAX_TABLE_ROWS {
-            let (start, end) = row
-                .first()
-                .zip(row.last())
-                .map_or((0, 0), |(first, last)| (first.start, last.end));
-            return Err(TableLimitViolation::new(
-                "row count",
-                rows.len() + 1,
-                MAX_TABLE_ROWS,
-                start,
-                end,
-            ));
-        }
-        rows.push(row);
-        // Age existing rowspans, then add the ones introduced by this row.
-        active.retain_mut(|(_, remaining, _)| {
-            *remaining -= 1;
-            *remaining > 0
-        });
-        active.extend(new_spans);
     }
 
+    if let (Some(first), Some(last)) = (row.first(), row.last()) {
+        *dropped = Some((first.start, last.end));
+    }
     Ok(rows)
+}
+
+/// Adds one copy of `cell` to `row`: a further copy of a `k*` cell already
+/// ending the row widens that entry, so each row holds one entry per source
+/// cell and its copies are expanded downstream.
+fn push_cell_copy(row: &mut Vec<ParsedCell>, cell: &ParsedCell) {
+    if cell.spec.is_duplication
+        && let Some(last) = row.last_mut()
+        && last.start == cell.start
+    {
+        last.spec.duplication_count += 1;
+        return;
+    }
+    let mut copy = cell.clone();
+    copy.spec.duplication_count = 1;
+    row.push(copy);
 }
 
 impl Table<'_> {
@@ -923,7 +946,7 @@ impl Table<'_> {
         if lines.first().is_some_and(|l| l.trim().is_empty()) {
             *has_header = false;
         } else if lines.get(1).is_some_and(|l| l.trim().is_empty())
-            && detect_header_after_first_row(&lines, 1, separator)
+            && detect_header_after_first_row(&lines, 1, format, separator)
         {
             tracing::debug!("Detected table header via blank line after first row");
             *has_header = true;
@@ -942,7 +965,7 @@ impl Table<'_> {
         validate_cell_specifiers(&cells)?;
         let ncols = ncols
             .filter(|&n| n > 0)
-            .unwrap_or_else(|| first_line_column_count(&cells, text, base_offset));
+            .unwrap_or_else(|| first_row_column_count(&cells, text, base_offset, separator));
         if ncols > MAX_TABLE_COLUMNS {
             return Err(TableLimitViolation::new(
                 "column count",

@@ -1,11 +1,11 @@
-use std::{io::Write, iter::Peekable};
+use std::io::Write;
 
 use acdc_converters_core::{TraversalContext, list::OrderedListNumbering};
 use acdc_parser::{
     ListItemCheckedStatus,
     ast::{
-        AttributeValueRef, BlockKind, BlockRef, CalloutListRef, DescriptionListRef,
-        DescriptionListTermRef, ListItemRef, OrderedListRef, UnorderedListRef,
+        AttributeValueRef, BlockKind, BlockRef, CalloutListRef, DescriptionListDefinitionRef,
+        DescriptionListRef, DescriptionListTermRef, ListItemRef, OrderedListRef, UnorderedListRef,
     },
 };
 
@@ -14,23 +14,6 @@ use crate::{Error, HtmlVariant, HtmlVisitor, build_class, write_element_id};
 /// Check if any list item has a checkbox
 fn has_checklist_items<'doc>(mut items: impl Iterator<Item = ListItemRef<'doc>>) -> bool {
     items.any(|item| item.checked().is_some())
-}
-
-/// The numbering style for a list at the given nesting `depth`.
-/// Cycles through: arabic -> loweralpha -> lowerroman -> upperalpha -> upperroman -> arabic...
-///
-/// Note: This differs from asciidoctor, which stops cycling after depth 5 and uses
-/// `arabic` for all depths > 5. We intentionally continue cycling to provide better
-/// visual distinction in deeply nested lists (6+ levels). This is a design decision
-/// that improves usability for deep hierarchies while maintaining consistency.
-fn numbering_for_depth(depth: u8) -> OrderedListNumbering {
-    match depth % 5 {
-        2 => OrderedListNumbering::LowerAlpha, // a, b, c
-        3 => OrderedListNumbering::LowerRoman, // i, ii, iii
-        4 => OrderedListNumbering::UpperAlpha, // A, B, C
-        0 => OrderedListNumbering::UpperRoman, // I, II, III (depth 5, 10, 15...)
-        _ => OrderedListNumbering::Arabic,     // 1, 2, 3 (depth 1, 6, 11...)
-    }
 }
 
 /// Map a numbering style to its CSS class and `<ol type>` value. The `(class, type)`
@@ -58,7 +41,7 @@ fn resolve_ordered_list_style(style: Option<&str>, depth: u8) -> (&str, Option<&
         };
     }
 
-    numbering_class_and_type(numbering_for_depth(depth))
+    numbering_class_and_type(OrderedListNumbering::for_depth(usize::from(depth)))
 }
 
 impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
@@ -127,13 +110,10 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
         } else {
             writeln!(self.writer, "<ul>")?;
         }
-        render_nested_list_items(
+        render_list_items(
             traversal,
-            &mut data.items().peekable(),
+            data.items(),
             self,
-            1,
-            false,
-            1,
             data.options().contains("interactive"),
         )?;
         writeln!(self.writer, "</ul>")?;
@@ -205,13 +185,10 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
             write!(self.writer, " reversed")?;
         }
         writeln!(self.writer, ">")?;
-        render_nested_list_items(
+        render_list_items(
             traversal,
-            &mut data.items().peekable(),
+            data.items(),
             self,
-            1,
-            true,
-            1,
             data.options().contains("interactive"),
         )?;
         writeln!(self.writer, "</ol>")?;
@@ -326,106 +303,18 @@ fn visit_callout_list_semantic<'a, W: Write>(
     Ok(())
 }
 
-fn render_checked_status_list<W: Write + ?Sized>(
-    is_ordered: bool,
-    checked: Option<&ListItemCheckedStatus>,
-    depth: u8,
-    writer: &mut W,
-    semantic: bool,
-) -> Result<(), Error> {
-    // Open nested list
-    if is_ordered {
-        let (style, type_attr) = numbering_class_and_type(numbering_for_depth(depth));
-        if !semantic {
-            write!(writer, "<div class=\"olist {style}")?;
-            if checked.is_some() {
-                writeln!(writer, " checklist\">")?;
-            } else {
-                writeln!(writer, "\">")?;
-            }
-        }
-
-        write!(writer, "<ol class=\"{style}")?;
-        if checked.is_some() {
-            write!(writer, " checklist\"")?;
-        } else {
-            write!(writer, "\"")?;
-        }
-        if let Some(t) = type_attr {
-            writeln!(writer, " type=\"{t}\">")?;
-        } else {
-            writeln!(writer, ">")?;
-        }
-    } else {
-        if !semantic {
-            // check if the item is a checkbox item
-            write!(writer, "<div class=\"ulist")?;
-            if checked.is_some() {
-                writeln!(writer, " checklist\">")?;
-            } else {
-                writeln!(writer, "\">")?;
-            }
-        }
-        write!(writer, "<ul")?;
-        if checked.is_some() {
-            if semantic {
-                writeln!(writer, " class=\"task-list\">")?;
-            } else {
-                writeln!(writer, " class=\"checklist\">")?;
-            }
-        } else {
-            writeln!(writer, ">")?;
-        }
-    }
-    Ok(())
-}
-
-/// `interactive` applies only to this list level. `depth` selects the ordered-list
-/// numbering style (1 = top level).
+/// Render a list's items in order. The parser nests lists, so an item's level
+/// doesn't affect its placement. `interactive` applies only to this list.
 #[tracing::instrument(skip(visitor, traversal, items))]
-fn render_nested_list_items<'a, W: Write>(
+fn render_list_items<'a, W: Write>(
     traversal: &mut TraversalContext<'a>,
-    items: &mut Peekable<impl Iterator<Item = ListItemRef<'a>>>,
+    items: impl Iterator<Item = ListItemRef<'a>>,
     visitor: &mut HtmlVisitor<'a, '_, W>,
-    expected_level: u8,
-    is_ordered: bool,
-    depth: u8,
     interactive: bool,
 ) -> Result<(), Error> {
     let semantic = visitor.converter.variant() == HtmlVariant::Semantic;
-    let wrap_li_in_p = !semantic;
-    while let Some(item) = items.next_if(|item| item.level() >= expected_level) {
+    for item in items {
         render_list_item_content(traversal, item, visitor, interactive, semantic)?;
-        if item.level() == expected_level
-            && let Some(next) = items.peek().copied()
-            && next.level() > expected_level
-        {
-            render_checked_status_list(
-                is_ordered,
-                next.checked().as_ref(),
-                depth + 1,
-                visitor.writer_mut(),
-                !wrap_li_in_p,
-            )?;
-            render_nested_list_items(
-                traversal,
-                items,
-                visitor,
-                next.level(),
-                is_ordered,
-                depth + 1,
-                false,
-            )?;
-            let writer = visitor.writer_mut();
-            if is_ordered {
-                writeln!(writer, "</ol>")?;
-            } else {
-                writeln!(writer, "</ul>")?;
-            }
-            if wrap_li_in_p {
-                writeln!(writer, "</div>")?;
-            }
-        }
         writeln!(visitor.writer_mut(), "</li>")?;
     }
     Ok(())
@@ -487,12 +376,10 @@ impl<'a, W: Write> HtmlVisitor<'a, '_, W> {
             crate::write_element_id(&mut self.writer, Some(id))?;
         }
 
-        // Description list
-        let is_horizontal = data.style() == Some("horizontal");
-        if is_horizontal {
-            visit_horizontal_description_list(traversal, list, self)?;
-        } else {
-            visit_standard_description_list(traversal, list, self)?;
+        match data.style() {
+            Some("horizontal") => visit_horizontal_description_list(traversal, list, self)?,
+            Some("qanda") => visit_qanda_list(traversal, list, self)?,
+            Some(_) | None => visit_standard_description_list(traversal, list, self)?,
         }
 
         // Close the description list
@@ -529,14 +416,7 @@ fn visit_horizontal_description_list<'a, W: Write>(
         }
         writeln!(visitor.writer, "</td>\n<td class=\"hdlist2\">")?;
         if let Some(definition) = item.definition() {
-            if let Some(principal) = definition.principal() {
-                write!(visitor.writer, "<p>")?;
-                visitor.visit_content(traversal, principal)?;
-                writeln!(visitor.writer, "</p>")?;
-            }
-            for block in definition.blocks() {
-                traversal.visit_block(visitor, block)?;
-            }
+            render_definition(traversal, definition, visitor)?;
         }
         writeln!(visitor.writer, "</td>\n</tr>")?;
     }
@@ -586,20 +466,58 @@ fn visit_standard_description_list<'a, W: Write>(
         }
         if let Some(definition) = item.definition() {
             writeln!(visitor.writer, "<dd>")?;
-            if let Some(principal) = definition.principal() {
-                write!(visitor.writer, "<p>")?;
-                visitor.visit_content(traversal, principal)?;
-                writeln!(visitor.writer, "</p>")?;
-            }
-            for block in definition.blocks() {
-                traversal.visit_block(visitor, block)?;
-            }
+            render_definition(traversal, definition, visitor)?;
             writeln!(visitor.writer, "</dd>")?;
         }
     }
 
     writer = visitor.writer_mut();
     writeln!(writer, "</dl>")?;
+    Ok(())
+}
+
+/// Renders a Q&A list as a numbered list with each question in italics,
+/// matching asciidoctor. Like asciidoctor, it ignores `start` and `%reversed`.
+fn visit_qanda_list<'a, W: Write>(
+    traversal: &mut TraversalContext<'a>,
+    list: DescriptionListRef<'a>,
+    visitor: &mut HtmlVisitor<'a, '_, W>,
+) -> Result<(), Error> {
+    let class = build_class("qlist qanda", list.roles().iter());
+    writeln!(visitor.writer, " class=\"{class}\">")?;
+    visitor.render_title_content(traversal, list.title(), "<div class=\"title\">", "</div>\n")?;
+    writeln!(visitor.writer, "<ol>")?;
+    for item in list.items() {
+        writeln!(visitor.writer, "<li>")?;
+        for term in item.terms() {
+            write!(visitor.writer, "<p><em>")?;
+            render_description_term(traversal, term, visitor)?;
+            writeln!(visitor.writer, "</em></p>")?;
+        }
+        if let Some(definition) = item.definition() {
+            render_definition(traversal, definition, visitor)?;
+        }
+        writeln!(visitor.writer, "</li>")?;
+    }
+    writeln!(visitor.writer, "</ol>")?;
+    Ok(())
+}
+
+/// Renders a definition's principal text as a paragraph, followed by its
+/// attached blocks.
+fn render_definition<'a, W: Write>(
+    traversal: &mut TraversalContext<'a>,
+    definition: DescriptionListDefinitionRef<'a>,
+    visitor: &mut HtmlVisitor<'a, '_, W>,
+) -> Result<(), Error> {
+    if let Some(principal) = definition.principal() {
+        write!(visitor.writer, "<p>")?;
+        visitor.visit_content(traversal, principal)?;
+        writeln!(visitor.writer, "</p>")?;
+    }
+    for block in definition.blocks() {
+        traversal.visit_block(visitor, block)?;
+    }
     Ok(())
 }
 
@@ -682,13 +600,10 @@ fn render_bare_ulist_semantic<'a, W: Write>(
     } else {
         writeln!(visitor.writer, "<ul>")?;
     }
-    render_nested_list_items(
+    render_list_items(
         traversal,
-        &mut data.items().peekable(),
+        data.items(),
         visitor,
-        1,
-        false,
-        1,
         data.options().contains("interactive"),
     )?;
     writeln!(visitor.writer, "</ul>")?;
@@ -711,13 +626,10 @@ fn render_bare_olist_semantic<'a, W: Write>(
     } else {
         writeln!(visitor.writer, "<ol class=\"{style}\">")?;
     }
-    render_nested_list_items(
+    render_list_items(
         traversal,
-        &mut data.items().peekable(),
+        data.items(),
         visitor,
-        1,
-        true,
-        1,
         data.options().contains("interactive"),
     )?;
     writeln!(visitor.writer, "</ol>")?;

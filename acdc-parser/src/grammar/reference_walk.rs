@@ -5,6 +5,7 @@ use crate::{
 };
 
 use super::marked_text::MarkedText;
+use crate::blocks::table::TableFormat;
 
 pub(crate) trait ReferenceVisitor<'a> {
     type Error;
@@ -39,6 +40,11 @@ pub(crate) trait ReferenceVisitor<'a> {
     fn untitled(&mut self, _id: &'a str, _location: &Location) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    /// An id asciidoctor registers while parsing, so a generated heading id
+    /// after it skips it. Anchors it registers only while converting (a block
+    /// title, verbatim content, a formatted span's id) never come here.
+    fn reserve(&mut self, _id: &'a str) {}
 
     fn cross_reference(&mut self, _reference: &CrossReference<'a>) -> Result<(), Self::Error> {
         Ok(())
@@ -121,7 +127,7 @@ pub(crate) fn blocks<'a, V: ReferenceVisitor<'a>>(
             visitor.discrete_heading(heading)?;
         }
         if let Some(title) = block.title() {
-            inlines(visitor, title.as_inlines())?;
+            inlines_with(visitor, title.as_inlines(), false)?;
         }
         if let Some(value) = block.metadata() {
             metadata(visitor, value)?;
@@ -133,20 +139,23 @@ pub(crate) fn blocks<'a, V: ReferenceVisitor<'a>>(
                 self::blocks(visitor, &mut admonition.blocks, record_toc)?;
             }
             Block::UnorderedList(list) => {
+                let bibliography = list.metadata.style == Some("bibliography");
                 for item in &mut list.items {
-                    inlines(visitor, &item.principal)?;
+                    list_principal(visitor, &item.principal, |anchor| {
+                        if bibliography { anchor.is_bibliography() } else { !anchor.is_bibliography() && item.checked.is_none() }
+                    })?;
                     self::blocks(visitor, &mut item.blocks, record_toc)?;
                 }
             }
             Block::OrderedList(list) => {
                 for item in &mut list.items {
-                    inlines(visitor, &item.principal)?;
+                    list_principal(visitor, &item.principal, |anchor| !anchor.is_bibliography() && item.checked.is_none())?;
                     self::blocks(visitor, &mut item.blocks, record_toc)?;
                 }
             }
             Block::CalloutList(list) => {
                 for item in &mut list.items {
-                    inlines(visitor, &item.principal)?;
+                    list_principal(visitor, &item.principal, |anchor| !anchor.is_bibliography())?;
                     self::blocks(visitor, &mut item.blocks, record_toc)?;
                 }
             }
@@ -155,12 +164,13 @@ pub(crate) fn blocks<'a, V: ReferenceVisitor<'a>>(
                     for term in &item.terms {
                         for anchor in &term.anchors {
                             visitor.anchor(anchor, anchor.xreflabel.as_ref(), None, None, None)?;
+                            visitor.reserve(anchor.id);
                         }
-                        inlines(visitor, &term.content)?;
+                        list_principal(visitor, &term.content, |anchor| !anchor.is_bibliography())?;
                     }
                     if let Some(definition) = &mut item.definition {
                         if let Some(principal) = &definition.principal {
-                            inlines(visitor, principal)?;
+                            inlines_with(visitor, principal, false)?;
                         }
                         self::blocks(visitor, &mut definition.blocks, record_toc)?;
                     }
@@ -184,6 +194,51 @@ pub(crate) fn blocks<'a, V: ReferenceVisitor<'a>>(
             | Block::DocumentAttribute(_)
             | Block::Comment(_) => {}
         }
+        if !matches!(block, Block::Section(_))
+            && let Some(anchor) = block.anchor()
+        {
+            visitor.reserve(anchor.id);
+        }
+    }
+    Ok(())
+}
+
+/// `Parser.parse_list_item`: of an item's text, only an anchor opening it is
+/// registered while parsing, and only the kind its list registers.
+fn list_principal<'a, V: ReferenceVisitor<'a>>(
+    visitor: &mut V,
+    principal: &[InlineNode<'a>],
+    registers: impl Fn(&Anchor<'a>) -> bool,
+) -> Result<(), V::Error> {
+    inlines_with(visitor, principal, false)?;
+    if let Some(InlineNode::InlineAnchor(anchor)) = principal.first()
+        && registers(anchor)
+    {
+        visitor.reserve(anchor.id);
+    }
+    Ok(())
+}
+
+/// `Table::Cell#initialize`: a cell that is not an AsciiDoc cell registers no
+/// anchor of its text while parsing, except one opening a normal PSV cell.
+fn text_cell<'a, V: ReferenceVisitor<'a>>(
+    visitor: &mut V,
+    content: &mut [Block<'a>],
+    opening: bool,
+    record_toc: bool,
+) -> Result<(), V::Error> {
+    for block in content.iter_mut() {
+        if let Block::Paragraph(paragraph) = block {
+            inlines_with(visitor, &paragraph.content, false)?;
+        } else {
+            blocks(visitor, std::slice::from_mut(block), record_toc)?;
+        }
+    }
+    if opening
+        && let Some(Block::Paragraph(paragraph)) = content.first()
+        && let Some(InlineNode::InlineAnchor(anchor)) = paragraph.content.first()
+    {
+        visitor.reserve(anchor.id);
     }
     Ok(())
 }
@@ -202,8 +257,9 @@ fn delimited<'a, V: ReferenceVisitor<'a>>(
         | DelimitedBlockType::DelimitedLiteral(content)
         | DelimitedBlockType::DelimitedPass(content)
         | DelimitedBlockType::DelimitedVerse(content)
-        | DelimitedBlockType::DelimitedComment(content) => inlines(visitor, content),
+        | DelimitedBlockType::DelimitedComment(content) => inlines_with(visitor, content, false),
         DelimitedBlockType::DelimitedTable(table) => {
+            let psv = table.format == TableFormat::Psv;
             for row in table
                 .header
                 .iter_mut()
@@ -211,11 +267,12 @@ fn delimited<'a, V: ReferenceVisitor<'a>>(
                 .chain(table.footer.iter_mut())
             {
                 for column in &mut row.columns {
-                    blocks(
-                        visitor,
-                        &mut column.content,
-                        record_toc && column.style != Some(ColumnStyle::AsciiDoc),
-                    )?;
+                    if column.style == Some(ColumnStyle::AsciiDoc) {
+                        blocks(visitor, &mut column.content, false)?;
+                    } else {
+                        let opening = psv && column.style != Some(ColumnStyle::Literal);
+                        text_cell(visitor, &mut column.content, opening, record_toc)?;
+                    }
                 }
             }
             Ok(())
@@ -224,7 +281,7 @@ fn delimited<'a, V: ReferenceVisitor<'a>>(
     }
 }
 
-fn formatted<'a, V, T>(visitor: &mut V, text: &T) -> Result<(), V::Error>
+fn formatted<'a, V, T>(visitor: &mut V, text: &T, reserve: bool) -> Result<(), V::Error>
 where
     V: ReferenceVisitor<'a>,
     T: MarkedText<'a, Content = Vec<InlineNode<'a>>>,
@@ -232,7 +289,7 @@ where
     if let Some(id) = text.id() {
         visitor.untitled(id, text.location())?;
     }
-    inlines(visitor, text.content())
+    inlines_with(visitor, text.content(), reserve)
 }
 
 fn link<'a, V: ReferenceVisitor<'a>>(
@@ -240,54 +297,67 @@ fn link<'a, V: ReferenceVisitor<'a>>(
     metadata: &InlineMetadata<'a>,
     location: &Location,
     text: &[InlineNode<'a>],
+    reserve: bool,
 ) -> Result<(), V::Error> {
     if let Some(id) = &metadata.id {
         visitor.untitled(id.id, location)?;
     }
-    inlines(visitor, text)
+    inlines_with(visitor, text, reserve)
 }
 
 pub(crate) fn inlines<'a, V: ReferenceVisitor<'a>>(
     visitor: &mut V,
     content: &[InlineNode<'a>],
 ) -> Result<(), V::Error> {
+    inlines_with(visitor, content, true)
+}
+
+/// `reserve`: whether asciidoctor registers this text's anchors while parsing.
+fn inlines_with<'a, V: ReferenceVisitor<'a>>(
+    visitor: &mut V,
+    content: &[InlineNode<'a>],
+    reserve: bool,
+) -> Result<(), V::Error> {
     for inline in content {
         match inline {
             InlineNode::InlineAnchor(anchor) => {
                 visitor.anchor(anchor, anchor.xreflabel.as_ref(), None, None, None)?;
+                if reserve {
+                    visitor.reserve(anchor.id);
+                }
                 if let Some(label) = anchor.bibliography_label() {
-                    inlines(visitor, label)?;
+                    inlines_with(visitor, label, reserve)?;
                 }
             }
             InlineNode::Macro(InlineMacro::CrossReference(reference)) => {
                 visitor.cross_reference(reference)?;
-                inlines(visitor, &reference.text)?;
+                inlines_with(visitor, &reference.text, reserve)?;
             }
             InlineNode::Macro(InlineMacro::Footnote(note)) => {
                 if let Some(content) = &note.content {
-                    inlines(visitor, content)?;
+                    inlines_with(visitor, content, reserve)?;
                 }
             }
             InlineNode::Macro(InlineMacro::IndexTerm(term)) if term.is_visible() => {
-                inlines(visitor, term.term())?;
+                inlines_with(visitor, term.term(), reserve)?;
             }
             InlineNode::Macro(InlineMacro::Link(node)) => {
-                link(visitor, &node.metadata, &node.location, &node.text)?;
+                link(visitor, &node.metadata, &node.location, &node.text, reserve)?;
             }
             InlineNode::Macro(InlineMacro::UrlMacro(node)) => {
-                link(visitor, &node.metadata, &node.location, &node.text)?;
+                link(visitor, &node.metadata, &node.location, &node.text, reserve)?;
             }
             InlineNode::Macro(InlineMacro::Mailto(node)) => {
-                link(visitor, &node.metadata, &node.location, &node.text)?;
+                link(visitor, &node.metadata, &node.location, &node.text, reserve)?;
             }
-            InlineNode::BoldText(node) => formatted(visitor, node)?,
-            InlineNode::ItalicText(node) => formatted(visitor, node)?,
-            InlineNode::MonospaceText(node) => formatted(visitor, node)?,
-            InlineNode::HighlightText(node) => formatted(visitor, node)?,
-            InlineNode::SubscriptText(node) => formatted(visitor, node)?,
-            InlineNode::SuperscriptText(node) => formatted(visitor, node)?,
-            InlineNode::DoubleQuotedSpan(node) => formatted(visitor, node)?,
-            InlineNode::SingleQuotedSpan(node) => formatted(visitor, node)?,
+            InlineNode::BoldText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::ItalicText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::MonospaceText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::HighlightText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::SubscriptText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::SuperscriptText(node) => formatted(visitor, node, reserve)?,
+            InlineNode::DoubleQuotedSpan(node) => formatted(visitor, node, reserve)?,
+            InlineNode::SingleQuotedSpan(node) => formatted(visitor, node, reserve)?,
             InlineNode::RawText(node) => {
                 if let Some(id) = node
                     .metadata

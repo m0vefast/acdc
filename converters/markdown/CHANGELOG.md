@@ -59,6 +59,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Inline image alternatives and tooltips preserve literal trailing dashes instead of replacing them with an em dash.
 
+- Reversed ordered lists, including reversed `[qanda]` lists, count up from
+  `start`, or from 1, with a warning. Markdown has no descending numbers:
+  renderers read only the first number, so the previous `3.`, `2.`, `1.` output
+  displayed as 3, 4, 5.
+
+- Blocks attached to a list item with `+` now stay inside the item as separate
+  blocks. Every line is indented to the item, so attached code, block quotes,
+  admonitions, and example blocks no longer end the list, and an attached
+  paragraph or a nested markerless list no longer joins the item's text. This
+  applies to ordered, bulleted, description, Q&A, horizontal, bibliography, and
+  callout lists.
+
 ### Changed
 
 - Curved quotes and apostrophes retain their punctuation in body text, image
@@ -98,6 +110,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   context, including source-ordered and nested-cell attributes.
 
 ### Fixed
+
+- A single-name author, such as `Jane`, no longer ends with a space in the
+  author line.
 
 - Literal angle brackets in prose and formatted captions remain visible text instead of becoming HTML tags, links, or blockquotes in Markdown. Explicit raw passthroughs keep their markup.
 

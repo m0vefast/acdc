@@ -1,22 +1,10 @@
 {
   "name": "document",
   "type": "block",
+  "attributes": {
+    "a": "1"
+  },
   "blocks": [
-    {
-      "name": "a",
-      "type": "attribute",
-      "value": "1",
-      "location": [
-        {
-          "line": 2,
-          "col": 1
-        },
-        {
-          "line": 2,
-          "col": 5
-        }
-      ]
-    },
     {
       "name": "section",
       "type": "block",

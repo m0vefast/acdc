@@ -286,7 +286,11 @@ fn unreadable_filtered_include_inserts_fallback_and_continues() -> TestResult {
     );
     assert_missing_warning(
         &result,
-        &format!("include file not readable: {}", unreadable.display()),
+        &format!(
+            "include file not readable: {} ({})",
+            unreadable.display(),
+            std::io::Error::from_raw_os_error(13)
+        ),
         &tree.main,
         3,
     )?;

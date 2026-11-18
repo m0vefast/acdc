@@ -23,6 +23,8 @@ mod include_uri_denied;
 mod include_uri_network_disabled;
 mod include_uri_recovery;
 mod max_attribute_value_size;
+mod embedder_include_provider;
 mod preprocessed_conditionals;
+mod preprocessor_verbatim_block;
 mod recoverable_directives;
 mod retained_source;

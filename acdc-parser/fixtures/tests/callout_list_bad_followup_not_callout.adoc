@@ -1,0 +1,8 @@
+Bad follow-up — `<1><word>` where `<word>` is not a callout means
+`<1>` itself is NOT a callout (chain must consist of valid markers
+only). Both render as literal:
+
+----
+bad <1><word> tail <2>
+----
+<2> Only the trailing `<2>` is a real callout

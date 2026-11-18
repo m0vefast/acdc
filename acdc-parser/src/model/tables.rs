@@ -334,6 +334,9 @@ pub struct Table<'a> {
     pub(crate) columns: Vec<ColumnFormat>,
     #[serde(skip)]
     presentation: Option<ResolvedTablePresentation>,
+    /// How the body was read; only PSV cells register an opening anchor.
+    #[serde(skip)]
+    pub(crate) format: crate::blocks::table::TableFormat,
     pub(crate) location: Location,
 }
 
@@ -353,8 +356,15 @@ impl<'a> Table<'a> {
             rows,
             columns: Vec::new(),
             presentation: None,
+            format: crate::blocks::table::TableFormat::Psv,
             location,
         }
+    }
+
+    #[must_use]
+    pub(crate) fn with_format(mut self, format: crate::blocks::table::TableFormat) -> Self {
+        self.format = format;
+        self
     }
 
     /// Set the header row.

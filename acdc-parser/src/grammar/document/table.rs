@@ -328,7 +328,17 @@ pub(super) fn parse_table_block_impl<'input>(
     // Each entry: (column_position, remaining_rows, colspan_width)
     let mut active_rowspans: Vec<(usize, usize, usize)> = Vec::new();
 
+    let last_row = raw_rows.iter().rposition(|row| !row.is_empty());
     for (i, row) in raw_rows.iter().enumerate() {
+        if row.is_empty() {
+            // A row asciidoctor dropped for overrunning the columns: the
+            // rowspans above still pass over it.
+            active_rowspans.retain_mut(|(_pos, remaining, _width)| {
+                *remaining -= 1;
+                *remaining > 0
+            });
+            continue;
+        }
         let is_header_row = has_header;
         // Each raw cell produces at least one `columns` entry; duplication
         // produces more but is bounded by the table's column limit.
@@ -483,7 +493,7 @@ pub(super) fn parse_table_block_impl<'input>(
             continue;
         }
 
-        if has_footer && i == raw_rows.len() - 1 {
+        if has_footer && Some(i) == last_row {
             footer = Some(TableRow { columns });
             continue;
         }
@@ -495,6 +505,7 @@ pub(super) fn parse_table_block_impl<'input>(
         .with_header(header)
         .with_footer(footer)
         .with_columns(column_formats)
+        .with_format(format)
         .with_presentation(&metadata, presentation_defaults);
 
     Ok(Block::DelimitedBlock(DelimitedBlock {

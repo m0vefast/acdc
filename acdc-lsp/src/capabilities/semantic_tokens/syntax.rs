@@ -1,5 +1,5 @@
 use acdc_parser::{
-    ColumnStyle, Location,
+    ColumnStyle, CompatibilityMode, Location,
     ast::{
         AttributeValueRef, AttributesRef, BlockKind, BlockRef, ContentRef, DocumentRef, HeaderRef,
         IdOrigin, LocationRef, PositionRef, StructuralRef, TableRef, TableRowRef,
@@ -16,13 +16,15 @@ use crate::{convert::position_to_offset, state::ConditionalBlock};
 
 pub(super) fn collect(
     document: DocumentRef<'_>,
+    conditionals: &[ConditionalBlock],
     source: &LineIndex<'_>,
     tokens: &mut Vec<RawToken>,
 ) {
+    let mode = document.attributes().compatibility_mode();
     for node in StructuralRef::Document(document).descendants() {
         match node {
-            StructuralRef::Header(header) => collect_header(header, source, tokens),
-            StructuralRef::Block(block) => collect_block(block, source, tokens),
+            StructuralRef::Header(header) => collect_header(header, source, mode, tokens),
+            StructuralRef::Block(block) => collect_block(block, conditionals, source, mode, tokens),
             StructuralRef::ListItem(item) => {
                 if let Some(range) = primary_range(item.location(), source) {
                     prefix(range.start, item.marker(), 8, source, tokens);
@@ -41,22 +43,22 @@ pub(super) fn collect(
                         }
                     }
                 }
-                collect_tokens_from_inlines(item.principal(), source, tokens);
+                collect_tokens_from_inlines(item.principal(), source, mode, tokens);
             }
             StructuralRef::DescriptionListTerm(term) => {
-                content(term.content(), 4, 0, source, tokens);
+                content(term.content(), 4, 0, source, mode, tokens);
                 if let Some(location) = term.delimiter_location() {
                     add_token_for_location(location, 8, 0, source, tokens);
                 }
             }
             StructuralRef::DescriptionListDefinition(definition) => {
                 if let Some(principal) = definition.principal() {
-                    collect_tokens_from_inlines(principal, source, tokens);
+                    collect_tokens_from_inlines(principal, source, mode, tokens);
                 }
             }
             StructuralRef::CalloutListItem(item) => {
                 add_token_for_location(item.callout().location(), 8, 0, source, tokens);
-                collect_tokens_from_inlines(item.principal(), source, tokens);
+                collect_tokens_from_inlines(item.principal(), source, mode, tokens);
             }
             StructuralRef::Document(_)
             | StructuralRef::DescriptionListItem(_)
@@ -86,18 +88,8 @@ pub(super) fn header(
     let Some((first, last)) = header_lines(span, includes) else {
         return;
     };
-    let inactive = |line: u32| {
-        let line = line as usize;
-        conditionals.iter().any(|conditional| {
-            !conditional.is_active
-                && conditional
-                    .end_line
-                    .is_some_and(|end| conditional.start_line < line && line < end)
-        })
-    };
     let ends_in_primary = outermost_include(span.end()).is_none();
-    let mut comment_delimiter: Option<&str> = None;
-    let mut continuation = false;
+    let mut reader = MetadataReader::new(conditionals);
     for line in first.. {
         let Some(text) = source.line(line) else {
             break;
@@ -106,45 +98,101 @@ pub(super) fn header(
         // The preprocessor drops line comments that directly follow the
         // header, so they sit just outside the span.
         if line > last {
-            if !ends_in_primary || inactive(line) || !is_line_comment(text) {
+            if !ends_in_primary || is_inactive(conditionals, line) || !is_line_comment(text) {
                 break;
             }
             line_bytes(line, 0..text.len(), 5, 0, source, tokens);
             continue;
         }
-        // Comment blocks bypass preprocessor directives, so they are tracked
-        // before conditionals.
-        if let Some(delimiter) = comment_delimiter {
-            if text.trim_end() == delimiter {
-                comment_delimiter = None;
+        match reader.read(line, text) {
+            MetadataLine::CommentDelimiter(delimiter) => {
                 line_bytes(line, 0..delimiter.len(), 8, 0, source, tokens);
-            } else {
-                line_bytes(line, 0..text.len(), 5, 0, source, tokens);
             }
-            continue;
-        }
-        if inactive(line) {
-            continue;
-        }
-        if text.trim().is_empty() {
-            continuation = false;
-            continue;
-        }
-        if continuation {
-            line_bytes(line, 0..text.len(), 3, 0, source, tokens);
-            continuation = continues_value(text);
-            continue;
-        }
-        if let Some(delimiter) = comment_block_delimiter(text) {
-            comment_delimiter = Some(delimiter);
-            line_bytes(line, 0..delimiter.len(), 8, 0, source, tokens);
-        } else if is_line_comment(text) {
-            line_bytes(line, 0..text.len(), 5, 0, source, tokens);
-        } else if let Some((name, value)) = attribute_entry(text) {
-            attribute_line(name, line, source, tokens);
-            continuation = continues_value(value);
+            MetadataLine::Comment => line_bytes(line, 0..text.len(), 5, 0, source, tokens),
+            MetadataLine::WrappedValue => line_bytes(line, 0..text.len(), 3, 0, source, tokens),
+            MetadataLine::Entry(name) => attribute_line(name, line, source, tokens),
+            MetadataLine::Other => {}
         }
     }
+}
+
+/// A header or block metadata line, as the parser reads it.
+enum MetadataLine<'a> {
+    /// A line that opens or closes a comment block.
+    CommentDelimiter(&'a str),
+    /// A line comment, or a line inside a comment block.
+    Comment,
+    /// An attribute entry with this name.
+    Entry(&'a str),
+    /// A line that continues a wrapped attribute value.
+    WrappedValue,
+    /// Any other line, including empty lines and lines that an inactive
+    /// conditional removes.
+    Other,
+}
+
+/// Reads consecutive header or block metadata lines. The parser drops the
+/// comments among them, so their tokens come from the source text.
+struct MetadataReader<'a> {
+    conditionals: &'a [ConditionalBlock],
+    comment_delimiter: Option<&'a str>,
+    continuation: bool,
+}
+
+impl<'a> MetadataReader<'a> {
+    fn new(conditionals: &'a [ConditionalBlock]) -> Self {
+        Self {
+            conditionals,
+            comment_delimiter: None,
+            continuation: false,
+        }
+    }
+
+    /// Read the 0-based `line`, whose `text` has no line ending.
+    fn read(&mut self, line: u32, text: &'a str) -> MetadataLine<'a> {
+        // Comment blocks bypass preprocessor directives, so they are tracked
+        // before conditionals.
+        if let Some(delimiter) = self.comment_delimiter {
+            if text.trim_end() == delimiter {
+                self.comment_delimiter = None;
+                return MetadataLine::CommentDelimiter(delimiter);
+            }
+            return MetadataLine::Comment;
+        }
+        if is_inactive(self.conditionals, line) {
+            return MetadataLine::Other;
+        }
+        if text.trim().is_empty() {
+            self.continuation = false;
+            return MetadataLine::Other;
+        }
+        if self.continuation {
+            self.continuation = continues_value(text);
+            return MetadataLine::WrappedValue;
+        }
+        if let Some(delimiter) = comment_block_delimiter(text) {
+            self.comment_delimiter = Some(delimiter);
+            MetadataLine::CommentDelimiter(delimiter)
+        } else if is_line_comment(text) {
+            MetadataLine::Comment
+        } else if let Some((name, value)) = attribute_entry(text) {
+            self.continuation = continues_value(value);
+            MetadataLine::Entry(name)
+        } else {
+            MetadataLine::Other
+        }
+    }
+}
+
+/// Whether an inactive conditional removes the 0-based `line`.
+fn is_inactive(conditionals: &[ConditionalBlock], line: u32) -> bool {
+    let line = line as usize;
+    conditionals.iter().any(|conditional| {
+        !conditional.is_active
+            && conditional
+                .end_line
+                .is_some_and(|end| conditional.start_line < line && line < end)
+    })
 }
 
 /// The header's first and last lines in the primary file, 0-based.
@@ -232,20 +280,31 @@ fn continues_value(text: &str) -> bool {
         .is_some_and(|rest| !rest.is_empty())
 }
 
-fn collect_header(header: HeaderRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<RawToken>) {
+fn collect_header(
+    header: HeaderRef<'_>,
+    source: &LineIndex<'_>,
+    mode: CompatibilityMode,
+    tokens: &mut Vec<RawToken>,
+) {
     if let Some(title) = header.title() {
-        heading(title, 0, source, tokens);
+        heading(title, 0, source, mode, tokens);
     }
     if let Some(subtitle) = header.subtitle() {
-        content(subtitle, 0, 0, source, tokens);
+        content(subtitle, 0, 0, source, mode, tokens);
     }
 }
 
-fn block_metadata(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<RawToken>) {
+fn block_metadata(
+    block: BlockRef<'_>,
+    conditionals: &[ConditionalBlock],
+    source: &LineIndex<'_>,
+    mode: CompatibilityMode,
+    tokens: &mut Vec<RawToken>,
+) {
     if let Some(location) = block.attributes().and_then(AttributesRef::location)
         && let Some(range) = primary_range(location, source)
     {
-        add_range_with_priority(range, 2, 0, 0, source, tokens);
+        metadata_lines(range, conditionals, source, tokens);
     }
     for anchor in block.anchors() {
         add_token_for_location(anchor.location(), 7, 1, source, tokens);
@@ -255,13 +314,56 @@ fn block_metadata(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<
         BlockKind::Section(_) | BlockKind::DiscreteHeading(_)
     ) && let Some(title) = block.title()
     {
-        content(title, 0, 0, source, tokens);
+        content(title, 0, 0, source, mode, tokens);
     }
     delimiters(block.kind(), source, tokens);
 }
 
-fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<RawToken>) {
-    block_metadata(block, source, tokens);
+/// Highlight a block's metadata as metadata, except the comments among it.
+///
+/// Attribute entries among the metadata are blocks with their own tokens.
+fn metadata_lines(
+    range: Range,
+    conditionals: &[ConditionalBlock],
+    source: &LineIndex<'_>,
+    tokens: &mut Vec<RawToken>,
+) {
+    let mut reader = MetadataReader::new(conditionals);
+    for line in range.start.line..=range.end.line {
+        let Some(text) = source.line(line) else {
+            break;
+        };
+        let text = text.trim_end_matches(['\r', '\n']);
+        match reader.read(line, text) {
+            MetadataLine::CommentDelimiter(delimiter) => {
+                line_bytes(line, 0..delimiter.len(), 8, 0, source, tokens);
+            }
+            MetadataLine::Comment => line_bytes(line, 0..text.len(), 5, 0, source, tokens),
+            MetadataLine::Entry(_) | MetadataLine::WrappedValue | MetadataLine::Other => {
+                let start = if line == range.start.line {
+                    range.start
+                } else {
+                    Position::new(line, 0)
+                };
+                let end = if line == range.end.line {
+                    range.end
+                } else {
+                    Position::new(line, source.line_width(line).unwrap_or_default())
+                };
+                add_range_with_priority(Range::new(start, end), 2, 0, 0, source, tokens);
+            }
+        }
+    }
+}
+
+fn collect_block(
+    block: BlockRef<'_>,
+    conditionals: &[ConditionalBlock],
+    source: &LineIndex<'_>,
+    mode: CompatibilityMode,
+    tokens: &mut Vec<RawToken>,
+) {
+    block_metadata(block, conditionals, source, mode, tokens);
     match block.kind() {
         BlockKind::Section(section) => {
             if let Some(title) = section.title() {
@@ -273,18 +375,22 @@ fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<R
                 } else {
                     0
                 };
-                heading(title, modifiers, source, tokens);
+                heading(title, modifiers, source, mode, tokens);
             }
         }
         BlockKind::DiscreteHeading(node) => {
             if let Some(title) = node.title() {
-                heading(title, 0, source, tokens);
+                heading(title, 0, source, mode, tokens);
             }
         }
-        BlockKind::Paragraph(node) => collect_tokens_from_inlines(node.content(), source, tokens),
-        BlockKind::Listing(node) => verbatim(block.kind(), node.content(), source, tokens),
-        BlockKind::Literal(node) => verbatim(block.kind(), node.content(), source, tokens),
-        BlockKind::Passthrough(node) => verbatim(block.kind(), node.content(), source, tokens),
+        BlockKind::Paragraph(node) => {
+            collect_tokens_from_inlines(node.content(), source, mode, tokens);
+        }
+        BlockKind::Listing(node) => verbatim(block.kind(), node.content(), source, mode, tokens),
+        BlockKind::Literal(node) => verbatim(block.kind(), node.content(), source, mode, tokens),
+        BlockKind::Passthrough(node) => {
+            verbatim(block.kind(), node.content(), source, mode, tokens);
+        }
         BlockKind::Stem(node) => {
             if let Some(range) = delimited_body(block.kind(), source)
                 .or_else(|| primary_range(node.location(), source))
@@ -292,7 +398,7 @@ fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<R
                 add_range_with_priority(range, 3, CODE, 0, source, tokens);
             }
         }
-        BlockKind::Verse(node) => collect_tokens_from_inlines(node.content(), source, tokens),
+        BlockKind::Verse(node) => collect_tokens_from_inlines(node.content(), source, mode, tokens),
         BlockKind::DelimitedComment(node) => {
             if let Some(range) = delimited_body(block.kind(), source)
                 .or_else(|| primary_range(node.location(), source))
@@ -301,20 +407,7 @@ fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<R
             }
         }
         BlockKind::Comment(node) => add_token_for_location(node.location(), 5, 0, source, tokens),
-        BlockKind::DocumentAttribute(node) => {
-            if let Some(range) = primary_range(node.location(), source) {
-                attribute_line(node.name(), range.start.line, source, tokens);
-                if range.end.line > range.start.line {
-                    add_token_for_range(
-                        Range::new(Position::new(range.start.line + 1, 0), range.end),
-                        3,
-                        0,
-                        source,
-                        tokens,
-                    );
-                }
-            }
-        }
+        BlockKind::DocumentAttribute(node) => entry_tokens(node.location(), source, tokens),
         BlockKind::Admonition(node) => {
             let label = format!("{}:", node.variant()).to_ascii_uppercase();
             if let Some(range) = primary_range(node.location(), source)
@@ -327,7 +420,7 @@ fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<R
         BlockKind::Image(_)
         | BlockKind::Audio(_)
         | BlockKind::Video(_)
-        | BlockKind::TableOfContents(_) => macro_tokens(block, source, tokens),
+        | BlockKind::TableOfContents(_) => macro_tokens(block, source, mode, tokens),
         BlockKind::ThematicBreak(_) | BlockKind::PageBreak(_) => {
             if let Some(range) = primary_range(block.location(), source) {
                 let start = if range.start.line == range.end.line {
@@ -356,7 +449,36 @@ fn collect_block(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<R
     }
 }
 
-fn macro_tokens(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<RawToken>) {
+/// Highlight a body attribute entry and the lines its wrapped value continues
+/// on. Asciidoctor mode normalizes the name the entry sets, so highlight the
+/// name as written.
+fn entry_tokens(location: LocationRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<RawToken>) {
+    let Some(range) = primary_range(location, source) else {
+        return;
+    };
+    if let Some((name, _)) = source
+        .line(range.start.line)
+        .and_then(|text| attribute_entry(text.trim_end_matches(['\r', '\n'])))
+    {
+        attribute_line(name, range.start.line, source, tokens);
+    }
+    if range.end.line > range.start.line {
+        add_token_for_range(
+            Range::new(Position::new(range.start.line + 1, 0), range.end),
+            3,
+            0,
+            source,
+            tokens,
+        );
+    }
+}
+
+fn macro_tokens(
+    block: BlockRef<'_>,
+    source: &LineIndex<'_>,
+    mode: CompatibilityMode,
+    tokens: &mut Vec<RawToken>,
+) {
     if let Some(mut range) = primary_range(block.location(), source)
         && let Some(start) = find_prefix(range, &["image::", "audio::", "video::", "toc::"], source)
     {
@@ -364,7 +486,7 @@ fn macro_tokens(block: BlockRef<'_>, source: &LineIndex<'_>, tokens: &mut Vec<Ra
         add_token_for_range(range, 1, 0, source, tokens);
     }
     for field in StructuralRef::Block(block).content_fields() {
-        collect_tokens_from_inlines(field.content(), source, tokens);
+        collect_tokens_from_inlines(field.content(), source, mode, tokens);
     }
 }
 
@@ -372,9 +494,10 @@ fn heading(
     title: ContentRef<'_>,
     modifiers: u32,
     source: &LineIndex<'_>,
+    mode: CompatibilityMode,
     tokens: &mut Vec<RawToken>,
 ) {
-    content(title, 0, modifiers, source, tokens);
+    content(title, 0, modifiers, source, mode, tokens);
     let Some(range) = content_range(title, source) else {
         return;
     };
@@ -457,13 +580,14 @@ fn verbatim(
     kind: BlockKind<'_>,
     body: ContentRef<'_>,
     source: &LineIndex<'_>,
+    mode: CompatibilityMode,
     tokens: &mut Vec<RawToken>,
 ) {
     if let Some(range) = delimited_body(kind, source) {
         add_range_with_priority(range, 3, CODE, 0, source, tokens);
-        collect_tokens_from_inlines(body, source, tokens);
+        collect_tokens_from_inlines(body, source, mode, tokens);
     } else {
-        content(body, 3, CODE, source, tokens);
+        content(body, 3, CODE, source, mode, tokens);
     }
 }
 
@@ -603,6 +727,7 @@ fn content(
     kind: u32,
     modifiers: u32,
     source: &LineIndex<'_>,
+    mode: CompatibilityMode,
     tokens: &mut Vec<RawToken>,
 ) {
     // Individual spans remain usable when a container crosses an include boundary.
@@ -611,7 +736,7 @@ fn content(
             add_range_with_priority(range, kind, modifiers, 0, source, tokens);
         }
     }
-    collect_tokens_from_inlines(content, source, tokens);
+    collect_tokens_from_inlines(content, source, mode, tokens);
 }
 
 fn primary_range(location: LocationRef<'_>, source: &LineIndex<'_>) -> Option<Range> {
@@ -692,6 +817,7 @@ fn attribute_line(name: &str, line: u32, source: &LineIndex<'_>, tokens: &mut Ve
 pub(super) fn attribute_references(
     location: LocationRef<'_>,
     source: &LineIndex<'_>,
+    mode: CompatibilityMode,
     tokens: &mut Vec<RawToken>,
 ) {
     let Some(range) = primary_range(location, source) else {
@@ -722,10 +848,7 @@ pub(super) fn attribute_references(
                 continue;
             }
             if let Some((name, _)) = text.get(offset + 1..).and_then(|rest| rest.split_once('}'))
-                && !name.is_empty()
-                && name
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-'))
+                && mode.is_attribute_reference_name(name)
             {
                 line_bytes(
                     line,

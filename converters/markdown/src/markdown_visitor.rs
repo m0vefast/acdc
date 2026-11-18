@@ -1,6 +1,13 @@
 //! Visitor implementation for Markdown conversion.
 
-use std::{borrow::Cow, collections::HashSet, fmt::Write as _, io::Write, mem::take, rc::Rc};
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+    fmt::Write as _,
+    io::Write,
+    mem::{replace, take},
+    rc::Rc,
+};
 
 use acdc_converters_core::{
     Converter as _, Diagnostics, InlineTextTransform, TraversalContext, Warning,
@@ -126,15 +133,15 @@ fn suppresses_list_marker(style: Option<&str>, ordered: bool) -> bool {
         || (ordered && style == Some("unnumbered"))
 }
 
-fn list_sequence(attributes: AttributesRef<'_>, item_count: usize) -> (usize, bool) {
-    let reversed = has_option(attributes, "reversed");
-    let start = attributes
+/// The first number of an ordered list. Markdown renderers number every list
+/// in ascending order, so a reversed list also counts up from here.
+fn list_start(attributes: AttributesRef<'_>) -> usize {
+    attributes
         .get("start")
         .and_then(AttributeValueRef::as_str)
         .and_then(|start| start.parse::<usize>().ok())
         .filter(|start| *start > 0)
-        .unwrap_or(if reversed { item_count } else { 1 });
-    (start, reversed)
+        .unwrap_or(1)
 }
 
 fn table_cells(table: TableRef<'_>) -> impl Iterator<Item = TableCellRef<'_>> {
@@ -1048,13 +1055,9 @@ impl<'a, 'd, W: Write> MarkdownVisitor<'a, 'd, W> {
     fn write_author(&mut self, author: AuthorRef<'_>) -> Result<(), Error> {
         write!(
             self.writer,
-            "{} ",
-            Self::escape_markdown(author.first_name())
+            "{}",
+            Self::escape_markdown(&acdc_converters_core::author_name(author))
         )?;
-        if let Some(middle_name) = author.middle_name() {
-            write!(self.writer, "{} ", Self::escape_markdown(middle_name))?;
-        }
-        write!(self.writer, "{}", Self::escape_markdown(author.last_name()))?;
         if let Some(email) = author.email() {
             write!(self.writer, " <{}>", Self::escape_markdown(email))?;
         }
@@ -1660,7 +1663,6 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
             list.items(),
             "-",
             1,
-            false,
             suppresses_list_marker(list.style(), false),
         )
     }
@@ -1691,14 +1693,16 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
                 "rendering numerically",
             )?;
         }
-        let (start, reversed) = list_sequence(list.attributes(), list.items().count());
+        let markerless = suppresses_list_marker(list.style(), true);
+        if !markerless {
+            self.write_reversed_list_warning(list.attributes())?;
+        }
         self.visit_list_items(
             traversal,
             list.items(),
             "1.",
-            start,
-            reversed,
-            suppresses_list_marker(list.style(), true),
+            list_start(list.attributes()),
+            markerless,
         )
     }
 
@@ -2040,22 +2044,7 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
             self.write_content(traversal, item.principal())?;
             writeln!(self.writer)?;
 
-            if item.blocks().next().is_some() {
-                writeln!(self.writer)?;
-                self.list_depth += 1;
-                let result: Result<(), Error> = (|| {
-                    for (index, block) in item.blocks().enumerate() {
-                        if index > 0 {
-                            writeln!(self.writer)?;
-                        }
-                        self.write_list_indent()?;
-                        traversal.visit_block(self, block)?;
-                    }
-                    Ok(())
-                })();
-                self.list_depth -= 1;
-                result?;
-            }
+            self.visit_attached_blocks(traversal, item.blocks(), self.list_depth + 1)?;
         }
         Ok(())
     }
@@ -2097,7 +2086,7 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
                 writeln!(self.writer)?;
             }
             if let Some(definition) = item.definition() {
-                self.visit_description_blocks(traversal, definition.blocks())?;
+                self.visit_attached_blocks(traversal, definition.blocks(), self.list_depth + 1)?;
             }
         }
         Ok(())
@@ -2130,20 +2119,8 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
             }
             writeln!(self.writer, "  ")?;
 
-            for block in item
-                .definition()
-                .into_iter()
-                .flat_map(DescriptionListDefinitionRef::blocks)
-            {
-                if !matches!(
-                    block.kind(),
-                    BlockKind::DescriptionList(_)
-                        | BlockKind::OrderedList(_)
-                        | BlockKind::UnorderedList(_)
-                ) {
-                    self.write_list_indent()?;
-                }
-                traversal.visit_block(self, block)?;
+            if let Some(definition) = item.definition() {
+                self.visit_blocks_between_lines(traversal, definition.blocks())?;
             }
         }
         Ok(())
@@ -2154,14 +2131,11 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
         traversal: &mut TraversalContext<'a>,
         list: DescriptionListRef<'a>,
     ) -> Result<(), Error> {
+        self.write_reversed_list_warning(list.attributes())?;
         let item_count = list.items().count();
-        let (start, reversed) = list_sequence(list.attributes(), item_count);
+        let start = list_start(list.attributes());
         for (index, item) in list.items().enumerate() {
-            let number = if reversed {
-                start.saturating_sub(index)
-            } else {
-                start.saturating_add(index)
-            };
+            let number = start.saturating_add(index);
             self.write_list_indent()?;
             write!(self.writer, "{number}. <em>")?;
             for (index, term) in item.terms().enumerate() {
@@ -2185,41 +2159,12 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
                 self.write_content(traversal, principal)?;
                 writeln!(self.writer)?;
             }
-            if let Some(definition) = item.definition()
-                && definition.blocks().next().is_some()
-            {
-                if definition.principal().is_none() {
-                    writeln!(self.writer)?;
-                }
-                self.visit_description_blocks(traversal, definition.blocks())?;
+            if let Some(definition) = item.definition() {
+                self.visit_attached_blocks(traversal, definition.blocks(), self.list_depth + 1)?;
             }
             if index + 1 < item_count {
                 writeln!(self.writer)?;
             }
-        }
-        Ok(())
-    }
-
-    fn visit_description_blocks(
-        &mut self,
-        traversal: &mut TraversalContext<'a>,
-        blocks: impl Iterator<Item = BlockRef<'a>>,
-    ) -> Result<(), Error> {
-        for block in blocks {
-            self.list_depth += 1;
-            let result = (|| {
-                if !matches!(
-                    block.kind(),
-                    BlockKind::DescriptionList(_)
-                        | BlockKind::OrderedList(_)
-                        | BlockKind::UnorderedList(_)
-                ) {
-                    self.write_list_indent()?;
-                }
-                traversal.visit_block(self, block)
-            })();
-            self.list_depth -= 1;
-            result?;
         }
         Ok(())
     }
@@ -2792,6 +2737,20 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
         interdocument_xref(target, extension.strip_prefix('.').unwrap_or(extension))
     }
 
+    /// Markdown has no descending list numbers, so a reversed list counts up,
+    /// with a warning.
+    fn write_reversed_list_warning(&mut self, attributes: AttributesRef<'_>) -> Result<(), Error> {
+        if has_option(attributes, "reversed") {
+            self.write_list_indent()?;
+            self.write_warning(
+                "ordered-list-reversed",
+                "reversed ordered lists",
+                "numbering in ascending order",
+            )?;
+        }
+        Ok(())
+    }
+
     fn write_list_indent(&mut self) -> Result<(), Error> {
         for _ in 0..self.list_depth {
             write!(self.writer, "    ")?;
@@ -2805,16 +2764,11 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
         items: impl Iterator<Item = ListItemRef<'a>>,
         marker: &str,
         start: usize,
-        reversed: bool,
         markerless: bool,
     ) -> Result<(), Error> {
         for (index, item) in items.enumerate() {
             self.write_list_indent()?;
-            let number = if reversed {
-                start.saturating_sub(index)
-            } else {
-                start.saturating_add(index)
-            };
+            let number = start.saturating_add(index);
             let item_marker = if marker.ends_with('.') {
                 format!("{number}.")
             } else {
@@ -2844,34 +2798,119 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
                 writeln!(self.writer)?;
             }
 
-            for block in item.blocks() {
-                if matches!(
-                    block.kind(),
-                    BlockKind::OrderedList(_) | BlockKind::UnorderedList(_)
-                ) {
-                    if markerless {
-                        writeln!(self.writer)?;
-                    } else {
-                        self.list_depth += 1;
-                    }
-                    let result = traversal.visit_block(self, block);
-                    if markerless {
-                        writeln!(self.writer)?;
-                    } else {
-                        self.list_depth -= 1;
-                    }
-                    result?;
-                } else {
-                    if markerless {
-                        self.write_list_indent()?;
-                    } else {
-                        write!(self.writer, "    ")?;
-                    }
-                    traversal.visit_block(self, block)?;
-                }
+            if markerless {
+                self.visit_blocks_between_lines(traversal, item.blocks())?;
+            } else {
+                self.visit_attached_blocks(traversal, item.blocks(), self.list_depth + 1)?;
             }
         }
         Ok(())
+    }
+
+    /// Write the attached blocks of an item that Markdown shows as one line
+    /// of a paragraph, such as a markerless list item or a horizontal
+    /// description item. Empty lines on both sides keep the blocks out of the
+    /// item's line and keep the next item out of the blocks.
+    fn visit_blocks_between_lines(
+        &mut self,
+        traversal: &mut TraversalContext<'a>,
+        blocks: impl Iterator<Item = BlockRef<'a>>,
+    ) -> Result<(), Error> {
+        for block in blocks {
+            if matches!(
+                block.kind(),
+                BlockKind::OrderedList(_) | BlockKind::UnorderedList(_)
+            ) {
+                writeln!(self.writer)?;
+                traversal.visit_block(self, block)?;
+                writeln!(self.writer)?;
+            } else if self.write_indented_blocks(traversal, std::iter::once(block))? {
+                writeln!(self.writer)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `block` is written as a list whose items start with a marker.
+    /// A marker starts a new Markdown block, so such a list can follow item
+    /// text without an empty line. Description lists use a bulleted list,
+    /// except the horizontal and Q&A layouts.
+    fn is_marker_list(block: BlockRef<'_>) -> bool {
+        let kind = block.kind();
+        if let BlockKind::OrderedList(list) = kind {
+            !suppresses_list_marker(list.style(), true)
+        } else if let BlockKind::UnorderedList(list) = kind {
+            !suppresses_list_marker(list.style(), false)
+        } else if let BlockKind::DescriptionList(list) = kind {
+            !matches!(list.style(), Some("horizontal" | "qanda"))
+        } else {
+            matches!(kind, BlockKind::CalloutList(_))
+        }
+    }
+
+    /// Write a list item's attached blocks at list `depth`. Lists with
+    /// markers are written as they are. Other blocks follow an empty line and
+    /// are indented on every line, so Markdown keeps multi-line blocks such as
+    /// fenced code inside the item and doesn't join a paragraph to the item
+    /// text.
+    fn visit_attached_blocks(
+        &mut self,
+        traversal: &mut TraversalContext<'a>,
+        blocks: impl Iterator<Item = BlockRef<'a>>,
+        depth: usize,
+    ) -> Result<(), Error> {
+        let parent_depth = replace(&mut self.list_depth, depth);
+        let result = (|| {
+            let mut pending = Vec::new();
+            let mut wrote_blocks = false;
+            for block in blocks {
+                if !Self::is_marker_list(block) {
+                    pending.push(block);
+                    continue;
+                }
+                wrote_blocks |= self.write_indented_blocks(traversal, pending.drain(..))?;
+                // A list after a paragraph needs an empty line, or a
+                // numbered list that doesn't start at 1 joins the paragraph.
+                if wrote_blocks {
+                    writeln!(self.writer)?;
+                    wrote_blocks = false;
+                }
+                traversal.visit_block(self, block)?;
+            }
+            self.write_indented_blocks(traversal, pending.into_iter())?;
+            Ok(())
+        })();
+        self.list_depth = parent_depth;
+        result
+    }
+
+    /// Render `blocks` on their own, then write them after an empty line with
+    /// every line indented to the current list depth. Returns whether
+    /// anything was written.
+    fn write_indented_blocks(
+        &mut self,
+        traversal: &mut TraversalContext<'a>,
+        blocks: impl Iterator<Item = BlockRef<'a>>,
+    ) -> Result<bool, Error> {
+        let mut blocks = blocks.peekable();
+        if blocks.peek().is_none() {
+            return Ok(false);
+        }
+        let (_, text) = self
+            .render_to_string(|visitor| visitor.visit_separated_blocks(traversal, blocks, false))?;
+        if text.trim().is_empty() {
+            return Ok(false);
+        }
+        writeln!(self.writer)?;
+        let indent = self.list_depth * 4;
+        for line in text.lines() {
+            if line.is_empty() {
+                writeln!(self.writer)?;
+            } else {
+                writeln!(self.writer, "{:indent$}{line}", "")?;
+            }
+        }
+        Ok(true)
     }
 
     fn visit_table_inner(
@@ -3038,12 +3077,13 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
         Ok(())
     }
 
-    fn write_gfm_table_cell(
+    /// Run `render` on a visitor that writes to a buffer and shares this
+    /// visitor's anchors, footnotes, and section context, then return the
+    /// rendered text.
+    fn render_to_string<R>(
         &mut self,
-        traversal: &mut TraversalContext<'a>,
-        cell: TableCellRef<'a>,
-        style: Option<ColumnStyle>,
-    ) -> Result<(), Error> {
+        render: impl FnOnce(&mut MarkdownVisitor<'a, '_, &mut Vec<u8>>) -> Result<R, Error>,
+    ) -> Result<(R, String), Error> {
         let mut buffer = Vec::new();
         let (result, emitted_anchors, footnotes) = {
             let mut visitor =
@@ -3055,20 +3095,32 @@ impl<'a, W: Write> MarkdownVisitor<'a, '_, W> {
                 .current_section_title
                 .clone_from(&self.current_section_title);
             visitor.footnotes = take(&mut self.footnotes);
-            let scoped = style == Some(ColumnStyle::AsciiDoc);
-            let result = if scoped {
+            let result = render(&mut visitor);
+            (result, visitor.emitted_anchors, visitor.footnotes)
+        };
+        self.emitted_anchors = emitted_anchors;
+        self.footnotes = footnotes;
+        let result = result?;
+        Ok((result, String::from_utf8(buffer)?))
+    }
+
+    fn write_gfm_table_cell(
+        &mut self,
+        traversal: &mut TraversalContext<'a>,
+        cell: TableCellRef<'a>,
+        style: Option<ColumnStyle>,
+    ) -> Result<(), Error> {
+        let scoped = style == Some(ColumnStyle::AsciiDoc);
+        let (_, rendered) = self.render_to_string(|visitor| {
+            if scoped {
                 traversal.with_table_cell(cell, |traversal| {
                     visitor.visit_separated_blocks(traversal, cell.blocks(), false)
                 })
             } else {
                 visitor.visit_separated_blocks(traversal, cell.blocks(), false)
-            };
-            (result, visitor.emitted_anchors, visitor.footnotes)
-        };
-        self.emitted_anchors = emitted_anchors;
-        self.footnotes = footnotes;
-        let _ = result?;
-        let content = flatten_table_cell(&String::from_utf8(buffer)?);
+            }
+        })?;
+        let content = flatten_table_cell(&rendered);
         match style {
             Some(ColumnStyle::Strong | ColumnStyle::Header) => {
                 write!(self.writer, "<strong>{content}</strong>")?;

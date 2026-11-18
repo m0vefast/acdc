@@ -810,7 +810,7 @@ impl<'a> Include<'a> {
         source_origin: &SourceOrigin,
         resolved_source: &Path,
         is_asciidoc: bool,
-    ) -> Result<IncludeResult, Error> {
+    ) -> Result<Box<IncludeResult>, Error> {
         for issue in selected.issues {
             self.report_tag_issue(issue, resolved_source);
         }
@@ -856,7 +856,7 @@ impl<'a> Include<'a> {
             origin.column_shift = column_shift;
         }
         let scoped_options = self.scoped_options()?;
-        let mut included = IncludeResult {
+        let mut included = Box::new(IncludeResult {
             content: selected_content,
             synthetic: false,
             effective_leveloffset: scoped_options.as_deref().map(|options| {
@@ -873,7 +873,7 @@ impl<'a> Include<'a> {
             conditionals: Vec::new(),
             document_attributes: None,
             comment_context: None,
-        };
+        });
         if is_asciidoc {
             self.preprocess_selected_asciidoc(
                 &mut included,
@@ -1231,7 +1231,9 @@ impl<'a> Include<'a> {
                     IncludeSourceErrorKind::Unavailable | IncludeSourceErrorKind::Unsupported
                 ) =>
             {
-                self.warn_located(format!("include file not readable: {}", path.display()));
+                // The provider's cause is the only way to tell why an embedder's
+                // source failed (a callback that threw, a denied permission).
+                self.warn_located(format!("include file not readable: {} ({error})", path.display()));
                 return Ok(LocalIncludeOutcome::Unreadable);
             }
             Err(error) => return Err(Error::IncludeSource(error)),
@@ -1308,15 +1310,16 @@ impl<'a> Include<'a> {
         self.unresolved_directive_for_target(fallback_target, attribute_list_as_written)
     }
 
+    /// Boxed: it travels back through every recursive include frame.
     pub(crate) fn process(
         &self,
         attribute_list_as_written: &str,
         source_provider: &dyn IncludeSourceProvider,
-    ) -> Result<IncludeResult, Error> {
+    ) -> Result<Box<IncludeResult>, Error> {
         let (content, source_origin, resolved_source, is_asciidoc) =
             match self.read_target_content(attribute_list_as_written, source_provider)? {
                 TargetContentOutcome::Content(content) => content,
-                TargetContentOutcome::Fallback(result) => return Ok(*result),
+                TargetContentOutcome::Fallback(result) => return Ok(result),
             };
         self.process_selected_content(content, &source_origin, &resolved_source, is_asciidoc)
     }

@@ -565,7 +565,8 @@
           "entries",
           "base",
           "entry_filter",
-          "max_attribute_value_size"
+          "max_attribute_value_size",
+          "name_mode"
         ],
         "variants": {}
       },
@@ -587,6 +588,9 @@
           "upstream": "#/properties/attributes"
         },
         "max_attribute_value_size": {
+          "policy": "source-state"
+        },
+        "name_mode": {
           "policy": "source-state"
         }
       },
@@ -5640,6 +5644,7 @@
           "rows",
           "columns",
           "presentation",
+          "format",
           "location"
         ],
         "variants": {}
@@ -5662,6 +5667,9 @@
         },
         "presentation": {
           "policy": "named-basic-table-structure"
+        },
+        "format": {
+          "policy": "source-state"
         },
         "location": {
           "policy": "named-basic-table-structure"

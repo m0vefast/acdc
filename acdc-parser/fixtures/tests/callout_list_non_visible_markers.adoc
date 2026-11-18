@@ -1,0 +1,14 @@
+Non-visible callout markers — the `!` prefix per SOT `CalloutScanRx`
+`\\?<!?(|--)(\d+|\.)\1>` marks a callout that should be hidden when
+the source is extracted via `tag::` for republication. The rendered
+AST is identical to the visible form (no separate node kind); the `!`
+is silently consumed during parsing:
+
+----
+<config>
+  <key>value</key> <!1>
+  <other>thing</other> <!.>
+</config>
+----
+<1> The key entry
+<2> Auto-numbered explanation

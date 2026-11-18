@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Image navigation retains literal quote characters in `imagesdir`, matching generated output.
 
+- Callout list markers such as `<1>` are highlighted again when an include, an
+  excluded conditional, or a comment line inside a paragraph comes earlier in
+  the document. Before, their highlight was misplaced or missing. The marker
+  token now covers only `<1>`; the explanation after it was highlighted as an
+  operator too.
+
 ### Added
 
 - Semantic highlighting covers document and block titles, table separators and
@@ -64,9 +70,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header that starts or ends in an included file keeps highlighting for its
   lines in the open document.
 
+- Comment lines and comment blocks among a block's metadata, such as between
+  `[[id]]` and `[.role]`, are highlighted as comments. Before, they were
+  highlighted as block attributes.
+
 - Attribute entries whose value wraps with ` \` are highlighted on every line,
   in the header and the body. Before, such an entry in the body had no
   highlighting at all.
+
+- Attribute references follow the parser's name rule for the configured
+  compatibility mode. Hover, inlay hints, code lens, and highlighting no longer
+  treat `{-x}` or `{x²}` as references, or, in Asciidoctor mode, names with a
+  zero-width joiner or non-joiner. Hover, inlay hints, and code lens now find
+  `{b}` in text such as `{a {b}`.
 
 - Builds without the default preview features no longer emit unused-code warnings.
 

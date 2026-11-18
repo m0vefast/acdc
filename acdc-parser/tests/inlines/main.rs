@@ -7,6 +7,7 @@ use plain_text::plain_run;
 
 mod attributed_passthroughs;
 mod character_reference;
+mod cjk_constrained_boundary;
 mod comment_metadata;
 mod compatibility_legacy_controls;
 mod compatibility_mode;

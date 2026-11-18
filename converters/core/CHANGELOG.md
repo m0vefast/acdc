@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Breaking:** removed `TraversalContext::substitute_attributes()`. To expand
+  references at a traversal position, call
+  `DocumentAttributesRef::substitute_attributes()` from `acdc-parser` on the
+  document's attributes with `|name| context.get(name)`. It reads names as the
+  document's compatibility mode does.
+
 - Added optional `highlighting` support for custom converters, with shared
   built-in languages and themes, a 16 KiB source-line limit, and structured
   warnings when a block needs plain-source rendering.
@@ -110,6 +116,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Icon alternatives retain the parser-selected text, including literal trailing dashes.
 
 - Image alternatives retain the parser-selected text, including literal trailing dashes in inline images.
+
+- Custom converters can resolve an ordered list's default numbering style with
+  `list::OrderedListNumbering::resolve()`, from its style and marker, or
+  `for_depth()`. The default follows Asciidoctor: `arabic`, `loweralpha`,
+  `lowerroman`, `upperalpha`, `upperroman`, then `arabic` past level 5.
 
 ### Added
 

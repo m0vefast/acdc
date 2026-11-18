@@ -1,0 +1,9 @@
+Adjacent callouts without whitespace between markers — `<1><2>` is
+valid because the chain-to-EOL lookahead allows zero or one space
+between successive markers (per Asciidoctor `CalloutScanRx`):
+
+----
+z = 1 <1><2>
+----
+<1> First step
+<2> Second step

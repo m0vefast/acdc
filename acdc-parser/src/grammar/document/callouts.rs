@@ -53,21 +53,15 @@ pub(super) fn resolve_verbatim_callouts<'a>(
                         line_start + marker.end,
                     );
                 } else {
+                    let guard_end = marker.marker_start + marker.open_len;
                     if marker.xml {
-                        segment.push(
-                            "<!--",
-                            line_start + marker.marker_start,
-                            line_start + marker.marker_start + 4,
-                        );
+                        // asciidoctor's guard is `<!--` however the source opens it.
+                        segment.push("<!--", line_start + marker.marker_start, line_start + guard_end);
                     }
                     if let Some(text) = segment.flush(state, base_location.absolute_start) {
                         inlines.push(text);
                     }
-                    let callout_start = if marker.xml {
-                        marker.marker_start + 4
-                    } else {
-                        marker.marker_start
-                    };
+                    let callout_start = if marker.xml { guard_end } else { marker.marker_start };
                     let callout_end = if marker.xml {
                         marker.end - 3
                     } else {
@@ -190,6 +184,8 @@ enum ParsedCalloutNumber {
 struct ParsedCalloutMarker {
     source_start: usize,
     marker_start: usize,
+    /// Bytes from `marker_start` to the number: `<`, `<!`, `<--` or `<!--`.
+    open_len: usize,
     end: usize,
     number: ParsedCalloutNumber,
     escaped: bool,
@@ -232,34 +228,35 @@ fn next_callout_marker(line: &str, previous_end: usize) -> Option<ParsedCalloutM
     })
 }
 
+/// asciidoctor `CalloutScanRx` `<!?(|--)(\d+|\.)\1>` over one whole marker: the
+/// number, the bytes before it, and whether `--` guards it on both sides (an XML
+/// comment). A `!` before the number hides the marker from extracted source only.
+fn parse_marker(marker: &str) -> Option<(ParsedCalloutNumber, usize, bool)> {
+    let inner = marker.strip_prefix('<')?.strip_suffix('>')?;
+    let inner = inner.strip_prefix('!').unwrap_or(inner);
+    let (value, xml) = match inner.strip_prefix("--") {
+        Some(rest) => (rest.strip_suffix("--")?, true),
+        None => (inner, false),
+    };
+    let close_len = if xml { 3 } else { 1 };
+    Some((parse_callout_number(value)?, marker.len() - value.len() - close_len, xml))
+}
+
 fn parse_callout_marker_starting_at(
     line: &str,
     source_start: usize,
 ) -> Option<ParsedCalloutMarker> {
     let escaped = line.as_bytes().get(source_start) == Some(&b'\\');
     let marker_start = source_start + usize::from(escaped);
-    let marker = line.get(marker_start..)?;
-    let (number, end, xml) = if let Some(value) = marker.strip_prefix("<!--") {
-        let close = value.find("-->")?;
-        (
-            parse_callout_number(value.get(..close)?)?,
-            marker_start + 4 + close + 3,
-            true,
-        )
-    } else {
-        let value = marker.strip_prefix('<')?;
-        let close = value.find('>')?;
-        (
-            parse_callout_number(value.get(..close)?)?,
-            marker_start + 1 + close + 1,
-            false,
-        )
-    };
+    let rest = line.get(marker_start..)?;
+    let close = rest.find('>')?;
+    let (number, open_len, xml) = parse_marker(rest.get(..=close)?)?;
 
     Some(ParsedCalloutMarker {
         source_start,
         marker_start,
-        end,
+        open_len,
+        end: marker_start + close + 1,
         number,
         escaped,
         xml,
@@ -269,20 +266,7 @@ fn parse_callout_marker_starting_at(
 fn parse_callout_marker_ending_at(line: &str, end: usize) -> Option<ParsedCalloutMarker> {
     let prefix = line.get(..end)?;
     let marker_start = prefix.rfind('<')?;
-    let marker = prefix.get(marker_start..)?;
-    let (number, xml) = if marker.starts_with("<!--") && marker.ends_with("-->") {
-        (
-            parse_callout_number(marker.get(4..marker.len().checked_sub(3)?)?)?,
-            true,
-        )
-    } else if marker.starts_with('<') && marker.ends_with('>') {
-        (
-            parse_callout_number(marker.get(1..marker.len().checked_sub(1)?)?)?,
-            false,
-        )
-    } else {
-        return None;
-    };
+    let (number, open_len, xml) = parse_marker(prefix.get(marker_start..)?)?;
     let source_start = marker_start
         .checked_sub(1)
         .filter(|index| line.as_bytes().get(*index) == Some(&b'\\'))
@@ -291,6 +275,7 @@ fn parse_callout_marker_ending_at(line: &str, end: usize) -> Option<ParsedCallou
     Some(ParsedCalloutMarker {
         source_start,
         marker_start,
+        open_len,
         end,
         number,
         escaped: source_start != marker_start,

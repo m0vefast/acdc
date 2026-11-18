@@ -15,13 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   title keeps its leading attribute entries in the header however many empty
   lines separate them. Draft mode follows the language documentation: the first
   empty line ends the header, with or without a title, so a title after it is a
-  level-0 section and later entries are body assignments. Without empty lines,
+  level-0 section and later entries are body assignments. The specification
+  hasn't decided this yet, so the Draft mode rule may change. Without empty lines,
   Draft mode also accepts those lines above the title in any order, as
   Asciidoctor mode does; the language documentation doesn't address their order.
   After a title, the first empty line still ends the header in both modes.
-  Unlike Asciidoctor, an
-  entry that follows the first block's anchor, attribute list, or block title in
-  a document without a title is still applied in the body.
+- In Asciidoctor mode, a document without a title now also keeps the attribute
+  entries among the first block's anchors, attribute lists, and block titles in
+  its header, as Asciidoctor does. A setting that only works in the header, such
+  as `:toc:` after `[[intro]]`, now takes effect without a warning. The metadata
+  still applies to the first block, and an attribute list before an entry still
+  sees the earlier value. Draft mode keeps these entries in the body, because
+  the language documentation doesn't list block metadata as header lines.
 - `DocumentRef::header_location()` returns the source span of the document
   header, with or without a title.
 - A footnote in the document title is no longer registered twice when an anchor
@@ -46,12 +51,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   applies in the body, such as `icons`, `stem`, and `sectnums`, don't warn, and
   neither do caller-supplied values or entries a caller lock rejects.
   Asciidoctor doesn't warn.
+- Asciidoctor mode now normalizes attribute names as Asciidoctor does. An
+  entry's name loses every character other than a letter, a digit, `_`, or `-`,
+  and is lowercased, so `:TOC:` turns on the table of contents and
+  `:First Name: Dan` sets `firstname`. A line such as `:.name: value` is now
+  text, not an entry. Attribute references and `ifdef`, `ifndef`, and `ifeval`
+  directives look names up in lowercase, so `{TOC}` and `ifdef::TOC[]` find
+  `toc`, and caller attributes such as `-a TOC` are lowercased. Lookups through
+  `DocumentAttributes` ignore case in this mode, and body entries report their
+  normalized name. Draft mode keeps names as written, since the specification
+  hasn't decided how to normalize them. In both modes, an entry whose name isn't
+  normalized adds a located `WarningKind::AttributeNameNotNormalized` warning.
+- Conditional directives now see entries such as `:my.attr:` or
+  `:First Name:`, whose names have characters other than letters, digits, `_`,
+  and `-`. Before, `ifdef` missed them even with the exact spelling.
+- Attribute references now read names as Asciidoctor does. Names may contain
+  non-ASCII letters, combining marks, and digits, so `{café}` resolves `:café:`
+  instead of staying text. A name must start with a letter, a digit, or `_`, so
+  `{-x}` is text even when `-x` is set. In Asciidoctor mode, the zero-width
+  non-joiner (U+200C) and zero-width joiner (U+200D) aren't word characters, as
+  in Asciidoctor: an entry drops them from its name, and a reference that
+  contains one is text. Draft mode accepts them in reference names. In verbatim
+  blocks with `subs=attributes`, block attribute lists, escaped passthroughs,
+  and `pass:a` entry values, text such as `{a {b}` now resolves `{b}`, as it
+  already did in paragraphs. `pass:a` entry values also leave invalid names
+  such as `{a b}` as text, including their backslash escapes.
+- **Breaking:** the free function `substitute_attributes()` is no longer
+  public. Use `DocumentAttributesRef::substitute_attributes()`, which expands
+  references by the document's compatibility mode with values from a lookup you
+  supply, such as `|name| attributes.get(name)`.
+- `CompatibilityMode::is_attribute_reference_name()` tells whether `{name}` is
+  a reference in a mode, and `DocumentAttributesRef::compatibility_mode()`
+  returns the mode that parsed a document.
 - Attribute entries whose value wraps with ` \` now have locations in the
   original source. The entry's location, and the header's when the entry ends
   it, end on the value's last line, at the right column. Before, they ended on
   the first line, past its end. In AsciiDoc table cells, a value wrapped with
   ` \` now joins its lines with a space, matching Asciidoctor, instead of
   keeping the backslash and the line break.
+- `ifeval` now compares integers exactly. Before, large integers that differ
+  could compare as equal, so `ifeval::[9007199254740992 == 9007199254740993]`
+  was true. Comparisons between an integer and a decimal number, such as
+  `9007199254740993 > 9007199254740992.0`, are exact too, matching Asciidoctor.
+  Integer values are exact within the signed 128-bit range; Asciidoctor has no
+  such limit.
+- `ifeval` no longer evaluates arithmetic or functions in its operands, matching
+  Asciidoctor and the `ifeval` rules proposed for the AsciiDoc specification.
+  An unquoted operand such as `1 + 1`, `7 / 2`, or `max(1, 9)`, including one
+  that comes from an attribute value, is now text. Comparing it with a number
+  reports a warning that the operands have different types and excludes the
+  content, so `ifeval::[1 + 1 == 2]` no longer includes it.
 
 - Faster processing of included files, especially `lines=` and tag selections,
   while preserving resource limits, source locations, and compatibility modes.
@@ -163,6 +212,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Description lists now nest under ordered and unordered items in both modes.
   Outer siblings remain in their list, and a blank line before `+` attaches the
   next block to the ordinary parent. Same-line description markers stay literal.
+
+- A list that follows a list item's attached blocks now nests in that item in
+  both modes, matching Asciidoctor. This covers a deeper item of the same list,
+  such as `**` after a `+` delimited block, or after an attached paragraph and
+  an empty line, as well as ordered, description, and callout lists. These
+  lists were previously parsed as siblings or as separate top-level lists. A
+  callout list nested this way ends at the next item of the enclosing list.
+
+- List items now belong to lists by their marker in both modes, matching
+  Asciidoctor: an item continues the open list whose marker it matches, and
+  any other marker starts a list nested in the previous item. acdc compared
+  marker depth before. Now `10.` is a sibling of `9.`, a numbered item after a
+  nested dotted list returns to the numbered list, `*` after a list that starts
+  with `**` nests in its last item, and `-` and `*` are different markers, so
+  `- a` followed by `* b` nests `b`.
+
+- A list attached to a list item with `+` now ends at the next item of an
+  enclosing list in both modes, matching Asciidoctor. Previously, `* Next` after
+  an ordered list attached to `* Item` was nested in that ordered list. A `+`
+  before an item of the same or an enclosing list is dropped, and the list
+  continues with that item instead of attaching it. This covers ordinary,
+  description, and callout lists. Block attributes, titles, anchors, and
+  attribute entries between the `+` and that item are dropped too, as in
+  Asciidoctor.
+
+- A callout list item's marker location (`callout().location()`, `callout.location`
+  in native JSON, `callout_location` in the acdc ASG profile) now covers just
+  the marker, such as `<1>`, on the item's own line. Before, it covered the
+  item's whole first line, and an include, an excluded conditional, or a
+  comment line inside a paragraph earlier in the document moved it by the
+  number of lines added or removed, so editors using it, such as acdc-lsp,
+  could highlight `<1>` on the wrong line.
 
 - Description lists now group consecutive terms with one shared definition in both
   modes. An authored principal that expands to empty remains present. The read API
